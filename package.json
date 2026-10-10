@@ -1,0 +1,39 @@
+{
+  "name": "novel-game-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": ["apps/web", "packages/contracts"],
+  "engines": {"node": ">=24.0.0"},
+  "scripts": {
+    "dev": "concurrently -k -n api,worker,web \"npm:dev:api\" \"npm:dev:worker\" \"npm:dev:web\"",
+    "dev:api": "tsx watch --env-file-if-exists=.env apps/server/src/main.ts",
+    "dev:worker": "tsx watch --env-file-if-exists=.env apps/server/src/worker.ts",
+    "dev:web": "npm run dev --workspace @novel-game/web",
+    "test": "tsx --test --test-concurrency=1 apps/server/test/*.test.ts scripts/*.test.ts && npm test --workspace @novel-game/web",
+    "typecheck": "tsc --noEmit && npm run typecheck --workspace @novel-game/web",
+    "check:architecture": "tsx scripts/check-architecture.ts",
+    "build": "npm run typecheck && node scripts/build.mjs && npm run build --workspace @novel-game/web",
+    "start": "node --env-file-if-exists=.env dist/server/main.mjs",
+    "worker": "node --env-file-if-exists=.env dist/server/worker.mjs",
+    "test:built": "node --test scripts/built-runtime.test.mjs",
+    "verify": "npm run check:architecture && npm test && npm run build && npm run test:built"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@novel-game/contracts": "*",
+    "better-sqlite3": "13.0.3",
+    "express": "5.3.0",
+    "iconv-lite": "0.7.3",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.0.0",
+    "concurrently": "^9.2.1",
+    "esbuild": "^0.27.0",
+    "tsx": "4.23.15",
+    "typescript": "~5.9.3"
+  }
+}

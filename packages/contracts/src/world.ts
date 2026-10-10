@@ -1,0 +1,55 @@
+import { z } from 'zod';
+export const SYSTEM_WAIT_ACTION_ID = '__wait__';
+
+const id = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/, '标识只允许字母、数字、短横线和下划线');
+const evidence = z.object({chapterId: z.string().min(1).max(80), paragraphId: z.string().min(1).max(80)});
+const provenance = {origin: z.enum(['source', 'adapted']), evidence: z.array(evidence).max(30)};
+export const worldConditionSchema = z.discriminatedUnion('kind', [
+  z.object({kind: z.literal('fact'), factId: id, value: z.boolean()}),
+  z.object({kind: z.literal('known'), factId: id}),
+  z.object({kind: z.literal('npc_knows'), npcId: id, factId: id}),
+  z.object({kind: z.literal('time'), atLeast: z.number().int().min(0).max(100)}),
+]);
+export const worldEffectSchema = z.discriminatedUnion('kind', [
+  z.object({kind: z.literal('set'), factId: id, value: z.boolean()}),
+  z.object({kind: z.literal('reveal'), factId: id}),
+  z.object({kind: z.literal('npc_learn'), npcId: id, factId: id}),
+  z.object({kind: z.literal('move'), locationId: id}),
+  z.object({kind: z.literal('npc_move'), npcId: id, locationId: id}),
+]);
+export const worldContentSchema = z.object({
+  schemaVersion: z.literal(1), mode: z.literal('open'), title: z.string().min(1).max(200),
+  premise: z.string().min(1).max(4000), playerRole: z.string().min(1).max(500), goal: z.string().min(1).max(1000),
+  worldRules: z.array(z.string().min(1).max(1000)).min(1).max(20), adaptationNotes: z.string().max(4000),
+  sourceChapterIds: z.array(z.string().min(1).max(80)).min(1).max(1000),
+  initialLocationId: id, timeLimit: z.number().int().min(3).max(100), timeoutEnding: z.string().min(1).max(3000),
+  locations: z.array(z.object({id, title: z.string().min(1).max(200), text: z.string().min(1).max(4000), ...provenance})).min(3).max(12),
+  facts: z.array(z.object({id, label: z.string().min(1).max(120), description: z.string().max(1000),
+    kind: z.enum(['clue', 'item', 'relationship', 'event']), initialValue: z.boolean(), playerKnown: z.boolean(), ...provenance})).max(80),
+  npcs: z.array(z.object({id, name: z.string().min(1).max(120), description: z.string().max(1000),
+    goal: z.string().min(1).max(1000), initialLocationId: id, knownFactIds: z.array(id).max(80), ...provenance})).max(12),
+  actions: z.array(z.object({id, label: z.string().min(1).max(200), description: z.string().max(1000), locationId: id,
+    npcId: id.optional(), availableWhen: z.array(worldConditionSchema).max(20), requires: z.array(worldConditionSchema).max(20),
+    blockedReason: z.string().min(1).max(500), risk: z.string().max(500), timeCost: z.number().int().min(1).max(5),
+    once: z.boolean(), effects: z.array(worldEffectSchema).min(1).max(20), text: z.string().min(1).max(3000), ...provenance})).min(3).max(80),
+  events: z.array(z.object({id, label: z.string().min(1).max(120), when: z.array(worldConditionSchema).min(1).max(20),
+    effects: z.array(worldEffectSchema).min(1).max(20), text: z.string().max(2000), visibility: z.enum(['public', 'hidden'])})).max(40),
+  endings: z.array(z.object({id, title: z.string().min(1).max(200), text: z.string().min(1).max(3000),
+    when: z.array(worldConditionSchema).min(1).max(20)})).min(1).max(12),
+});
+export type WorldContent = z.infer<typeof worldContentSchema>;
+export type WorldCondition = z.infer<typeof worldConditionSchema>;
+export type WorldEffect = z.infer<typeof worldEffectSchema>;
+export interface WorldDraft {id: string; sourceId: string; content: WorldContent; version: number; createdAt: string; updatedAt: string}
+export interface WorldRevision {id: string; draftId: string; sourceId: string; content: WorldContent; version: number; createdAt: string}
+export const adventureActSchema = z.object({actionId: id, expectedTurn: z.number().int().nonnegative(), requestId: z.string().uuid()});
+export type AdventureActInput = z.infer<typeof adventureActSchema>;
+export interface AdventureHistory {turn: number; elapsed: number; actionLabel?: string; text: string}
+export interface AdventureView {
+  id: string; worldRevisionId: string; turn: number; elapsed: number; timeLimit: number; ended: boolean;
+  playerRole: string; goal: string; location: {id: string; title: string; text: string};
+  facts: {id: string; label: string; description: string; kind: 'clue' | 'item' | 'relationship' | 'event'; value: boolean}[];
+  npcs: {id: string; name: string; description: string}[];
+  actions: {id: string; label: string; description: string; timeCost: number; risk: string; enabled: boolean; blockedReason?: string}[];
+  ending?: {id: string; title: string; text: string}; history: AdventureHistory[]; createdAt: string; updatedAt: string;
+}

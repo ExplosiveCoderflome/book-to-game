@@ -1,0 +1,7 @@
+.model-settings-layout { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(260px, 1fr); gap: 24px; align-items: start; }
+.model-settings-fields { display: grid; gap: 18px; padding: 0; border: 0; min-width: 0; }
+.model-settings-fields .hint { margin: -10px 0 0; }
+.model-settings-fields .model-key-clear { display: flex; align-items: center; gap: 10px; font-weight: 400; }
+.model-key-clear input { width: auto; margin: 0; }
+.model-key-explanation p { line-height: 1.8; }
+@media (max-width: 900px) { .model-settings-layout { grid-template-columns: 1fr; } }

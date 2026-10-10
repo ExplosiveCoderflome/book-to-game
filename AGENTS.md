@@ -1,0 +1,31 @@
+<!-- biz-project:start -->
+## Biz Project
+
+Use the biz-project skill when developing, fixing, reviewing or handing off project
+work, synchronizing features between branches, or checking release status.
+In Codex invoke $biz-project; in Cursor invoke /biz-project.
+Pass --host codex or --host cursor to the bundled helper to match the active tool.
+Other tools use --host generic with their explicitly selected active --rules-file.
+Before work, inspect the central records using the helper bundled with the skill.
+If no records center exists, ask the user to confirm its path before any writes.
+Do not initialize from a suggested path or silently reuse a legacy center.
+Initialize missing registration or invocation guidance before continuing.
+Project records ID: 5fcb94d3-0817-4b69-895a-f0c06f67853f
+Read the registered project profile and existing feature record. Keep changes,
+verification evidence and handoff updates in that central record. Follow existing
+project-specific branch, release and delegation rules. Existing local notes are
+migrated only within the authorized task scope.
+<!-- biz-project:end -->
+
+## Project agreements
+
+- Independent novel-to-text-game workbench. Novel-to-game is the first priority.
+- Node.js, TypeScript, Express, React, SQLite. Do not introduce NestJS.
+- Modules expose a small public `index.ts`; other modules may not import internals.
+- Domain/application code depends on ports, never Express, MCP, SQL or provider SDKs.
+- HTTP and MCP call the same application use cases. Never duplicate game rules in adapters.
+- Published game revisions are immutable. Sessions pin a revision; actions are idempotent.
+- Write meaningful behavior tests for state, recovery, permissions and module boundaries.
+- Existing novel project D:/code/ai is an integration source; do not modify it here.
+- For the open-adventure slice on 2026-10-10, the user explicitly approved two gpt-6.1-sol subagents for frontend and runtime work. That assignment is complete; it is not standing approval for future delegations. Follow the latest user delegation instructions for each new assignment.
+- Never commit secrets, local novels, SQLite files or generated runtime data.
