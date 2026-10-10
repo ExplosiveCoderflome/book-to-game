@@ -2,7 +2,7 @@
 
 项目提供 Streamable HTTP 端点 `http://127.0.0.1:4317/mcp`，与 API 共用端口。客户端需支持 MCP HTTP 和自定义 `Authorization: Bearer <本地令牌>` 请求头。令牌来自环境 `APP_ACCESS_TOKEN` 或 `data/access-token.txt`；不要把它写进 Skill、项目文档或版本控制。
 
-此令牌在网页上称为**工作台访问码**，用于授权 Agent 操作本项目；它不是模型服务商的 API Key。模型地址、名称和 API Key 推荐在网页“模型设置”填写。Agent 也可使用 `get_model_settings`、`save_model_settings`、`test_model_connection` 调用同一配置用例；读取不返回 Key，保存携带 expectedRevision，空 Key 保留、clearApiKey 明确清除。测试连接只检查模型列表，不生成文本也不保存输入。配置对后续执行和重试生效，正在执行的任务沿用开始时的配置。
+此令牌称为**工作台访问码**，只用于授权 MCP Agent 操作本项目；浏览器中的本地 Web 工作台不要求输入它，通过本机 Host/Origin 校验访问。它不是模型服务商的 API Key。模型地址、名称和 API Key 推荐在网页“模型设置”填写。Agent 也可使用 `get_model_settings`、`list_model_names`、`save_model_settings`、`test_model_connection` 调用同一配置用例；读取不返回 Key，获取模型列表和测试连接都不保存输入，保存携带 expectedRevision，空 Key 保留、clearApiKey 明确清除。配置对后续执行和重试生效，正在执行的任务沿用开始时的配置。
 
 客户端配置字段随 Agent 产品不同而变化；填入以上 URL 和认证请求头即可。网页不负责管理 Agent 的安装或账号。远程云 Agent 不能直接访问你电脑的 127.0.0.1；首期面向在同一台机器运行的 Agent。
 

@@ -24,8 +24,12 @@ test('novel → model HTTP → persisted checkpoint → restart retry → valid 
       gameCalls++;
       if (failGame) {res.statusCode = 503; res.end('test outage'); return;}
       const evidence = data.dossier.locations[0].evidence;
-      content = {title: '雾渡', mode: 'story', premise: '决定航向', adaptationNotes: '仅改编渡口片段', startSceneId: 'dock', scenes: [
-        {id: 'dock', title: '渡口', text: '你登上哪条船？', origin: 'source', evidence, choices: [{id: 'a', label: '白船', targetSceneId: 'city'}, {id: 'b', label: '黑船', targetSceneId: 'hill'}]},
+      content = {title: '雾渡', mode: 'story', premise: '决定航向', adaptationNotes: '仅改编渡口片段', startSceneId: 'dock', variables: {trust: 0}, scenes: [
+        {id: 'dock', title: '渡口', text: '你登上哪条船？', origin: 'source', evidence, choices: [
+          {id: 'a', label: '白船', targetSceneId: 'city', conditions: [{type: 'variable.gte', variable: 'trust', value: 1}]},
+          {id: 'b', label: '黑船', targetSceneId: 'hill'},
+          {id: 'prepare', label: '帮助船夫整理缆绳', targetSceneId: 'dock', conditions: [{type: 'variable.equals', variable: 'trust', value: 0}], effects: [{type: 'variable.increment', variable: 'trust', value: 1}]},
+        ]},
         {id: 'city', title: '城中', text: '抵达城中。', origin: 'adapted', evidence: [], choices: [], ending: '回家'},
         {id: 'hill', title: '山里', text: '抵达山里。', origin: 'adapted', evidence: [], choices: [], ending: '探险'},
       ]};
@@ -54,10 +58,21 @@ test('novel → model HTTP → persisted checkpoint → restart retry → valid 
     assert.equal(finished.status, 'succeeded');
     assert.equal(analyzeCalls, 1); assert.equal(gameCalls, 2);
     const draft = w.games.get(finished.draftId!);
+    assert.deepEqual(draft.content.variables, {trust: 0});
     assert.equal(w.games.validate(draft.id).valid, true);
     const revision = w.games.publish(draft.id, {version: draft.version});
     const session = w.sessions.start({gameRevisionId: revision.id});
-    const result = w.sessions.act(session.id, {choiceId: 'a', expectedTurn: 0, requestId: crypto.randomUUID()});
+    assert.deepEqual(session.scene.choices.map(choice => choice.id), ['b', 'prepare']);
+    assert.throws(() => w.sessions.act(session.id, {choiceId: 'a', expectedTurn: 0, requestId: crypto.randomUUID()}));
+    const preparation = {choiceId: 'prepare', expectedTurn: 0, requestId: crypto.randomUUID()};
+    const prepared = w.sessions.act(session.id, preparation);
+    assert.deepEqual(prepared.variables, {trust: 1});
+    assert.deepEqual(prepared.scene.choices.map(choice => choice.id), ['a', 'b']);
+    assert.deepEqual(w.sessions.act(session.id, preparation), prepared);
+    db.close(); db = openDatabase(databasePath); w = createWorkbench(db, createModelSettings(db, dir, defaults));
+    assert.deepEqual(w.sessions.get(session.id).variables, {trust: 1});
+    assert.deepEqual(w.sessions.act(session.id, preparation), prepared);
+    const result = w.sessions.act(session.id, {choiceId: 'a', expectedTurn: 1, requestId: crypto.randomUUID()});
     assert.equal(result.ended, true); assert.equal(result.scene.ending, '回家');
   } finally {
     db.close(); await new Promise<void>(r => mockProvider.close(() => r())); rmSync(dir, {recursive: true, force: true});

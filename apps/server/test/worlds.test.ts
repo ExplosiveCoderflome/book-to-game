@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import Database from 'better-sqlite3';
+import { SqliteDatabase as Database } from '../src/platform/database.js';
 import { WorldService, SqliteWorldRepository } from '../src/modules/worlds/index.js';
 import { source, content } from './helpers/open-fixture.js';
 import { AppError } from '../src/shared/errors.js';
 const status = (n: number) => (e: unknown) => e instanceof AppError && e.status === n;
-function setup(db: Database.Database) { return new WorldService(new SqliteWorldRepository(db), {get: () => structuredClone(source)}); }
+function setup(db: Database) { return new WorldService(new SqliteWorldRepository(db), {get: () => structuredClone(source)}); }
 
 test('world drafts permit incomplete references but refuse publishing them', () => {
   const db = new Database(':memory:'); try {

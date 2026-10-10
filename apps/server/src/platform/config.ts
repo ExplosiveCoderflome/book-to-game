@@ -17,7 +17,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 300000) throw new Error('LLM_TIMEOUT_MS 必须在 1000–300000 毫秒之间');
   const provider: ModelConfig = {baseUrl, model: env.LLM_MODEL?.trim() || '', apiKey: env.LLM_API_KEY?.trim() || '', timeoutMs};
   const localProvider = ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname);
-  const allowedOrigins = [`http://127.0.0.1:${port}`, `http://localhost:${port}`, 'http://127.0.0.1:5173', 'http://localhost:5173'];
+  const allowedOrigins = [`http://127.0.0.1:${port}`, `http://localhost:${port}`, 'http://127.0.0.1:5173', 'http://localhost:5173', 'http://127.0.0.1:5174', 'http://localhost:5174'];
   return {port, dataDir, databasePath: path.join(dataDir, 'workbench.sqlite'), allowedOrigins, provider,
     providerConfigured: Boolean(provider.model && (provider.apiKey || localProvider))};
 }

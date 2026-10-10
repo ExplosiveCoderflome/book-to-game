@@ -2,6 +2,13 @@ import type { GameContent, Scene, SourceDocument, ValidationResult } from '@nove
 
 export function validateGame(content: GameContent, source: SourceDocument): ValidationResult {
   const errors: string[] = [];
+  const warnings: string[] = [];
+  const variables = content.variables ?? {};
+  for (const [name, value] of Object.entries(variables)) {
+    if (!['string', 'number', 'boolean'].includes(typeof value) || (typeof value === 'number' && !Number.isFinite(value))) {
+      errors.push(`变量 ${name} 的初始值必须是字符串、有限数字或布尔值`);
+    }
+  }
   const scenes = new Map<string, Scene>();
   const evidence = new Map(source.chapters.map(chapter => [chapter.id, new Set(chapter.paragraphs.map(paragraph => paragraph.id))]));
   for (const scene of content.scenes) {
@@ -11,6 +18,20 @@ export function validateGame(content: GameContent, source: SourceDocument): Vali
     for (const choice of scene.choices) {
       if (choiceIds.has(choice.id)) errors.push(`场景 ${scene.id} 的选择 ID 重复：${choice.id}`);
       choiceIds.add(choice.id);
+      for (const operation of [...(choice.conditions ?? []), ...(choice.effects ?? [])]) {
+        if (!Object.hasOwn(variables, operation.variable)) {
+          errors.push(`选项 ${scene.id}/${choice.id} 引用了不存在的变量：${operation.variable}`);
+          continue;
+        }
+        const initial = variables[operation.variable];
+        if (operation.type === 'variable.gte' || operation.type === 'variable.increment') {
+          if (typeof initial !== 'number' || !Number.isFinite(initial) || !Number.isFinite(operation.value)) {
+            errors.push(`选项 ${scene.id}/${choice.id} 的 ${operation.type} 需要数字变量和有限数字值：${operation.variable}`);
+          }
+        } else if (typeof operation.value !== typeof initial || (typeof operation.value === 'number' && !Number.isFinite(operation.value))) {
+          errors.push(`选项 ${scene.id}/${choice.id} 的变量值类型与初始类型不一致：${operation.variable}`);
+        }
+      }
     }
     if (scene.ending !== undefined && !scene.ending.trim()) errors.push(`场景 ${scene.id} 的结局不能为空`);
     if (scene.ending !== undefined && scene.choices.length) errors.push(`结局场景 ${scene.id} 不能有选择`);
@@ -48,5 +69,8 @@ export function validateGame(content: GameContent, source: SourceDocument): Vali
   for (const id of reachable) if (!canEnd.has(id)) errors.push(`场景 ${id} 无法到达任何结局`);
   if (new Set(endingScenes.map(scene => scene.ending!.trim())).size < 2) errors.push('至少需要两个不同的可达结局');
   if (!content.scenes.some(scene => reachable.has(scene.id) && new Set(scene.choices.map(choice => choice.targetSceneId)).size >= 2)) errors.push('至少需要一个具有不同去向的可达分支场景');
-  return { valid: errors.length === 0, errors, warnings: [] };
+  if (content.scenes.some(scene => scene.choices.some(choice => choice.conditions?.length))) {
+    warnings.push('场景连通性检查忽略变量条件，不能证明所有选项可解锁或所有策略可到达结局，请试玩验证。');
+  }
+  return { valid: errors.length === 0, errors, warnings };
 }

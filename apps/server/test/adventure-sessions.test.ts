@@ -4,18 +4,18 @@ import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import Database from 'better-sqlite3';
+import { SqliteDatabase as Database } from '../src/platform/database.js';
 import { WorldService, SqliteWorldRepository } from '../src/modules/worlds/index.js';
 import { AdventureService, SqliteAdventureRepository } from '../src/modules/adventure-sessions/index.js';
 import { source, content } from './helpers/open-fixture.js';
 import type { WorldContent } from '@novel-game/contracts';
 import { AppError } from '../src/shared/errors.js';
 const status = (n: number) => (e: unknown) => e instanceof AppError && e.status === n;
-function setup(db: Database.Database) {
+function setup(db: Database) {
   const worlds = new WorldService(new SqliteWorldRepository(db), {get: () => structuredClone(source)});
   return {worlds, adventures: new AdventureService(new SqliteAdventureRepository(db), worlds)};
 }
-function start(db: Database.Database, world: WorldContent = content()) {
+function start(db: Database, world: WorldContent = content()) {
   const services = setup(db); const draft = services.worlds.create({sourceId: source.id, content: world});
   const revision = services.worlds.publish(draft.id, {version: 1});
   return {...services, draft, revision, view: services.adventures.start({worldRevisionId: revision.id})};

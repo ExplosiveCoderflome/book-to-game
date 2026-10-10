@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { request, RequestError } from '../src/lib/api.ts';
 
-test('API client sends local bearer authentication and returns the direct DTO', async () => {
+test('API client omits the MCP bearer token for Web requests and returns the direct DTO', async () => {
   const server = createServer(async (incoming, response) => {
     const chunks: Buffer[] = [];
     for await (const chunk of incoming) chunks.push(Buffer.from(chunk));
@@ -16,9 +16,9 @@ test('API client sends local bearer authentication and returns the direct DTO', 
   const nativeFetch = globalThis.fetch;
   globalThis.fetch = (url, init) => nativeFetch(`http://127.0.0.1:${address.port}${url}`, init);
   try {
-    assert.deepEqual(await request('test-local-token', '/drafts', 'POST', { sourceId: 'source-a' }), {
-      authorization: 'Bearer test-local-token', method: 'POST', path: '/api/drafts', input: { sourceId: 'source-a' },
-    });
+    const result = await request('', '/drafts', 'POST', { sourceId: 'source-a' });
+    assert.deepEqual(result, { method: 'POST', path: '/api/drafts', input: { sourceId: 'source-a' } });
+    assert.equal(result.authorization, undefined);
   } finally { globalThis.fetch = nativeFetch; await new Promise<void>(resolve => server.close(() => resolve())); }
 });
 

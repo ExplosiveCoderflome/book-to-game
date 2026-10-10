@@ -1,0 +1,22 @@
+{
+  "title": "渡口的承诺",
+  "mode": "story",
+  "premise": "渡口封闭前，选择如何过河。",
+  "adaptationNotes": "原创规则示例；信任影响可用路线，承诺会保留到结局。",
+  "startSceneId": "dock",
+  "variables": {"trust": 0, "promised": false, "route": "undecided"},
+  "scenes": [
+    {
+      "id": "dock", "title": "暮色渡口", "text": "船夫正在整理断裂的缆绳，商队在一旁等待。",
+      "origin": "adapted", "evidence": [],
+      "choices": [
+        {"id": "help", "label": "帮助船夫修好缆绳", "targetSceneId": "dock", "conditions": [{"type": "variable.equals", "variable": "trust", "value": 0}], "effects": [{"type": "variable.increment", "variable": "trust", "value": 1}]},
+        {"id": "promise", "label": "答应替船夫送信", "targetSceneId": "dock", "conditions": [{"type": "variable.equals", "variable": "promised", "value": false}], "effects": [{"type": "variable.set", "variable": "promised", "value": true}]},
+        {"id": "boat", "label": "请船夫带你过河", "targetSceneId": "friend", "conditions": [{"type": "variable.gte", "variable": "trust", "value": 1}, {"type": "variable.equals", "variable": "promised", "value": true}], "effects": [{"type": "variable.set", "variable": "route", "value": "ferry"}]},
+        {"id": "caravan", "label": "跟随商队绕路", "targetSceneId": "caravan", "effects": [{"type": "variable.set", "variable": "route", "value": "caravan"}]}
+      ]
+    },
+    {"id": "friend", "title": "河对岸的灯火", "text": "船夫送你过河。你怀里揣着替他送出的信。", "origin": "adapted", "evidence": [], "choices": [], "ending": "朋友的渡船"},
+    {"id": "caravan", "title": "山路的火把", "text": "你随商队走上山路。渡口的选择仍留在你的行程里。", "origin": "adapted", "evidence": [], "choices": [], "ending": "另一条路"}
+  ]
+}

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import Database from 'better-sqlite3';
+import { SqliteDatabase as Database } from '../src/platform/database.js';
 import type { Analysis, SourceDocument, WorldContent } from '@novel-game/contracts';
 import { JobService, GenerationRunner, SqliteJobRepository } from '../src/modules/generation/index.js';
 

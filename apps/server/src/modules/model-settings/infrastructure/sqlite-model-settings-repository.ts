@@ -1,9 +1,9 @@
-import type Database from 'better-sqlite3';
+import type { SqliteDatabase } from '../../../platform/database.js';
 import { AppError } from '../../../shared/errors.js';
 import type { ModelSettingsRepository, StoredModelSettings } from '../application/ports.js';
 
 export class SqliteModelSettingsRepository implements ModelSettingsRepository {
-  constructor(private readonly db: Database.Database) {
+  constructor(private readonly db: SqliteDatabase) {
     db.exec(`CREATE TABLE IF NOT EXISTS model_settings (
       id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, data TEXT NOT NULL
     )`);

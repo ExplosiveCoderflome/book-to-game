@@ -13,7 +13,8 @@ export class SessionService {
     const scene = findScene(revision, revision.content.startSceneId);
     const now = new Date().toISOString();
     const state: SessionState = { id: randomUUID(), gameRevisionId: revision.id, sceneId: scene.id, turn: 0,
-      ended: scene.ending !== undefined, history: [{ turn: 0, sceneId: scene.id, text: scene.text }], createdAt: now, updatedAt: now };
+      ended: scene.ending !== undefined, variables: {...revision.content.variables ?? {}},
+      history: [{ turn: 0, sceneId: scene.id, text: scene.text }], createdAt: now, updatedAt: now };
     this.repository.insert(state);
     return projectSession(state, revision);
   }

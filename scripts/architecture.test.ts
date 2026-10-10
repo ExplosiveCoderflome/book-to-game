@@ -4,9 +4,9 @@ import { checkImports } from './architecture-rules.js';
 test('architecture guard rejects framework and infrastructure dependencies in core layers', () => {
   const violations = checkImports([
     {file: 'apps/server/src/modules/books/domain/book.ts', imports: ['express', '../infrastructure/repository.js']},
-    {file: 'apps/server/src/modules/books/application/use-case.ts', imports: ['better-sqlite3', 'node:fs']},
+    {file: 'apps/server/src/modules/books/application/use-case.ts', imports: ['better-sqlite3', 'node:sqlite', 'node:fs']},
   ]);
-  assert.equal(violations.length, 4);
+  assert.equal(violations.length, 5);
 });
 test('architecture guard allows ports and public modules but rejects internals and module cycles', () => {
   assert.deepEqual(checkImports([

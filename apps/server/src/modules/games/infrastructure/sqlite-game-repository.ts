@@ -1,10 +1,10 @@
-import type Database from 'better-sqlite3';
+import type { SqliteDatabase } from '../../../platform/database.js';
 import type { Draft, GameRevision } from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
 import type { GameRepository } from '../application/ports.js';
 
 export class SqliteGameRepository implements GameRepository {
-  constructor(private readonly db: Database.Database) {
+  constructor(private readonly db: SqliteDatabase) {
     db.exec(`
       CREATE TABLE IF NOT EXISTS game_drafts (
         id TEXT PRIMARY KEY, source_id TEXT NOT NULL, version INTEGER NOT NULL CHECK(version > 0),

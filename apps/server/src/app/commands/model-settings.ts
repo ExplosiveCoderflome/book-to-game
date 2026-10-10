@@ -1,4 +1,4 @@
-import { modelSettingsInputSchema } from '@novel-game/contracts';
+import { modelListInputSchema, modelSettingsInputSchema } from '@novel-game/contracts';
 import type { Workbench } from '../workbench.js';
 import { command, emptySchema } from './definition.js';
 
@@ -9,5 +9,7 @@ export function modelSettingsCommands(w: Workbench) {
       modelSettingsInputSchema, false, input => w.modelSettings.save(input)),
     command('test_model_connection', '使用当前表单检查模型服务的/models接口；不保存配置，不调用生成接口，不验证JSON生成能力。',
       modelSettingsInputSchema, false, input => w.testModelConnection(input)),
+    command('list_model_names', '使用当前表单访问模型服务的/models接口并返回可选择的模型 ID；不保存配置。',
+      modelListInputSchema, false, input => w.listModels(input)),
   ];
 }

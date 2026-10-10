@@ -27,10 +27,11 @@ async function fixture() {
   });
   return {db, server, url, request, close: async () => {await new Promise<void>(r => server.close(() => r())); db.close(); rmSync(dir, {recursive: true, force: true});}};
 }
-test('HTTP rejects absent token, malicious Host and Origin; missing provider yields actionable error', async () => {
+test('Web API allows local requests without a token, while MCP keeps token protection', async () => {
   const f = await fixture();
   try {
-    assert.equal((await fetch(f.url + '/api/sources')).status, 401);
+    assert.equal((await fetch(f.url + '/api/sources')).status, 200);
+    assert.equal((await fetch(f.url + '/mcp')).status, 401);
     const invalidHostStatus = await new Promise<number>(resolve => {
       httpRequest(f.url + '/api/sources', {headers: {Host: 'evil.example', Authorization: `Bearer ${token}`}}, response => {
         response.resume(); resolve(response.statusCode!);
@@ -91,12 +92,19 @@ test('HTTP and MCP model settings stay redacted, test without saving and update 
   await once(provider, 'listening');
   const client = new Client({name: 'settings-client', version: '1.0.0'});
   try {
-    assert.equal((await fetch(f.url + '/api/settings/model')).status, 401);
+    assert.equal((await fetch(f.url + '/api/settings/model')).status, 200);
+    const settingsView = await f.request('/api/settings/model');
+    assert.equal(settingsView.status, 200); assert.match(settingsView.headers.get('x-request-id') ?? '', /^[0-9a-f-]{36}$/);
     const input = {baseUrl: `http://127.0.0.1:${(provider.address() as {port: number}).port}/v1`, model: 'test-model',
       apiKey: 'test-key-not-a-real-secret', timeoutMs: 2000, expectedRevision: 0};
     const probe = await f.request('/api/settings/model/test', 'POST', input);
     assert.equal(probe.status, 200); assert.equal((await probe.json()).modelAvailable, true);
     assert.deepEqual(seen, ['GET /v1/models Bearer test-key-not-a-real-secret']);
+    const models = await f.request('/api/settings/model/models', 'POST', {
+      baseUrl: input.baseUrl, apiKey: input.apiKey, timeoutMs: input.timeoutMs, expectedRevision: 0,
+    });
+    assert.equal(models.status, 200); assert.deepEqual((await models.json()).models, ['test-model']);
+    assert.deepEqual(seen, ['GET /v1/models Bearer test-key-not-a-real-secret', 'GET /v1/models Bearer test-key-not-a-real-secret']);
     assert.equal((await (await f.request('/api/settings/model')).json()).revision, 0);
     const response = await f.request('/api/settings/model', 'PUT', input);
     assert.equal(response.status, 200);

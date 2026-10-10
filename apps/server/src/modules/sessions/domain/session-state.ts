@@ -1,4 +1,4 @@
-import type { SessionView } from '@novel-game/contracts';
+import type { SessionView, VariableValue } from '@novel-game/contracts';
 
 export interface SessionState {
   id: string;
@@ -6,6 +6,7 @@ export interface SessionState {
   sceneId: string;
   turn: number;
   ended: boolean;
+  variables?: Record<string, VariableValue>;
   history: SessionView['history'];
   createdAt: string;
   updatedAt: string;

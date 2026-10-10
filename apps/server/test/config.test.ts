@@ -9,6 +9,7 @@ test('local access token survives restart and absent provider stays disabled', (
   try {
     const config = loadConfig({DATA_DIR: dir});
     assert.equal(config.providerConfigured, false);
+    assert.ok(config.allowedOrigins.includes('http://127.0.0.1:5174'));
     const token = loadAccessToken(config.dataDir, undefined);
     assert.equal(token.length, 64);
     assert.equal(loadAccessToken(dir, undefined), token);

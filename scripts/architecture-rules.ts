@@ -10,7 +10,7 @@ export function checkImports(files: FileImports[]): string[] {
     for (const specifier of entry.imports) {
       const target = specifier.startsWith('.') ? path.posix.normalize(path.posix.join(path.posix.dirname(file), specifier)) : specifier;
       if (/\/modules\/[^/]+\/(domain|application)\//.test(file) &&
-        (/^(express(?:\/|$)|better-sqlite3$|@modelcontextprotocol\/|node:(fs|http|https|net)(\/|$))/.test(specifier) ||
+        (/^(express(?:\/|$)|better-sqlite3$|@modelcontextprotocol\/|node:(sqlite|fs|http|https|net)(\/|$))/.test(specifier) ||
           /\/(infrastructure|platform|adapters)\//.test(target))) errors.push(`${file}: 核心层禁止依赖 ${specifier}`);
       const other = moduleOf(target);
       if (own && other && own !== other) {

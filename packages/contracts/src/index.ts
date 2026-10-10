@@ -1,6 +1,6 @@
 import { z } from 'zod';
 export * from './world.js';
-export { modelSettingsInputSchema, type ModelSettingsInput, type ModelSettingsView, type ModelConnectionResult } from './model-settings.js';
+export { modelListInputSchema, modelSettingsInputSchema, type ModelListInput, type ModelListResult, type ModelSettingsInput, type ModelSettingsView, type ModelConnectionResult } from './model-settings.js';
 
 export const evidenceSchema = z.object({ chapterId: z.string().min(1).max(80), paragraphId: z.string().min(1).max(80) });
 export type Evidence = z.infer<typeof evidenceSchema>;
@@ -12,9 +12,25 @@ export interface SourceSummary {
 }
 export interface SourceDocument extends SourceSummary { chapters: Chapter[] }
 
+export const variableValueSchema = z.union([z.string().max(2000), z.number().finite(), z.boolean()]);
+export type VariableValue = z.infer<typeof variableValueSchema>;
+const variableNameSchema = z.string().min(1).max(80);
+export const storyConditionSchema = z.discriminatedUnion('type', [
+  z.object({type: z.literal('variable.equals'), variable: variableNameSchema, value: variableValueSchema}),
+  z.object({type: z.literal('variable.gte'), variable: variableNameSchema, value: z.number().finite()}),
+]);
+export const storyEffectSchema = z.discriminatedUnion('type', [
+  z.object({type: z.literal('variable.set'), variable: variableNameSchema, value: variableValueSchema}),
+  z.object({type: z.literal('variable.increment'), variable: variableNameSchema, value: z.number().finite()}),
+]);
+export type StoryCondition = z.infer<typeof storyConditionSchema>;
+export type StoryEffect = z.infer<typeof storyEffectSchema>;
+
 export const choiceSchema = z.object({
   id: z.string().min(1).max(80), label: z.string().min(1).max(300), targetSceneId: z.string().min(1).max(80),
+  conditions: z.array(storyConditionSchema).max(20).optional(), effects: z.array(storyEffectSchema).max(20).optional(),
 });
+export type Choice = z.infer<typeof choiceSchema>;
 export const sceneSchema = z.object({
   id: z.string().min(1).max(80), title: z.string().min(1).max(200),
   text: z.string().min(1).max(12000), origin: z.enum(['source', 'adapted']),
@@ -24,6 +40,7 @@ export const sceneSchema = z.object({
 export const gameContentSchema = z.object({
   title: z.string().min(1).max(200), mode: z.literal('story'),
   premise: z.string().min(1).max(4000), adaptationNotes: z.string().max(4000),
+  variables: z.record(variableNameSchema, variableValueSchema).optional(),
   startSceneId: z.string().min(1).max(80), scenes: z.array(sceneSchema).min(3).max(100),
 });
 export type GameContent = z.infer<typeof gameContentSchema>;
@@ -37,6 +54,7 @@ export interface GameRevision {
 export interface ValidationResult { valid: boolean; errors: string[]; warnings: string[] }
 export interface SessionView {
   id: string; gameRevisionId: string; turn: number; ended: boolean;
+  variables?: Record<string, VariableValue>;
   scene: {id: string; title: string; text: string; ending?: string; choices: {id: string; label: string}[]};
   history: {turn: number; sceneId: string; choiceLabel?: string; text: string}[];
   createdAt: string; updatedAt: string;
@@ -69,4 +87,4 @@ export const generationInputSchema = z.object({
 });
 export type GenerationInput = z.infer<typeof generationInputSchema>;
 export interface RuntimeInfo { providerConfigured: boolean; supportedModes: ('story' | 'open')[]; version: string }
-export interface ApiError { error: {code: string; message: string; details?: unknown} }
+export interface ApiError { error: {code: string; message: string; details?: unknown; requestId?: string} }

@@ -1,4 +1,4 @@
-import { modelSettingsInputSchema, type ModelSettingsInput, type ModelSettingsView } from '@novel-game/contracts';
+import { modelListInputSchema, modelSettingsInputSchema, type ModelListInput, type ModelSettingsInput, type ModelSettingsView } from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
 import { isConfigured, normalizeEndpoint, type ProviderConfiguration } from '../domain/configuration.js';
 import type { ModelSettingsRepository, SecretCodec } from './ports.js';
@@ -37,4 +37,14 @@ export class ModelSettingsService {
     return this.get();
   }
   forTest(input: ModelSettingsInput): ProviderConfiguration { return this.prepare(input); }
+  forList(input: ModelListInput): ProviderConfiguration {
+    const parsed = modelListInputSchema.parse(input);
+    const current = this.get();
+    if (parsed.expectedRevision !== current.revision) throw new AppError('MODEL_SETTINGS_CONFLICT', '模型设置已更新，请重新载入后保存', 409);
+    const baseUrl = normalizeEndpoint(parsed.baseUrl);
+    if (current.hasApiKey && !parsed.apiKey && !parsed.clearApiKey && new URL(baseUrl).origin !== new URL(current.baseUrl).origin) {
+      throw new AppError('MODEL_KEY_ORIGIN_CHANGED', '服务地址已变更，请为新服务重新填写 API Key 或明确清除密钥');
+    }
+    return {baseUrl, model: '', timeoutMs: parsed.timeoutMs, apiKey: parsed.clearApiKey ? '' : parsed.apiKey || this.resolve().apiKey};
+  }
 }

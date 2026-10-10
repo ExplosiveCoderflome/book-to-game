@@ -67,6 +67,8 @@ test('connection probe only lists models, uses credentials without reflecting pr
     const probe = new ModelConnectionProbe();
     const good = await probe.test(config);
     assert.equal(good.reachable, true); assert.equal(good.modelAvailable, true);
+    assert.deepEqual(good.models, ['test-model']);
+    assert.deepEqual((await probe.list(config)).models, ['test-model']);
     assert.equal(method, 'GET'); assert.equal(url, '/v1/models'); assert.equal(auth, 'Bearer private-provider-key');
     fail = true;
     await assert.rejects(probe.test(config), e => {

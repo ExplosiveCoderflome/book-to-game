@@ -2,6 +2,11 @@
 .model-settings-fields { display: grid; gap: 18px; padding: 0; border: 0; min-width: 0; }
 .model-settings-fields .hint { margin: -10px 0 0; }
 .model-settings-fields .model-key-clear { display: flex; align-items: center; gap: 10px; font-weight: 400; }
+.model-field-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+.model-field-row > label { min-width: 0; }
+.model-list-button { margin-bottom: 1px; white-space: nowrap; }
+.model-manual-button { justify-self: start; margin-top: -10px; }
 .model-key-clear input { width: auto; margin: 0; }
 .model-key-explanation p { line-height: 1.8; }
 @media (max-width: 900px) { .model-settings-layout { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .model-field-row { grid-template-columns: 1fr; } .model-list-button { width: 100%; } }

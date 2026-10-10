@@ -1,11 +1,11 @@
-import type Database from 'better-sqlite3';
+import type { SqliteDatabase } from '../../../platform/database.js';
 import type { ActInput, SessionView } from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
 import type { SessionRepository } from '../application/ports.js';
 import type { SessionState } from '../domain/session-state.js';
 
 export class SqliteSessionRepository implements SessionRepository {
-  constructor(private readonly db: Database.Database) {
+  constructor(private readonly db: SqliteDatabase) {
     db.exec(`
       CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY, game_revision_id TEXT NOT NULL REFERENCES game_revisions(id),

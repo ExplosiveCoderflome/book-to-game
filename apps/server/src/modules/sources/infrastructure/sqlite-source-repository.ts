@@ -1,9 +1,9 @@
-import type Database from 'better-sqlite3';
+import type { SqliteDatabase } from '../../../platform/database.js';
 import type { SourceDocument, SourceSummary } from '@novel-game/contracts';
 import type { SourceRepository } from '../application/source-service.js';
 
 export class SqliteSourceRepository implements SourceRepository {
-  constructor(private readonly database: Database.Database) {
+  constructor(private readonly database: SqliteDatabase) {
     database.exec(`
       CREATE TABLE IF NOT EXISTS sources (
         id TEXT PRIMARY KEY,
@@ -41,7 +41,7 @@ export class SqliteSourceRepository implements SourceRepository {
   }
 
   getOriginalBytes(id: string): Buffer | undefined {
-    const row = this.database.prepare('SELECT original_bytes FROM sources WHERE id = ?').get(id) as { original_bytes: Buffer } | undefined;
-    return row?.original_bytes;
+    const row = this.database.prepare('SELECT original_bytes FROM sources WHERE id = ?').get(id) as { original_bytes: Uint8Array } | undefined;
+    return row ? Buffer.from(row.original_bytes) : undefined;
   }
 }

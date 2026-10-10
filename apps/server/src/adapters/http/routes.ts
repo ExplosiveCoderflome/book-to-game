@@ -4,7 +4,7 @@ import type { Command } from '../../app/commands/index.js';
 const routes = [
   ['get', '/runtime', 'runtime_info'], ['post', '/sources', 'import_source'],
   ['get', '/settings/model', 'get_model_settings'], ['put', '/settings/model', 'save_model_settings'],
-  ['post', '/settings/model/test', 'test_model_connection'],
+  ['post', '/settings/model/test', 'test_model_connection'], ['post', '/settings/model/models', 'list_model_names'],
   ['get', '/sources', 'list_sources'], ['get', '/sources/:id', 'get_source'],
   ['post', '/jobs', 'create_generation_job'], ['get', '/jobs', 'list_jobs'], ['get', '/jobs/:id', 'get_job'],
   ['post', '/jobs/:id/retry', 'retry_job'], ['post', '/jobs/:id/cancel', 'cancel_job'],

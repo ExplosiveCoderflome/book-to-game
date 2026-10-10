@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import Database from 'better-sqlite3';
+import { SqliteDatabase as Database } from '../src/platform/database.js';
 import { GameService, SqliteGameRepository } from '../src/modules/games/index.js';
 import { AppError } from '../src/shared/errors.js';
 import type { GameContent, SourceDocument } from '@novel-game/contracts';

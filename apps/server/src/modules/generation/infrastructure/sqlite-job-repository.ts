@@ -1,4 +1,4 @@
-import type Database from 'better-sqlite3';
+import type { SqliteDatabase } from '../../../platform/database.js';
 import { randomUUID } from 'node:crypto';
 import type { Analysis, AnalysisResult, GenerationInput } from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
@@ -6,7 +6,7 @@ import type { JobRepository, StoredJob } from '../domain/ports.js';
 
 interface Row {id: string; status: string; owner: string | null; lease_until: number; payload: string}
 export class SqliteJobRepository implements JobRepository {
-  constructor(private readonly db: Database.Database) {
+  constructor(private readonly db: SqliteDatabase) {
     db.exec(`CREATE TABLE IF NOT EXISTS generation_jobs (
       id TEXT PRIMARY KEY, request_id TEXT NOT NULL UNIQUE, fingerprint TEXT NOT NULL,
       status TEXT NOT NULL, owner TEXT, lease_until INTEGER NOT NULL DEFAULT 0, payload TEXT NOT NULL

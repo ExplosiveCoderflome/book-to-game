@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import Database from 'better-sqlite3';
+import { SqliteDatabase as Database } from '../src/platform/database.js';
 import iconv from 'iconv-lite';
 import { SourceService, SqliteSourceRepository } from '../src/modules/sources/index.js';
 import { AppError } from '../src/shared/errors.js';

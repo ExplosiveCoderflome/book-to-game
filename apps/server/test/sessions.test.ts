@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import Database from 'better-sqlite3';
+import { SqliteDatabase as Database } from '../src/platform/database.js';
 import { GameService, SqliteGameRepository } from '../src/modules/games/index.js';
 import { SessionService, SqliteSessionRepository } from '../src/modules/sessions/index.js';
 import { AppError } from '../src/shared/errors.js';
@@ -21,7 +21,7 @@ function content(): GameContent {
     { id: 'lost', title: '迷途', text: '你在森林迷路。', origin: 'adapted', evidence: [], choices: [], ending: '迷失森林' },
   ] };
 }
-function setup(db: Database.Database) {
+function setup(db: Database) {
   const games = new GameService(new SqliteGameRepository(db), { get: () => structuredClone(source) });
   const sessions = new SessionService(new SqliteSessionRepository(db), games);
   return { games, sessions };

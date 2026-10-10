@@ -1,10 +1,10 @@
-import type Database from 'better-sqlite3';
+import type { SqliteDatabase } from '../../../platform/database.js';
 import type { AdventureActInput, AdventureView } from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
 import type { AdventureRepository } from '../application/ports.js';
 import type { AdventureState } from '../domain/adventure-state.js';
 export class SqliteAdventureRepository implements AdventureRepository {
-  constructor(private readonly db: Database.Database) {
+  constructor(private readonly db: SqliteDatabase) {
     db.exec(`
       CREATE TABLE IF NOT EXISTS adventure_sessions (
         id TEXT PRIMARY KEY, world_revision_id TEXT NOT NULL REFERENCES world_revisions(id),

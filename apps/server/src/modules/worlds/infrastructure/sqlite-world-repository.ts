@@ -1,9 +1,9 @@
-import type Database from 'better-sqlite3';
+import type { SqliteDatabase } from '../../../platform/database.js';
 import type { WorldDraft, WorldRevision } from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
 import type { WorldRepository } from '../application/ports.js';
 export class SqliteWorldRepository implements WorldRepository {
-  constructor(private readonly db: Database.Database) {
+  constructor(private readonly db: SqliteDatabase) {
     db.exec(`
       CREATE TABLE IF NOT EXISTS world_drafts (
         id TEXT PRIMARY KEY, source_id TEXT NOT NULL, version INTEGER NOT NULL CHECK(version > 0),
