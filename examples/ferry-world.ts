@@ -29,7 +29,7 @@ export function ferryWorld(source: SourceDocument): WorldContent {
     ],
     facts: [fact('timber', '修船材料', 'item'), fact('ledger', '能核对的账册证据', 'clue'), fact('trusted', '船夫愿意信任你', 'relationship'),
       fact('exposed', '身份已被守卫登记', 'event'), fact('debt', '欠商队一次人情', 'relationship'), fact('arrived', '证人已到对岸', 'event'),
-      fact('secret', '幕后联系人是北城管事', 'clue', true), fact('warning', '封港将近', 'event')],
+      fact('secret', '幕后联系人是北城管事', 'clue', true), fact('warning', '封港将近', 'event'), fact('surveyed', '已观察渡口', 'event', false, true)],
     npcs: [
       {id: 'boatman', name: '船夫', description: '他珍惜自己的旧船，也记得帮助过他的人。', goal: '修好船并避开追查', initialLocationId: 'dock', knownFactIds: [], ...adapted},
       {id: 'merchant', name: '商队领队', description: '她的船有空位，但她会记住每一笔人情。', goal: '为下次运输找到可靠帮手', initialLocationId: 'warehouse', knownFactIds: [], ...adapted},
@@ -38,6 +38,7 @@ export function ferryWorld(source: SourceDocument): WorldContent {
     actions: [
       action('visit-warehouse', '前往旧仓库', 'dock', '你沿屋檐走进旧仓库。', [move('warehouse')], [], {once: false}),
       action('visit-gate', '前往关卡', 'dock', '你带着证人走向关卡。', [move('gate')], [], {once: false}),
+      action('survey-dock', '观察渡口局势', 'dock', '你记下栈桥、仓库与关卡的方位，证人稍稍安心。', [set('surveyed'), reveal('surveyed')], [], {once: true}),
       action('return-dock', '返回渡口', 'warehouse', '你回到漏水的小船旁。', [move('dock')], [], {once: false}),
       action('leave-gate', '退回渡口', 'gate', '你暂时离开守卫的视线。', [move('dock')], [], {once: false}),
       action('collect-timber', '收集废木板', 'warehouse', '你挑出几块能用的木板，正好够修补船底。', [set('timber'), reveal('timber')]),

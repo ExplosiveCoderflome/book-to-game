@@ -1,4 +1,4 @@
-import { SYSTEM_WAIT_ACTION_ID, type WorldContent, type WorldCondition, type WorldEffect, type SourceDocument, type ValidationResult } from '@novel-game/contracts';
+import { SYSTEM_WAIT_ACTION_ID, assessOpeningActions, type WorldContent, type WorldCondition, type WorldEffect, type SourceDocument, type ValidationResult } from '@novel-game/contracts';
 export function validateWorld(world: WorldContent, source: SourceDocument): ValidationResult {
   const errors: string[] = []; const warnings: string[] = [];
   function ids(entries: {id: string}[], category: string): Set<string> {
@@ -51,10 +51,17 @@ export function validateWorld(world: WorldContent, source: SourceDocument): Vali
   }
   for (const event of world.events) {conditions(event.when, `事件 ${event.id}`); effects(event.effects, `事件 ${event.id}`);}
   for (const ending of world.endings) conditions(ending.when, `结局 ${ending.id}`);
-  // Opening action density: actions at the start location with no availability gate.
-  const openingActions = world.actions.filter(a => a.locationId === world.initialLocationId && a.availableWhen.length === 0);
-  if (openingActions.length < 3) {
-    warnings.push(`开局行动密度不足：起始地点仅有 ${openingActions.length} 个立即可用行动，建议至少 3 个（无额外 availableWhen 门槛）`);
+  // Hard gate: ≥3 immediately executable non-wait actions at start (availableWhen + requires).
+  const opening = assessOpeningActions(world);
+  if (!opening.ok) {
+    errors.push(opening.message!);
+  }
+  // Visible-but-locked actions must carry a player-facing blockedReason (schema already requires non-empty;
+  // also flag empty-looking placeholders that hide why requires failed).
+  for (const action of world.actions) {
+    if (opening.lockedVisibleIds.includes(action.id) && !action.blockedReason.trim()) {
+      errors.push(`行动 ${action.id} 开局可见但不可执行，必须提供 blockedReason`);
+    }
   }
   // Overapproximate connectivity: ignore conditions and permit event movement from any reachable location.
   // This can warn about disconnected geography; it cannot prove a winning strategy exists.

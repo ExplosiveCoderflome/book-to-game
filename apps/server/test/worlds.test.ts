@@ -43,8 +43,13 @@ test('world validation catches duplicate IDs, chapter selections, NPC and condit
 });
 test('unreachable locations warn conservatively without rejecting valid declarative worlds', () => {
   const db = new Database(':memory:'); try {
-    const worlds = setup(db); const draft = worlds.create({sourceId: source.id, content: content()});
-    const result = worlds.validate(draft.id); assert.equal(result.valid, true); assert.ok(result.warnings.some(w => w.includes('market')));
+    const worlds = setup(db); const world = content();
+    // Opening density intact; attic has no inbound move edge.
+    world.locations.push({id: 'attic', title: 'attic', text: '孤立阁楼', origin: 'adapted', evidence: []});
+    const draft = worlds.create({sourceId: source.id, content: world});
+    const result = worlds.validate(draft.id);
+    assert.equal(result.valid, true);
+    assert.ok(result.warnings.some(w => w.includes('attic')), result.warnings.join(';'));
   } finally {db.close();}
 });
 test('world publication is immutable and idempotent even after later draft edits', () => {
@@ -87,10 +92,10 @@ test('prototype-like references require declared entities rather than inherited 
   } finally {db.close();}
 });
 
-test('validateWorld warns when opening location has fewer than 3 immediately available actions', () => {
+test('validateWorld rejects when opening location has fewer than 3 immediately executable actions', () => {
   const db = new Database(':memory:'); try {
     const worlds = setup(db); const world = content();
-    // Keep schema-valid action count, but lock most opening actions behind availability gates.
+    // Lock non-wait opening actions behind availability gates → 0 executable (wait does not count).
     for (const action of world.actions) {
       if (action.locationId === world.initialLocationId && action.id !== 'wait') {
         action.availableWhen = [{kind: 'fact', factId: 'permit', value: true}];
@@ -98,7 +103,25 @@ test('validateWorld warns when opening location has fewer than 3 immediately ava
     }
     const draft = worlds.create({sourceId: source.id, content: world});
     const result = worlds.validate(draft.id);
-    assert.equal(result.valid, true);
-    assert.ok(result.warnings.some(e => e.includes('开局行动密度不足')));
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some(e => /开局可执行行动不足/.test(e)), result.errors.join(';'));
+    assert.throws(() => worlds.publish(draft.id, {version: 1}), status(400));
+  } finally {db.close();}
+});
+
+test('validateWorld does not count requires-locked visible actions toward opening density', () => {
+  const db = new Database(':memory:'); try {
+    const worlds = setup(db); const world = content();
+    // Only search stays free; look/to_market/ask require unmet facts → executable = 1 (search).
+    for (const action of world.actions) {
+      if (['look', 'to_market'].includes(action.id)) {
+        action.requires = [{kind: 'fact', factId: 'permit', value: true}];
+        action.blockedReason = '还没有许可';
+      }
+    }
+    const draft = worlds.create({sourceId: source.id, content: world});
+    const result = worlds.validate(draft.id);
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some(e => /开局可执行行动不足：起始地点仅有 1 个/.test(e)), result.errors.join(';'));
   } finally {db.close();}
 });

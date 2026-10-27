@@ -59,9 +59,10 @@ export function WorldGraphCanvas({
   const density = useMemo(() => openingActionDensity(content), [content]);
   const bannerWarnings = useMemo(() => {
     const list = [...warnings];
-    if (density.warning && !list.includes(density.warning)) list.unshift(density.warning);
+    const note = density.error ?? density.warning;
+    if (note && !list.includes(note)) list.unshift(note);
     return list;
-  }, [warnings, density.warning]);
+  }, [warnings, density]);
 
   function fitView() {
     const el = viewportRef.current;
@@ -176,8 +177,13 @@ export function WorldGraphCanvas({
       </div>
     </div>
     {!playOverlay && bannerWarnings.length > 0 && (
-      <div className="branch-canvas-banner world-opening-banner" data-canvas-ui data-testid="world-opening-banner" role="status">
-        <strong>{t('开局行动提醒')}</strong>
+      <div
+        className={`branch-canvas-banner world-opening-banner${density.error ? ' is-error' : ''}`}
+        data-canvas-ui
+        data-testid="world-opening-banner"
+        role={density.error ? 'alert' : 'status'}
+      >
+        <strong>{t(density.error ? '开局行动门禁' : '开局行动提醒')}</strong>
         <ul>{bannerWarnings.slice(0, 5).map((message, index) => <li key={`${index}-${message.slice(0, 24)}`}>{message}</li>)}</ul>
       </div>
     )}

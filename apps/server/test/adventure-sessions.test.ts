@@ -24,14 +24,45 @@ const input = (actionId: string, expectedTurn: number) => ({actionId, expectedTu
 
 test('a stranded player can wait one tick, advance events and reach timeout without a soft lock', () => {
   const db = new Database(':memory:'); try {
-    const world = content(); world.actions.forEach(action => {action.locationId = 'market';}); world.timeLimit = 3;
-    const {adventures, view} = start(db, world);
+    // Bypass publish opening-density gate: insert a stranded revision directly (all authored actions elsewhere).
+    const worlds = new WorldService(new SqliteWorldRepository(db), {get: () => structuredClone(source)});
+    const adventures = new AdventureService(new SqliteAdventureRepository(db), worlds);
+    const draft = worlds.create({sourceId: source.id, content: content()});
+    const stranded = content();
+    stranded.actions.forEach(action => {action.locationId = 'market';});
+    stranded.timeLimit = 3;
+    const revision = new SqliteWorldRepository(db).publish({
+      id: randomUUID(), draftId: draft.id, sourceId: source.id, version: draft.version,
+      content: stranded, createdAt: new Date().toISOString(),
+    });
+    const view = adventures.start({worldRevisionId: revision.id});
     assert.equal(view.actions.find(action => action.id === '__wait__')?.enabled, true);
+    assert.ok(view.actions.filter(a => a.id !== '__wait__' && a.enabled).length === 0);
     let current = view;
     for (let i = 0; i < 3; i++) current = adventures.act(view.id, input('__wait__', current.turn));
     assert.equal(current.ending?.id, 'timeout'); assert.equal(current.elapsed, 3); assert.equal(current.turn, 3);
     assert.equal(current.history.filter(entry => entry.text.includes('钟声响起')).length, 1);
     assert.deepEqual(current.actions, []);
+  } finally {db.close();}
+});
+
+test('requires-locked actions stay visible but disabled with blockedReason; enabled acts do not ACTION_BLOCKED', () => {
+  const db = new Database(':memory:'); try {
+    const {adventures, view} = start(db);
+    const ask = view.actions.find(a => a.id === 'ask');
+    assert.ok(ask, 'ask should be visible at start');
+    assert.equal(ask.enabled, false);
+    assert.equal(ask.blockedReason, '缺少线索');
+    assert.throws(
+      () => adventures.act(view.id, input('ask', 0)),
+      (e: unknown) => e instanceof AppError && e.code === 'ACTION_BLOCKED' && /缺少线索/.test(e.message),
+    );
+    // Enabled opening actions must succeed without ACTION_BLOCKED
+    const enabled = view.actions.filter(a => a.enabled && a.id !== '__wait__');
+    assert.ok(enabled.length >= 3, `expected ≥3 enabled openers, got ${enabled.map(a => a.id)}`);
+    const moved = adventures.act(view.id, input(enabled.find(a => a.id === 'search')!.id, 0));
+    assert.equal(moved.turn, 1);
+    assert.ok(moved.actions.find(a => a.id === 'ask')?.enabled === true || moved.facts.some(f => f.id === 'secret'));
   } finally {db.close();}
 });
 

@@ -71,10 +71,14 @@ export function WorldsPanel({
 
   const density = useMemo(() => openingActionDensity(content), [content]);
   const canvasWarnings = useMemo(() => {
-    const fromValidation = validation?.warnings?.filter(w => /开局行动密度|availableWhen/.test(w)) ?? [];
-    if (density.warning && !fromValidation.includes(density.warning)) return [density.warning, ...fromValidation];
+    const fromValidation = [
+      ...(validation?.errors?.filter(w => /开局可执行|开局行动密度|availableWhen/.test(w)) ?? []),
+      ...(validation?.warnings?.filter(w => /开局可执行|开局行动密度|availableWhen/.test(w)) ?? []),
+    ];
+    const note = density.error ?? density.warning;
+    if (note && !fromValidation.includes(note)) return [note, ...fromValidation];
     return fromValidation;
-  }, [validation, density.warning]);
+  }, [validation, density]);
 
   const linkedRevisions = useMemo(
     () => (draft ? revisions.filter(r => r.draftId === draft.id).sort((a, b) => b.version - a.version) : []),

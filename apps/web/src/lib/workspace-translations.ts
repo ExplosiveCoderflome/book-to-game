@@ -336,6 +336,7 @@ export const workspaceEnglish: Record<string, string> = {
   '主编辑面：地点为节点，移动行动为曲边；拖节点排版，点选打开侧栏。': 'Primary surface: locations as nodes, move actions as curves; drag to layout, click to inspect.',
   '{count} 个地点': '{count} locations',
   '{count} 条移动': '{count} moves',
+  '开局行动门禁': 'Opening action gate',
   '开局行动提醒': 'Opening action notes',
   '{count} 个行动': '{count} actions',
   '本地 {local} · 移动 {move}': 'Local {local} · Moves {move}',

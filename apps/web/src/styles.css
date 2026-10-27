@@ -1506,4 +1506,5 @@ legend {
 }
 .world-focus-card h4 { margin: 0 0 6px; }
 .world-opening-banner { border-left: 3px solid #c48a1a; }
+.world-opening-banner.is-error { border-left-color: #c44; background: color-mix(in srgb, #c44 12%, transparent); }
 .world-overview.focused details { margin-top: 10px; }

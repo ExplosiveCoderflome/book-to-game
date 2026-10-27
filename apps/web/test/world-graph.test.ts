@@ -22,16 +22,27 @@ const sample: WorldContent = {
   events: [], endings: [{ id: 'e1', title: '结局', text: '完', when: [{ kind: 'time', atLeast: 12 }] }],
 };
 
-test('openingActionDensity warns below three ungated start actions', () => {
+test('openingActionDensity errors below three immediately executable start actions', () => {
   const dense = openingActionDensity(sample);
   assert.equal(dense.count, 3);
   assert.equal(dense.warning, null);
+  assert.equal(dense.error, null);
   const sparse = openingActionDensity({
     ...sample,
     actions: sample.actions.filter(a => a.id !== 'talk'),
   });
   assert.equal(sparse.count, 2);
-  assert.match(sparse.warning ?? '', /开局行动密度不足/);
+  assert.equal(sparse.warning, null);
+  assert.match(sparse.error ?? '', /开局可执行行动不足/);
+  // requires-locked visible actions do not count
+  const locked = openingActionDensity({
+    ...sample,
+    actions: sample.actions.map(a => a.id === 'talk'
+      ? {...a, requires: [{kind: 'fact' as const, factId: 'missing', value: true}], blockedReason: '未满足'}
+      : a),
+  });
+  assert.equal(locked.count, 2);
+  assert.match(locked.error ?? '', /开局可执行行动不足/);
 });
 
 test('layoutWorldNodes and buildWorldEdges map moves between locations', () => {

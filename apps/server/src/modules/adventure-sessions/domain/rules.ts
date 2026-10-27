@@ -28,7 +28,7 @@ export function visible(action: WorldContent['actions'][number], state: Adventur
 export function blockedReason(action: WorldContent['actions'][number], world: WorldContent, state: AdventureState): string | undefined {
   if (action.timeCost > world.timeLimit - state.elapsed) return '剩余时间不足';
   if (action.npcId && state.npcs[action.npcId]?.locationId !== state.locationId) return '目标人物不在此处';
-  if (!matches(action.requires, state)) return action.blockedReason;
+  if (!matches(action.requires, state)) return action.blockedReason.trim() || '尚未满足执行条件。';
   return undefined;
 }
 export function settle(world: WorldContent, state: AdventureState): string[] {

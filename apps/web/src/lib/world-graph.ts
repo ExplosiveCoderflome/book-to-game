@@ -1,4 +1,4 @@
-import type { CanvasLayout, WorldContent, WorldEffect } from '@novel-game/contracts';
+import { assessOpeningActions, type CanvasLayout, type WorldContent, type WorldEffect } from '@novel-game/contracts';
 
 export interface WorldGraphNode {
   id: string;
@@ -35,15 +35,14 @@ function moveTarget(effects: WorldEffect[]): string | null {
   return move && move.kind === 'move' ? move.locationId : null;
 }
 
-export function openingActionDensity(content: WorldContent): { count: number; warning: string | null } {
-  if (!content.initialLocationId) return { count: 0, warning: null };
-  const opening = content.actions.filter(
-    a => a.locationId === content.initialLocationId && (a.availableWhen?.length ?? 0) === 0,
-  );
-  if (opening.length >= 3) return { count: opening.length, warning: null };
+export function openingActionDensity(content: WorldContent): { count: number; warning: string | null; error: string | null } {
+  if (!content.initialLocationId) return { count: 0, warning: null, error: null };
+  const opening = assessOpeningActions(content);
+  if (opening.ok) return { count: opening.count, warning: null, error: null };
   return {
-    count: opening.length,
-    warning: `开局行动密度不足：起始地点仅有 ${opening.length} 个立即可用行动，建议至少 3 个（无额外 availableWhen 门槛）`,
+    count: opening.count,
+    warning: null,
+    error: opening.message,
   };
 }
 

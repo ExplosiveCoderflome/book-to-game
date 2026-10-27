@@ -128,3 +128,8 @@ export {
   type ReachCondition, type ReachEffect, type ReachVarValue,
 } from './reachability.js';
 
+export {
+  assessOpeningActions, initialWorldState, matchesWorldConditions, isWaitLikeAction,
+  type OpeningActionReport, type OpeningEvalState,
+} from './world-opening.js';
+
