@@ -31,9 +31,30 @@ export function WorldMapCanvas({ content, selectedLocationId, onSelectLocation, 
     if (!map) return [];
     return listHexCells(map.geometry).map(a => {
       const c = hexToPixel(map.geometry, a);
-      return { key: cellKey(a), c, points: hexCorners(map.geometry, c).map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ') };
+      const corners = hexCorners(map.geometry, c).map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`);
+      return { key: cellKey(a), c, corners, points: corners.join(' ') };
     });
   }, [map]);
+  const terrainColor = useMemo(() => {
+    const t = map?.layers?.terrain; const pal = new Map(t?.palette.map(p => [p.id, p.color]) ?? []);
+    return new Map(Object.entries(t?.cells ?? {}).map(([k, v]) => [k, pal.get(v)]));
+  }, [map]);
+  const factionOf = useMemo(() => new Map(Object.entries(map?.layers?.factions?.cells ?? {})), [map]);
+  const factionColor = useMemo(() => new Map(map?.layers?.factions?.factions.map(f => [f.id, f.color]) ?? []), [map]);
+  /** Read-only territory borders: hex edges whose two sides belong to different factions (or map edge). */
+  const factionBorders = useMemo(() => {
+    const edges = new Map<string, { a: string; b: string; cells: string[] }>();
+    for (const cell of cells) cell.corners.forEach((a, i) => {
+      const b = cell.corners[(i + 1) % 6]; const k = a < b ? `${a}|${b}` : `${b}|${a}`;
+      const e = edges.get(k) ?? { a, b, cells: [] }; e.cells.push(cell.key); edges.set(k, e);
+    });
+    const out: { k: string; a: string; b: string; color: string }[] = [];
+    for (const [k, e] of edges) {
+      const fs = e.cells.map(c => factionOf.get(c));
+      for (const f of fs) if (f && (fs.length < 2 || fs[0] !== fs[1])) { const color = factionColor.get(f); if (color) out.push({ k: `${k}#${f}`, a: e.a, b: e.b, color }); }
+    }
+    return out;
+  }, [cells, factionOf, factionColor]);
   const poiByCell = useMemo(() => {
     const m = new Map<string, string[]>();
     for (const p of map?.pois ?? []) m.set(p.anchor.cell, [...(m.get(p.anchor.cell) ?? []), p.locationId]);
@@ -80,6 +101,8 @@ export function WorldMapCanvas({ content, selectedLocationId, onSelectLocation, 
     setPan({ x: d.panX + e.clientX - d.x, y: d.panY + e.clientY - d.y });
   }
   function onWheel(e: ReactWheelEvent<HTMLDivElement>) { setZoom(z => Math.max(0.3, Math.min(3, z * (e.deltaY < 0 ? 1.1 : 0.9)))); }
+  const terrainLabel = (k: string) => { const tid = map.layers?.terrain?.cells[k]; return map.layers?.terrain?.palette.find(p => p.id === tid)?.label; };
+  const factionName = (k: string) => { const fid = factionOf.get(k); return map.layers?.factions?.factions.find(f => f.id === fid)?.name; };
   const shownCell = selectedPoiCell ?? selectedCell;
   const selCellPois = shownCell ? poiByCell.get(shownCell) ?? [] : [];
   const sel = shownCell ? parseCellKey(shownCell) : null;
@@ -128,7 +151,14 @@ export function WorldMapCanvas({ content, selectedLocationId, onSelectLocation, 
               onClick={() => { setSelectedCell(cell.key); const ids = poiByCell.get(cell.key); if (ids?.[0]) onSelectLocation(ids[0]); }}
               onDragOver={e => { if (!readOnly) { e.preventDefault(); setHoverCell(cell.key); } }}
               onDragLeave={() => setHoverCell(h => (h === cell.key ? null : h))}
-              onDrop={e => onDrop(e, cell.key)} />)}
+              onDrop={e => onDrop(e, cell.key)}
+              style={terrainColor.get(cell.key) ? { fill: terrainColor.get(cell.key) } : undefined} />)}
+            <g className="world-map-factions" pointerEvents="none">
+              {cells.map(cell => { const f = factionOf.get(cell.key); const col = f && factionColor.get(f);
+                return col ? <polygon key={cell.key} points={cell.points} fill={col} fillOpacity={0.22} stroke="none" /> : null; })}
+              {factionBorders.map(e => { const [x1, y1] = e.a.split(',').map(Number); const [x2, y2] = e.b.split(',').map(Number);
+                return <line key={e.k} x1={x1} y1={y1} x2={x2} y2={y2} stroke={e.color} strokeWidth={2.5} strokeLinecap="round" />; })}
+            </g>
             {map.pois.map(p => {
               const a = parseCellKey(p.anchor.cell); if (!a) return null;
               const c = hexToPixel(g, a);
@@ -143,8 +173,14 @@ export function WorldMapCanvas({ content, selectedLocationId, onSelectLocation, 
             })}
           </g>
         </svg>
+        {(map.layers?.terrain || map.layers?.factions) && <div className="world-map-legend" data-testid="world-map-legend">
+          {map.layers?.terrain && <div><p className="world-map-tray-label">{t('地形')}</p>
+            {map.layers.terrain.palette.map(p => <span key={p.id}><i style={{ background: p.color }} />{p.label}</span>)}</div>}
+          {map.layers?.factions && <div><p className="world-map-tray-label">{t('势力')}</p>
+            {map.layers.factions.factions.map(f => <span key={f.id}><i className="faction" style={{ background: `${f.color}38`, borderColor: f.color }} />{f.name}</span>)}</div>}
+        </div>}
         <div className="world-map-status">
-          {sel ? <span>{t('格')} {shownCell} · q {sel.q} · r {sel.r}{selCellPois.length ? ` · ${selCellPois.map(id => titles.get(id) ?? id).join('、')}` : ''}</span>
+          {sel ? <span>{t('格')} {shownCell} · q {sel.q} · r {sel.r}{shownCell && terrainLabel(shownCell) ? ` · ${terrainLabel(shownCell)}` : ''}{shownCell && factionName(shownCell) ? ` · ${factionName(shownCell)}` : ''}{selCellPois.length ? ` · ${selCellPois.map(id => titles.get(id) ?? id).join('、')}` : ''}</span>
             : <span>{t('点击格子或标记查看；滚轮缩放，拖动空白处平移。')}</span>}
           <span>{Math.round(zoom * 100)}%</span>
         </div>
