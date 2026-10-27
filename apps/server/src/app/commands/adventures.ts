@@ -1,8 +1,9 @@
 import { z } from 'zod';
-import { adventureActSchema, proposeAdventureActInputSchema } from '@novel-game/contracts';
+import { adventureActSchema, narrateInputSchema, proposeAdventureActInputSchema } from '@novel-game/contracts';
 import type { Workbench } from '../workbench.js';
 import { command, emptySchema, idSchema } from './definition.js';
 import { proposeActAdventure } from '../../modules/adventure-sessions/application/propose-act.js';
+import { narrateAdventure } from '../../modules/adventure-sessions/application/narrate.js';
 import { ChatCompletionsProvider } from '../../platform/model/chat-completions.js';
 import { AppError } from '../../shared/errors.js';
 
@@ -20,6 +21,16 @@ export function adventureCommands(w: Workbench) {
         const endpoint = w.modelSettings.resolve();
         const provider = new ChatCompletionsProvider({...endpoint, maxAttempts: 2, repairAttempts: 2});
         return proposeActAdventure(w.adventures, id, input, provider);
+      }),
+    command('narrate_adventure', 'L1：为当前地点生成可选表演旁白（风味文案）。不改状态、不发明行动；失败时 soft-fail。默认由客户端关闭。',
+      narrateInputSchema.extend({id: z.string()}), false, async ({id, ...input}) => {
+        if (!w.providerConfigured) {
+          const view = w.adventures.get(id);
+          return { status: 'unavailable', text: null, sceneId: view.location.id, turn: view.turn, reason: '尚未配置模型。请进入“模型设置”后再开启旁白。', cached: false };
+        }
+        const endpoint = w.modelSettings.resolve();
+        const provider = new ChatCompletionsProvider({...endpoint, maxAttempts: 2, repairAttempts: 2});
+        return narrateAdventure(w.adventures, w.worlds, id, input, provider);
       }),
   ];
 }

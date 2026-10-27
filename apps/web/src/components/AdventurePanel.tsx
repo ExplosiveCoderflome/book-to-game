@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { SYSTEM_WAIT_ACTION_ID, type AdventureView, type WorldRevision } from '@novel-game/contracts';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { SYSTEM_WAIT_ACTION_ID, type AdventureView, type NarrateResult, type WorldRevision } from '@novel-game/contracts';
 import { errorMessage, request, RequestError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { adventurePendingKey, PendingAdventure, restoreAdventure } from '../lib/pending-adventure';
 import { worldPlayOverlayFromAdventure } from '../lib/world-play-overlay';
 import { Empty, Notice, dateLabel } from './Notice';
+import { NarrateBox } from './NarrateBox';
 import { WorldGraphCanvas } from './WorldGraphCanvas';
 
 interface Props {
@@ -56,6 +57,13 @@ export function AdventurePanel({ token, revisions, adventures, revisionId, selec
       } else setUncertain(!!pending.current.value);
     } finally { setBusy(false); }
   }
+
+  const narrate = useCallback(async (force: boolean): Promise<NarrateResult> => {
+    if (!session) throw new Error('no session');
+    return request<NarrateResult>(token, `/adventures/${session.id}/narrate`, 'POST', {
+      expectedTurn: session.turn, force,
+    });
+  }, [session, token]);
 
   const revision = revisions.find(r => r.id === session?.worldRevisionId);
   const playOverlay = useMemo(() => {
@@ -114,6 +122,7 @@ export function AdventurePanel({ token, revisions, adventures, revisionId, selec
           </div>
           <h3>{session.location.title}</h3>
           <div className="reader-text">{session.location.text.split(/\n+/).map((text, i) => <p key={i}>{text}</p>)}</div>
+          <NarrateBox visitKey={`${session.id}:${session.location.id}:${session.turn}`} disabled={busy || uncertain} onNarrate={narrate} />
           {session.turn > 0 && <section className="adventure-result" aria-live="polite"><p className="eyebrow">{t('刚刚发生')}</p>{session.history.at(-1)?.text.split(/\n+/).map((text, i) => <p key={i}>{text}</p>)}</section>}
           <div className="world-grid">
             <section><h4>{t('已知信息')}</h4>{session.facts.length ? session.facts.map(f => <div className="known-fact" key={f.id}><strong>{f.label}</strong><span className="hint"> · {f.value ? t('当前成立') : t('当前不成立')}</span><p>{f.description}</p></div>) : <p className="hint">{t('尚未发现线索。')}</p>}</section>

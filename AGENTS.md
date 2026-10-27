@@ -38,7 +38,7 @@ migrated only within the authorized task scope.
 
 ## AI fusion layers
 
-- **L1 narrate (play-time, optional, default OFF):** flavor旁白 only via `POST /api/sessions/:id/narrate`. Must not mutate graph, variables, or invent choices.
+- **L1 narrate (play-time, optional, default OFF):** flavor旁白 via `POST /api/sessions/:id/narrate` (story) and `POST /api/adventures/:id/narrate` (open adventure). Same NarrateInput/Result; adventure `sceneId` = location id. Must not mutate graph/state, variables/facts, or invent choices/actions.
 - **L2 propose-act (play-time):** free text mapped only onto currently visible/worldbook-filtered edges; rule engine still advances state.
 - **L3 author-time:** graph growth (generate / extend). Node/graph + variables remain the hard source of truth; worldbook constrains agency.
 - **Fill scene text (author-time):** `POST /api/drafts/:id/fill-scene-text` deepens one scene body only; client applies as dirty local edit (no topology change).

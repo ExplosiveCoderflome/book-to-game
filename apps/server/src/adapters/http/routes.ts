@@ -20,6 +20,7 @@ const routes = [
   ['get', '/worlds/revisions', 'list_world_revisions'], ['get', '/adventures', 'list_adventures'], ['post', '/adventures', 'start_adventure'],
   ['get', '/adventures/:id', 'get_adventure'], ['post', '/adventures/:id/actions', 'act_adventure'],
   ['post', '/adventures/:id/propose-act', 'propose_act_adventure'],
+  ['post', '/adventures/:id/narrate', 'narrate_adventure'],
 ] as const;
 export function apiRouter(commands: Command[]) {
   const router = Router();

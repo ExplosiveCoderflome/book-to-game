@@ -45,7 +45,7 @@ export function NarrateBox({ visitKey, disabled, onNarrate }: Props) {
     } else {
       setText(null);
       setStatus('unavailable');
-      setReason(result.reason ?? t('旁白暂不可用，仍可阅读场景正文。'));
+      setReason(result.reason ?? t('旁白暂不可用，仍可阅读正文。'));
     }
   }, [t]);
 
@@ -70,7 +70,7 @@ export function NarrateBox({ visitKey, disabled, onNarrate }: Props) {
         if (cancelled || seq !== requestSeq.current) return;
         setText(null);
         setStatus('unavailable');
-        setReason(t('旁白请求失败，仍可阅读场景正文。'));
+        setReason(t('旁白请求失败，仍可阅读正文。'));
       })
       .finally(() => {
         if (!cancelled && seq === requestSeq.current) setBusy(false);
@@ -91,7 +91,7 @@ export function NarrateBox({ visitKey, disabled, onNarrate }: Props) {
       if (seq !== requestSeq.current) return;
       setText(null);
       setStatus('unavailable');
-      setReason(t('旁白请求失败，仍可阅读场景正文。'));
+      setReason(t('旁白请求失败，仍可阅读正文。'));
     } finally {
       if (seq === requestSeq.current) setBusy(false);
     }
@@ -110,7 +110,7 @@ export function NarrateBox({ visitKey, disabled, onNarrate }: Props) {
           />
           <span>{t('L1 表演旁白')}</span>
         </label>
-        <span className="hint">{t('可选；默认关闭。只生成风味文案，不改选项与变量。')}</span>
+        <span className="hint">{t('可选；默认关闭。只生成风味文案，不改选项/行动与变量。')}</span>
         {enabled && (
           <button
             type="button"
