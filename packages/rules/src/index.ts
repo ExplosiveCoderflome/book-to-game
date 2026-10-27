@@ -43,3 +43,8 @@ export {
   type WorldConditionEvaluator,
 } from './kind-builtins.js';
 
+
+export {
+  cellKey, parseCellKey, offsetToAxial, axialToOffset, hexInBounds, listHexCells, hexToPixel, hexCorners, hexDistance,
+  validateWorldMap, type Axial, type WorldMapIssue, type WorldMapIssueCode,
+} from './world-map.js';

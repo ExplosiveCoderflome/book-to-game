@@ -2817,3 +2817,56 @@ summary:focus:not(:focus-visible) {
   .stat-editor-identity { grid-column: 1 / -1; }
   .stat-editor-delete { justify-self: start; }
 }
+
+/* ---------- World map (M1: optional hex layer) ---------- */
+.world-split { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); min-height: 0; height: 100%; }
+.world-split > .branch-canvas { margin: 0; height: 100%; min-height: 0; border: 0; border-radius: 0; }
+.world-split > .branch-canvas + .branch-canvas { border-left: 1px solid var(--line); }
+.draft-canvas-stage > .world-split { min-height: 0; }
+.world-map-pane { height: 100%; }
+.world-map-chrome { align-items: center; }
+.world-map-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.world-map-title h4 { margin: 0; }
+.world-map-chip { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; background: var(--surface); }
+.world-map-chrome .branch-canvas-toolbar label.inline { display: inline-flex; flex-direction: row; margin: 0; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.world-map-chrome .branch-canvas-toolbar label.inline input { width: 64px; height: 30px; }
+.world-map-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 208px minmax(0, 1fr); }
+.world-map-tray { border-right: 1px solid var(--line); overflow: auto; padding: 10px 8px; background: var(--surface); }
+.world-map-tray-label { margin: 2px 6px 8px; font-size: 11px; letter-spacing: .06em; color: var(--muted); }
+.world-map-tray ul { list-style: none; margin: 0; padding: 0; }
+.world-map-tray > ul li {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-sm);
+  font-size: 13px; cursor: grab; border: 1px solid transparent;
+}
+.world-map-tray > ul li:hover { background: var(--surface-hover); }
+.world-map-tray > ul li.selected { background: color-mix(in srgb, var(--green) 12%, var(--paper)); border-color: color-mix(in srgb, var(--green) 35%, var(--line)); }
+.world-map-tray li .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex: none; }
+.world-map-tray li.unbound .dot { background: transparent; border: 1.5px dashed var(--muted); }
+.world-map-tray li.problem .dot { background: var(--rust); }
+.world-map-tray li .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.world-map-tray li .tag { font-size: 11px; color: #9a6700; background: #fff8e1; border-radius: 999px; padding: 1px 6px; }
+.world-map-tray button.tiny { padding: 0 6px; min-height: 0; height: 22px; line-height: 1; }
+.world-map-issues { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+.world-map-issues li { font-size: 12px; padding: 3px 6px; color: var(--muted); }
+.world-map-issues li.error { color: var(--rust); }
+.world-map-viewport { position: relative; background: #f3f5f2; }
+.world-map-viewport .hex { fill: #fbfcfa; stroke: #d6dbd3; stroke-width: 1; cursor: pointer; transition: fill .12s; }
+.world-map-viewport .hex:hover { fill: #eef3ec; }
+.world-map-viewport .hex.has-poi { fill: #e7f0ea; }
+.world-map-viewport .hex.drop { fill: color-mix(in srgb, var(--green) 28%, white); stroke: var(--green); }
+.world-map-viewport .hex.selected { stroke: var(--green); stroke-width: 2.2; }
+.world-map-viewport .poi { cursor: pointer; }
+.world-map-viewport .poi circle { fill: var(--green); stroke: #fff; stroke-width: 2.5; filter: drop-shadow(0 1px 2px rgba(0,0,0,.18)); }
+.world-map-viewport .poi.start circle { fill: #1f4fbf; }
+.world-map-viewport .poi.missing circle { fill: var(--rust); }
+.world-map-viewport .poi.selected circle { stroke: #f5b301; stroke-width: 3.5; }
+.world-map-viewport .poi text { font-size: 12px; fill: var(--ink); paint-order: stroke; stroke: #fff; stroke-width: 3px; font-weight: 600; pointer-events: none; }
+.world-map-status {
+  position: absolute; left: 12px; right: 12px; bottom: 10px; display: flex; justify-content: space-between; gap: 12px;
+  font-size: 12px; color: var(--muted); pointer-events: none;
+}
+.world-map-status span { background: rgba(255,255,255,.9); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+.world-map-empty { display: grid; place-items: center; }
+.world-map-size { display: flex; align-items: end; gap: 10px; margin-top: 12px; }
+.world-map-size input { width: 72px; }
+.canvas-view-toggle { margin-left: 4px; }

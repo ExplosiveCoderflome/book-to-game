@@ -1,6 +1,6 @@
 # 世界地图编辑器：调研与设计（地图 · 地形 · 势力分布）
 
-> 状态：设计稿（2026-10-27），**本轮不含功能代码**。  
+> 状态：M1 已实现（2026-10-27）：`contracts/world-map.ts`、`rules/world-map.ts`（六边形数学 + `validateWorldMap`）、`WorldMapCanvas` 地图/分屏模式。M2–M4 仍为设计稿。  
 > 约束来源：[`extensibility.md`](./extensibility.md)（五层分离）· [`architecture.md`](./architecture.md)。  
 > 核心原则：**地图是共享基底上的一层可选数据，不是新运行时**。没有地图的世界照常可玩。
 

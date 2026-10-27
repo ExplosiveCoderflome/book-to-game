@@ -6,6 +6,9 @@ import { openingActionDensity } from '../lib/world-graph';
 import { useWorldCanvasPlay } from '../hooks/useWorldCanvasPlay';
 import { Notice, Empty } from './Notice';
 import { WorldGraphCanvas } from './WorldGraphCanvas';
+import { WorldMapCanvas } from './WorldMapCanvas';
+import { withMap } from '../lib/world-map';
+import type { WorldMap } from '@novel-game/contracts';
 import { WorldOverview } from './WorldOverview';
 import { WorldbookEditor } from './WorldbookEditor';
 import { WorldPlayInspector } from './play/WorldPlayInspector';
@@ -45,6 +48,7 @@ export function WorldsPanel({
   const [selectedLocationId, setSelectedLocationId] = useState<string | undefined>();
   const [metaOpen, setMetaOpen] = useState(false);
   const [canvasMode, setCanvasMode] = useState<'edit' | 'play'>('edit');
+  const [canvasView, setCanvasView] = useState<'graph' | 'split' | 'map'>('graph');
 
   useEffect(() => { onDirtyChange(dirty || json !== null); }, [dirty, json, onDirtyChange]);
   useEffect(() => {
@@ -52,7 +56,7 @@ export function WorldsPanel({
     setDraft(null); setContent(blank()); setDirty(false); setJson(null); setValidation(null);
     setError(null); setMessage(null); setConflict(false); setInspectorOpen(false);
     setSelectedLocationId(undefined); setInspectorTab('location'); setMetaOpen(false);
-    setCanvasMode('edit');
+    setCanvasMode('edit'); setCanvasView('graph');
     if (!selectedId) return;
     setBusy(true);
     request<WorldDraft>(token, `/worlds/drafts/${selectedId}`).then(d => {
@@ -110,6 +114,11 @@ export function WorldsPanel({
     setInspectorTab('location');
     setInspectorOpen(true);
   }
+  function selectLocationLinked(id: string) {
+    if (canvasView === 'graph') selectLocation(id); else setSelectedLocationId(id);
+  }
+  function graphOnly(): boolean { return canvasMode === 'play' || canvasView === 'graph'; }
+  function updateMap(map: WorldMap | undefined) { change(withMap(content, map)); }
   function updateLayout(layout: CanvasLayout) {
     change({ ...content, canvasLayout: layout });
   }
@@ -190,6 +199,15 @@ export function WorldsPanel({
                   <button type="button" className={`small${canvasMode === 'play' ? ' active' : ''}`} disabled={busy || playBusy || !canPlayOnCanvas} title={!canPlayOnCanvas ? t('需已发布版本，且无未保存编辑') : undefined} onClick={() => setCanvasMode('play')}>{t('试玩')}</button>
                 </div>
               )}
+              {canvasMode === 'edit' && json === null && (
+                <div className="canvas-mode-toggle canvas-view-toggle" role="group" aria-label={t('视图')}>
+                  {(['graph', 'split', 'map'] as const).map(v => (
+                    <button key={v} type="button" data-testid={`world-view-${v}`} className={`small${canvasView === v ? ' active' : ''}`} disabled={busy} onClick={() => setCanvasView(v)}>
+                      {t(v === 'graph' ? '地点图' : v === 'split' ? '分屏' : '地图')}
+                    </button>
+                  ))}
+                </div>
+              )}
               <button type="button" className="small" disabled={busy || json !== null || canvasMode === 'play'} onClick={() => setMetaOpen(v => !v)}>{t(metaOpen ? '收起世界信息' : '世界信息')}</button>
               <button type="button" className="small" disabled={busy || json !== null || canvasMode === 'play' || !content.locations.length} onClick={() => { setInspectorTab('all'); setInspectorOpen(true); }}>{t('全览')}</button>
               <button type="button" className="small" data-testid="open-worldbook" disabled={busy || json !== null || canvasMode === 'play'} onClick={() => { setInspectorTab('worldbook'); setInspectorOpen(true); }}>{t('世界书')}</button>
@@ -223,16 +241,32 @@ export function WorldsPanel({
               </div>
             )}
             <div className={`draft-canvas-stage${(inspectorOpen || canvasMode === 'play') ? ' with-inspector' : ''}${canvasMode === 'play' ? ' play-mode' : ''}`} data-testid="world-canvas-stage">
+              {graphOnly() ? (
               <WorldGraphCanvas
-                primary
-                content={canvasMode === 'play' && latestRevision ? latestRevision.content : content}
-                selectedLocationId={canvasMode === 'play' ? playSession?.location.id : (inspectorOpen ? selectedLocationId : undefined)}
-                onSelectLocation={canvasMode === 'play' ? (() => {}) : selectLocation}
-                onLayoutChange={canvasMode === 'play' ? undefined : updateLayout}
-                warnings={canvasMode === 'play' ? [] : canvasWarnings}
-                playOverlay={canvasMode === 'play' ? playOverlay : null}
-                readOnly={canvasMode === 'play'}
-              />
+                  primary
+                  content={canvasMode === 'play' && latestRevision ? latestRevision.content : content}
+                  selectedLocationId={canvasMode === 'play' ? playSession?.location.id : (inspectorOpen || canvasView !== 'graph' ? selectedLocationId : undefined)}
+                  onSelectLocation={canvasMode === 'play' ? (() => {}) : selectLocationLinked}
+                  onLayoutChange={canvasMode === 'play' ? undefined : updateLayout}
+                  warnings={canvasMode === 'play' ? [] : canvasWarnings}
+                  playOverlay={canvasMode === 'play' ? playOverlay : null}
+                  readOnly={canvasMode === 'play'}
+                />
+              ) : canvasView === 'map' ? <WorldMapCanvas content={content} selectedLocationId={selectedLocationId} onSelectLocation={selectLocationLinked} onMapChange={updateMap} /> : (
+                <div className="world-split" data-testid="world-split">
+                  <WorldMapCanvas content={content} selectedLocationId={selectedLocationId} onSelectLocation={selectLocationLinked} onMapChange={updateMap} />
+                <WorldGraphCanvas
+                  primary
+                  content={canvasMode === 'play' && latestRevision ? latestRevision.content : content}
+                  selectedLocationId={canvasMode === 'play' ? playSession?.location.id : (inspectorOpen || canvasView !== 'graph' ? selectedLocationId : undefined)}
+                  onSelectLocation={canvasMode === 'play' ? (() => {}) : selectLocationLinked}
+                  onLayoutChange={canvasMode === 'play' ? undefined : updateLayout}
+                  warnings={canvasMode === 'play' ? [] : canvasWarnings}
+                  playOverlay={canvasMode === 'play' ? playOverlay : null}
+                  readOnly={canvasMode === 'play'}
+                />
+                </div>
+              )}
               {canvasMode === 'play' ? (
                 <WorldPlayInspector
                   latestRevision={latestRevision}

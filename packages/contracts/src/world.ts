@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { worldbookSchema } from './worldbook.js';
+import { worldMapSchema } from './world-map.js';
 export const SYSTEM_WAIT_ACTION_ID = '__wait__';
 
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/, '标识只允许字母、数字、短横线和下划线');
@@ -47,6 +48,8 @@ export const worldContentSchema = z.object({
   worldbook: worldbookSchema.optional(),
   /** Optional infinite-canvas location positions; authoring metadata, ignored by adventure runtime. */
   canvasLayout: z.record(z.string().min(1).max(80), z.object({ x: z.number().finite(), y: z.number().finite() })).optional(),
+  /** Optional spatial map layer (hex v1). Never creates movement edges; absent = no map. */
+  map: worldMapSchema.optional(),
 });
 export type WorldContent = z.infer<typeof worldContentSchema>;
 export type WorldCondition = z.infer<typeof worldConditionSchema>;
