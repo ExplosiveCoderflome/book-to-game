@@ -1,0 +1,1222 @@
+{
+  "schemaVersion": 1,
+  "mode": "open",
+  "title": "The Ember Reach",
+  "premise": "Three realms share a fractured land between the western sea and the eastern desert.",
+  "playerRole": "A wandering cartographer",
+  "goal": "Chart the realm and reach Sunscar Oasis.",
+  "worldRules": [
+    "Mountains can only be crossed at Ironspine Pass."
+  ],
+  "adaptationNotes": "Test fixture for the world map layer (terrain + factions + POIs).",
+  "sourceChapterIds": [
+    "fixture"
+  ],
+  "initialLocationId": "saltmere",
+  "timeLimit": 30,
+  "timeoutEnding": "The season ends before your map is complete.",
+  "locations": [
+    {
+      "id": "watch_cape",
+      "title": "Watchtower Cape",
+      "text": "A lonely lighthouse on the northern cliffs.",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "elderwood",
+      "title": "Elderwood Hollow",
+      "text": "A druid circle deep in the old forest.",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "ironspine",
+      "title": "Ironspine Pass",
+      "text": "The only road over the mountains.",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "saltmere",
+      "title": "Port Saltmere",
+      "text": "A busy harbour where the river meets the sea.",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "highcrown",
+      "title": "Highcrown",
+      "text": "Royal citadel of the Azure Crown.",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "riverford",
+      "title": "Riverford",
+      "text": "A toll bridge town on the river.",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "mirefen",
+      "title": "Mirefen",
+      "text": "Stilt village in the southern marsh.",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "sunscar",
+      "title": "Sunscar Oasis",
+      "text": "Palm-ringed capital of the Ashen Sultanate.",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    }
+  ],
+  "facts": [],
+  "npcs": [],
+  "actions": [
+    {
+      "id": "go_saltmere_highcrown",
+      "label": "Travel to Highcrown",
+      "description": "",
+      "locationId": "saltmere",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "The road is closed.",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {
+          "kind": "move",
+          "locationId": "highcrown"
+        }
+      ],
+      "text": "You travel to Highcrown.",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "go_highcrown_saltmere",
+      "label": "Travel to Port Saltmere",
+      "description": "",
+      "locationId": "highcrown",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "The road is closed.",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {
+          "kind": "move",
+          "locationId": "saltmere"
+        }
+      ],
+      "text": "You travel to Port Saltmere.",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "go_highcrown_riverford",
+      "label": "Travel to Riverford",
+      "description": "",
+      "locationId": "highcrown",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "The road is closed.",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {
+          "kind": "move",
+          "locationId": "riverford"
+        }
+      ],
+      "text": "You travel to Riverford.",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "go_riverford_highcrown",
+      "label": "Travel to Highcrown",
+      "description": "",
+      "locationId": "riverford",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "The road is closed.",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {
+          "kind": "move",
+          "locationId": "highcrown"
+        }
+      ],
+      "text": "You travel to Highcrown.",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "go_riverford_ironspine",
+      "label": "Travel to Ironspine Pass",
+      "description": "",
+      "locationId": "riverford",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "The road is closed.",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {
+          "kind": "move",
+          "locationId": "ironspine"
+        }
+      ],
+      "text": "You travel to Ironspine Pass.",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "go_ironspine_riverford",
+      "label": "Travel to Riverford",
+      "description": "",
+      "locationId": "ironspine",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "The road is closed.",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {
+          "kind": "move",
+          "locationId": "riverford"
+        }
+      ],
+      "text": "You travel to Riverford.",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "go_highcrown_elderwood",
+      "label": "Travel to Elderwood Hollow",
+      "description": "",
+      "locationId": "highcrown",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "The road is closed.",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {
+          "kind": "move",
+          "locationId": "elderwood"
+        }
+      ],
+      "text": "You travel to Elderwood Hollow.",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "go_elderwood_highcrown",
+      "label": "Travel to Highcrown",
+      "description": "",
+      "locationId": "elderwood",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "The road is closed.",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {
+          "kind": "move",
+          "locationId": "highcrown"
+        }
+      ],
+      "text": "You travel to Highcrown.",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "go_elderwood_watch_cape",
+      "label": "Travel to Watchtower Cape",
+      "description": "",
+      "locationId": "elderwood",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "The road is closed.",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {
+          "kind": "move",
+          "locationId": "watch_cape"
+        }
+      ],
+      "text": "You travel to Watchtower Cape.",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "go_watch_cape_elderwood",
+      "label": "Travel to Elderwood Hollow",
+      "description": "",
+      "locationId": "watch_cape",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "The road is closed.",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {
+          "kind": "move",
+          "locationId": "elderwood"
+        }
+      ],
+      "text": "You travel to Elderwood Hollow.",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "go_highcrown_mirefen",
+      "label": "Travel to Mirefen",
+      "description": "",
+      "locationId": "highcrown",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "The road is closed.",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {
+          "kind": "move",
+          "locationId": "mirefen"
+        }
+      ],
+      "text": "You travel to Mirefen.",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "go_mirefen_highcrown",
+      "label": "Travel to Highcrown",
+      "description": "",
+      "locationId": "mirefen",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "The road is closed.",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {
+          "kind": "move",
+          "locationId": "highcrown"
+        }
+      ],
+      "text": "You travel to Highcrown.",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "go_ironspine_sunscar",
+      "label": "Travel to Sunscar Oasis",
+      "description": "",
+      "locationId": "ironspine",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "The road is closed.",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {
+          "kind": "move",
+          "locationId": "sunscar"
+        }
+      ],
+      "text": "You travel to Sunscar Oasis.",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "go_sunscar_ironspine",
+      "label": "Travel to Ironspine Pass",
+      "description": "",
+      "locationId": "sunscar",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "The road is closed.",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {
+          "kind": "move",
+          "locationId": "ironspine"
+        }
+      ],
+      "text": "You travel to Ironspine Pass.",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    }
+  ],
+  "events": [],
+  "endings": [
+    {
+      "id": "arrive",
+      "title": "Map complete",
+      "text": "You reach Sunscar with a finished map.",
+      "when": [
+        {
+          "kind": "time",
+          "atLeast": 1
+        }
+      ]
+    }
+  ],
+  "map": {
+    "mapSchemaVersion": 1,
+    "geometry": {
+      "kind": "hex",
+      "orientation": "pointy",
+      "cols": 24,
+      "rows": 16,
+      "size": 32
+    },
+    "layers": {
+      "terrain": {
+        "palette": [
+          {
+            "id": "sea",
+            "label": "Sea",
+            "color": "#6f9fc4",
+            "tags": [
+              "water"
+            ]
+          },
+          {
+            "id": "coast",
+            "label": "Coast",
+            "color": "#e4d6a0"
+          },
+          {
+            "id": "plains",
+            "label": "Plains",
+            "color": "#b9cf86"
+          },
+          {
+            "id": "forest",
+            "label": "Forest",
+            "color": "#4f8a4a"
+          },
+          {
+            "id": "mountains",
+            "label": "Mountains",
+            "color": "#8c8178",
+            "tags": [
+              "impassable"
+            ]
+          },
+          {
+            "id": "river",
+            "label": "River",
+            "color": "#5c9fd6",
+            "tags": [
+              "water"
+            ]
+          },
+          {
+            "id": "desert",
+            "label": "Desert",
+            "color": "#e2bf72"
+          },
+          {
+            "id": "marsh",
+            "label": "Marsh",
+            "color": "#7d9b78"
+          }
+        ],
+        "cells": {
+          "0,0": "sea",
+          "1,0": "sea",
+          "2,0": "plains",
+          "3,0": "plains",
+          "4,0": "forest",
+          "5,0": "forest",
+          "6,0": "forest",
+          "7,0": "forest",
+          "8,0": "forest",
+          "9,0": "forest",
+          "10,0": "plains",
+          "11,0": "plains",
+          "12,0": "forest",
+          "13,0": "forest",
+          "14,0": "plains",
+          "15,0": "mountains",
+          "16,0": "mountains",
+          "17,0": "mountains",
+          "18,0": "plains",
+          "19,0": "plains",
+          "20,0": "forest",
+          "21,0": "forest",
+          "22,0": "forest",
+          "23,0": "plains",
+          "0,1": "sea",
+          "1,1": "sea",
+          "2,1": "plains",
+          "3,1": "plains",
+          "4,1": "forest",
+          "5,1": "plains",
+          "6,1": "forest",
+          "7,1": "forest",
+          "8,1": "forest",
+          "9,1": "forest",
+          "10,1": "forest",
+          "11,1": "forest",
+          "12,1": "forest",
+          "13,1": "plains",
+          "14,1": "plains",
+          "15,1": "mountains",
+          "16,1": "mountains",
+          "17,1": "plains",
+          "18,1": "forest",
+          "19,1": "forest",
+          "20,1": "forest",
+          "21,1": "forest",
+          "22,1": "plains",
+          "23,1": "forest",
+          "-1,2": "sea",
+          "0,2": "coast",
+          "1,2": "plains",
+          "2,2": "plains",
+          "3,2": "plains",
+          "4,2": "forest",
+          "5,2": "forest",
+          "6,2": "forest",
+          "7,2": "forest",
+          "8,2": "forest",
+          "9,2": "forest",
+          "10,2": "plains",
+          "11,2": "plains",
+          "12,2": "plains",
+          "13,2": "plains",
+          "14,2": "mountains",
+          "15,2": "mountains",
+          "16,2": "plains",
+          "17,2": "forest",
+          "18,2": "forest",
+          "19,2": "forest",
+          "20,2": "plains",
+          "21,2": "plains",
+          "22,2": "plains",
+          "-1,3": "sea",
+          "0,3": "sea",
+          "1,3": "coast",
+          "2,3": "coast",
+          "3,3": "forest",
+          "4,3": "plains",
+          "5,3": "forest",
+          "6,3": "forest",
+          "7,3": "plains",
+          "8,3": "forest",
+          "9,3": "forest",
+          "10,3": "forest",
+          "11,3": "forest",
+          "12,3": "plains",
+          "13,3": "plains",
+          "14,3": "mountains",
+          "15,3": "mountains",
+          "16,3": "plains",
+          "17,3": "plains",
+          "18,3": "plains",
+          "19,3": "plains",
+          "20,3": "forest",
+          "21,3": "forest",
+          "22,3": "plains",
+          "-2,4": "sea",
+          "-1,4": "sea",
+          "0,4": "coast",
+          "1,4": "plains",
+          "2,4": "forest",
+          "3,4": "forest",
+          "4,4": "plains",
+          "5,4": "forest",
+          "6,4": "forest",
+          "7,4": "forest",
+          "8,4": "forest",
+          "9,4": "forest",
+          "10,4": "forest",
+          "11,4": "plains",
+          "12,4": "mountains",
+          "13,4": "mountains",
+          "14,4": "mountains",
+          "15,4": "plains",
+          "16,4": "plains",
+          "17,4": "forest",
+          "18,4": "forest",
+          "19,4": "plains",
+          "20,4": "forest",
+          "21,4": "plains",
+          "-2,5": "sea",
+          "-1,5": "sea",
+          "0,5": "coast",
+          "1,5": "coast",
+          "2,5": "forest",
+          "3,5": "forest",
+          "4,5": "forest",
+          "5,5": "plains",
+          "6,5": "forest",
+          "7,5": "plains",
+          "8,5": "plains",
+          "9,5": "forest",
+          "10,5": "plains",
+          "11,5": "plains",
+          "12,5": "river",
+          "13,5": "mountains",
+          "14,5": "plains",
+          "15,5": "plains",
+          "16,5": "plains",
+          "17,5": "forest",
+          "18,5": "forest",
+          "19,5": "forest",
+          "20,5": "forest",
+          "21,5": "forest",
+          "-3,6": "sea",
+          "-2,6": "sea",
+          "-1,6": "coast",
+          "0,6": "plains",
+          "1,6": "plains",
+          "2,6": "plains",
+          "3,6": "plains",
+          "4,6": "plains",
+          "5,6": "plains",
+          "6,6": "plains",
+          "7,6": "plains",
+          "8,6": "plains",
+          "9,6": "plains",
+          "10,6": "river",
+          "11,6": "river",
+          "12,6": "mountains",
+          "13,6": "plains",
+          "14,6": "forest",
+          "15,6": "plains",
+          "16,6": "forest",
+          "17,6": "forest",
+          "18,6": "forest",
+          "19,6": "plains",
+          "20,6": "plains",
+          "-3,7": "sea",
+          "-2,7": "sea",
+          "-1,7": "sea",
+          "0,7": "plains",
+          "1,7": "plains",
+          "2,7": "plains",
+          "3,7": "plains",
+          "4,7": "plains",
+          "5,7": "plains",
+          "6,7": "forest",
+          "7,7": "plains",
+          "8,7": "forest",
+          "9,7": "river",
+          "10,7": "plains",
+          "11,7": "mountains",
+          "12,7": "mountains",
+          "13,7": "plains",
+          "14,7": "plains",
+          "15,7": "plains",
+          "16,7": "forest",
+          "17,7": "plains",
+          "18,7": "forest",
+          "19,7": "plains",
+          "20,7": "plains",
+          "-4,8": "sea",
+          "-3,8": "sea",
+          "-2,8": "coast",
+          "-1,8": "plains",
+          "0,8": "plains",
+          "1,8": "plains",
+          "2,8": "plains",
+          "3,8": "plains",
+          "4,8": "plains",
+          "5,8": "plains",
+          "6,8": "river",
+          "7,8": "river",
+          "8,8": "plains",
+          "9,8": "mountains",
+          "10,8": "mountains",
+          "11,8": "mountains",
+          "12,8": "plains",
+          "13,8": "plains",
+          "14,8": "desert",
+          "15,8": "desert",
+          "16,8": "plains",
+          "17,8": "desert",
+          "18,8": "desert",
+          "19,8": "plains",
+          "-4,9": "sea",
+          "-3,9": "sea",
+          "-2,9": "coast",
+          "-1,9": "plains",
+          "0,9": "plains",
+          "1,9": "plains",
+          "2,9": "plains",
+          "3,9": "plains",
+          "4,9": "river",
+          "5,9": "river",
+          "6,9": "plains",
+          "7,9": "plains",
+          "8,9": "plains",
+          "9,9": "mountains",
+          "10,9": "mountains",
+          "11,9": "plains",
+          "12,9": "plains",
+          "13,9": "desert",
+          "14,9": "desert",
+          "15,9": "desert",
+          "16,9": "desert",
+          "17,9": "desert",
+          "18,9": "desert",
+          "19,9": "desert",
+          "-5,10": "sea",
+          "-4,10": "sea",
+          "-3,10": "sea",
+          "-2,10": "sea",
+          "-1,10": "coast",
+          "0,10": "river",
+          "1,10": "river",
+          "2,10": "river",
+          "3,10": "plains",
+          "4,10": "plains",
+          "5,10": "plains",
+          "6,10": "plains",
+          "7,10": "plains",
+          "8,10": "plains",
+          "9,10": "plains",
+          "10,10": "plains",
+          "11,10": "plains",
+          "12,10": "desert",
+          "13,10": "desert",
+          "14,10": "desert",
+          "15,10": "desert",
+          "16,10": "desert",
+          "17,10": "desert",
+          "18,10": "desert",
+          "-5,11": "sea",
+          "-4,11": "sea",
+          "-3,11": "sea",
+          "-2,11": "sea",
+          "-1,11": "sea",
+          "0,11": "coast",
+          "1,11": "plains",
+          "2,11": "plains",
+          "3,11": "forest",
+          "4,11": "plains",
+          "5,11": "plains",
+          "6,11": "plains",
+          "7,11": "plains",
+          "8,11": "plains",
+          "9,11": "plains",
+          "10,11": "plains",
+          "11,11": "plains",
+          "12,11": "desert",
+          "13,11": "desert",
+          "14,11": "desert",
+          "15,11": "desert",
+          "16,11": "desert",
+          "17,11": "desert",
+          "18,11": "desert",
+          "-6,12": "sea",
+          "-5,12": "sea",
+          "-4,12": "sea",
+          "-3,12": "sea",
+          "-2,12": "coast",
+          "-1,12": "plains",
+          "0,12": "plains",
+          "1,12": "marsh",
+          "2,12": "marsh",
+          "3,12": "marsh",
+          "4,12": "marsh",
+          "5,12": "marsh",
+          "6,12": "marsh",
+          "7,12": "plains",
+          "8,12": "plains",
+          "9,12": "plains",
+          "10,12": "plains",
+          "11,12": "desert",
+          "12,12": "desert",
+          "13,12": "desert",
+          "14,12": "desert",
+          "15,12": "plains",
+          "16,12": "desert",
+          "17,12": "desert",
+          "-6,13": "sea",
+          "-5,13": "sea",
+          "-4,13": "sea",
+          "-3,13": "sea",
+          "-2,13": "coast",
+          "-1,13": "plains",
+          "0,13": "plains",
+          "1,13": "marsh",
+          "2,13": "marsh",
+          "3,13": "marsh",
+          "4,13": "marsh",
+          "5,13": "marsh",
+          "6,13": "marsh",
+          "7,13": "plains",
+          "8,13": "plains",
+          "9,13": "forest",
+          "10,13": "plains",
+          "11,13": "desert",
+          "12,13": "desert",
+          "13,13": "desert",
+          "14,13": "desert",
+          "15,13": "desert",
+          "16,13": "desert",
+          "17,13": "desert",
+          "-7,14": "sea",
+          "-6,14": "sea",
+          "-5,14": "sea",
+          "-4,14": "sea",
+          "-3,14": "sea",
+          "-2,14": "plains",
+          "-1,14": "plains",
+          "0,14": "marsh",
+          "1,14": "marsh",
+          "2,14": "marsh",
+          "3,14": "marsh",
+          "4,14": "marsh",
+          "5,14": "marsh",
+          "6,14": "plains",
+          "7,14": "plains",
+          "8,14": "plains",
+          "9,14": "plains",
+          "10,14": "desert",
+          "11,14": "desert",
+          "12,14": "desert",
+          "13,14": "desert",
+          "14,14": "desert",
+          "15,14": "desert",
+          "16,14": "desert",
+          "-7,15": "sea",
+          "-6,15": "sea",
+          "-5,15": "sea",
+          "-4,15": "sea",
+          "-3,15": "sea",
+          "-2,15": "sea",
+          "-1,15": "sea",
+          "0,15": "marsh",
+          "1,15": "marsh",
+          "2,15": "marsh",
+          "3,15": "marsh",
+          "4,15": "marsh",
+          "5,15": "marsh",
+          "6,15": "plains",
+          "7,15": "plains",
+          "8,15": "forest",
+          "9,15": "plains",
+          "10,15": "desert",
+          "11,15": "plains",
+          "12,15": "desert",
+          "13,15": "desert",
+          "14,15": "desert",
+          "15,15": "desert",
+          "16,15": "desert"
+        }
+      },
+      "factions": {
+        "factions": [
+          {
+            "id": "azure_crown",
+            "name": "Azure Crown",
+            "color": "#2f5fbf",
+            "description": "Coastal kingdom."
+          },
+          {
+            "id": "verdant_pact",
+            "name": "Verdant Pact",
+            "color": "#2e8b3e",
+            "description": "Forest druid league."
+          },
+          {
+            "id": "ashen_sultanate",
+            "name": "Ashen Sultanate",
+            "color": "#c0392b",
+            "description": "Desert empire."
+          }
+        ],
+        "cells": {
+          "2,0": "verdant_pact",
+          "3,0": "verdant_pact",
+          "4,0": "verdant_pact",
+          "5,0": "verdant_pact",
+          "6,0": "verdant_pact",
+          "7,0": "verdant_pact",
+          "8,0": "verdant_pact",
+          "9,0": "verdant_pact",
+          "10,0": "verdant_pact",
+          "11,0": "verdant_pact",
+          "12,0": "verdant_pact",
+          "13,0": "verdant_pact",
+          "2,1": "verdant_pact",
+          "3,1": "verdant_pact",
+          "4,1": "verdant_pact",
+          "5,1": "verdant_pact",
+          "6,1": "verdant_pact",
+          "7,1": "verdant_pact",
+          "8,1": "verdant_pact",
+          "9,1": "verdant_pact",
+          "10,1": "verdant_pact",
+          "11,1": "verdant_pact",
+          "12,1": "verdant_pact",
+          "13,1": "verdant_pact",
+          "0,2": "verdant_pact",
+          "1,2": "verdant_pact",
+          "2,2": "verdant_pact",
+          "3,2": "verdant_pact",
+          "4,2": "verdant_pact",
+          "5,2": "verdant_pact",
+          "6,2": "verdant_pact",
+          "7,2": "verdant_pact",
+          "8,2": "verdant_pact",
+          "9,2": "verdant_pact",
+          "10,2": "verdant_pact",
+          "11,2": "verdant_pact",
+          "12,2": "verdant_pact",
+          "1,3": "verdant_pact",
+          "2,3": "verdant_pact",
+          "3,3": "verdant_pact",
+          "4,3": "verdant_pact",
+          "5,3": "verdant_pact",
+          "6,3": "verdant_pact",
+          "7,3": "verdant_pact",
+          "8,3": "verdant_pact",
+          "9,3": "verdant_pact",
+          "10,3": "verdant_pact",
+          "11,3": "verdant_pact",
+          "12,3": "verdant_pact",
+          "0,4": "verdant_pact",
+          "1,4": "verdant_pact",
+          "2,4": "verdant_pact",
+          "3,4": "verdant_pact",
+          "4,4": "verdant_pact",
+          "5,4": "verdant_pact",
+          "6,4": "verdant_pact",
+          "7,4": "verdant_pact",
+          "8,4": "verdant_pact",
+          "9,4": "verdant_pact",
+          "10,4": "verdant_pact",
+          "11,4": "verdant_pact",
+          "0,5": "verdant_pact",
+          "1,5": "verdant_pact",
+          "2,5": "verdant_pact",
+          "3,5": "verdant_pact",
+          "4,5": "verdant_pact",
+          "5,5": "verdant_pact",
+          "6,5": "verdant_pact",
+          "7,5": "verdant_pact",
+          "8,5": "verdant_pact",
+          "9,5": "verdant_pact",
+          "10,5": "verdant_pact",
+          "11,5": "verdant_pact",
+          "-1,6": "azure_crown",
+          "0,6": "azure_crown",
+          "1,6": "azure_crown",
+          "2,6": "azure_crown",
+          "3,6": "azure_crown",
+          "4,6": "azure_crown",
+          "5,6": "azure_crown",
+          "6,6": "azure_crown",
+          "7,6": "azure_crown",
+          "8,6": "azure_crown",
+          "0,7": "azure_crown",
+          "1,7": "azure_crown",
+          "2,7": "azure_crown",
+          "3,7": "azure_crown",
+          "4,7": "azure_crown",
+          "5,7": "azure_crown",
+          "6,7": "azure_crown",
+          "7,7": "azure_crown",
+          "8,7": "azure_crown",
+          "-2,8": "azure_crown",
+          "-1,8": "azure_crown",
+          "0,8": "azure_crown",
+          "1,8": "azure_crown",
+          "2,8": "azure_crown",
+          "3,8": "azure_crown",
+          "4,8": "azure_crown",
+          "5,8": "azure_crown",
+          "6,8": "azure_crown",
+          "7,8": "azure_crown",
+          "12,8": "ashen_sultanate",
+          "13,8": "ashen_sultanate",
+          "14,8": "ashen_sultanate",
+          "15,8": "ashen_sultanate",
+          "16,8": "ashen_sultanate",
+          "17,8": "ashen_sultanate",
+          "18,8": "ashen_sultanate",
+          "19,8": "ashen_sultanate",
+          "-2,9": "azure_crown",
+          "-1,9": "azure_crown",
+          "0,9": "azure_crown",
+          "1,9": "azure_crown",
+          "2,9": "azure_crown",
+          "3,9": "azure_crown",
+          "4,9": "azure_crown",
+          "5,9": "azure_crown",
+          "6,9": "azure_crown",
+          "7,9": "azure_crown",
+          "12,9": "ashen_sultanate",
+          "13,9": "ashen_sultanate",
+          "14,9": "ashen_sultanate",
+          "15,9": "ashen_sultanate",
+          "16,9": "ashen_sultanate",
+          "17,9": "ashen_sultanate",
+          "18,9": "ashen_sultanate",
+          "19,9": "ashen_sultanate",
+          "-1,10": "azure_crown",
+          "0,10": "azure_crown",
+          "1,10": "azure_crown",
+          "2,10": "azure_crown",
+          "3,10": "azure_crown",
+          "4,10": "azure_crown",
+          "5,10": "azure_crown",
+          "6,10": "azure_crown",
+          "11,10": "ashen_sultanate",
+          "12,10": "ashen_sultanate",
+          "13,10": "ashen_sultanate",
+          "14,10": "ashen_sultanate",
+          "15,10": "ashen_sultanate",
+          "16,10": "ashen_sultanate",
+          "17,10": "ashen_sultanate",
+          "18,10": "ashen_sultanate",
+          "0,11": "azure_crown",
+          "1,11": "azure_crown",
+          "2,11": "azure_crown",
+          "3,11": "azure_crown",
+          "4,11": "azure_crown",
+          "5,11": "azure_crown",
+          "6,11": "azure_crown",
+          "11,11": "ashen_sultanate",
+          "12,11": "ashen_sultanate",
+          "13,11": "ashen_sultanate",
+          "14,11": "ashen_sultanate",
+          "15,11": "ashen_sultanate",
+          "16,11": "ashen_sultanate",
+          "17,11": "ashen_sultanate",
+          "18,11": "ashen_sultanate",
+          "-2,12": "azure_crown",
+          "-1,12": "azure_crown",
+          "0,12": "azure_crown",
+          "1,12": "azure_crown",
+          "2,12": "azure_crown",
+          "3,12": "azure_crown",
+          "4,12": "azure_crown",
+          "5,12": "azure_crown",
+          "10,12": "ashen_sultanate",
+          "11,12": "ashen_sultanate",
+          "12,12": "ashen_sultanate",
+          "13,12": "ashen_sultanate",
+          "14,12": "ashen_sultanate",
+          "15,12": "ashen_sultanate",
+          "16,12": "ashen_sultanate",
+          "17,12": "ashen_sultanate",
+          "10,13": "ashen_sultanate",
+          "11,13": "ashen_sultanate",
+          "12,13": "ashen_sultanate",
+          "13,13": "ashen_sultanate",
+          "14,13": "ashen_sultanate",
+          "15,13": "ashen_sultanate",
+          "16,13": "ashen_sultanate",
+          "17,13": "ashen_sultanate",
+          "9,14": "ashen_sultanate",
+          "10,14": "ashen_sultanate",
+          "11,14": "ashen_sultanate",
+          "12,14": "ashen_sultanate",
+          "13,14": "ashen_sultanate",
+          "14,14": "ashen_sultanate",
+          "15,14": "ashen_sultanate",
+          "16,14": "ashen_sultanate",
+          "9,15": "ashen_sultanate",
+          "10,15": "ashen_sultanate",
+          "11,15": "ashen_sultanate",
+          "12,15": "ashen_sultanate",
+          "13,15": "ashen_sultanate",
+          "14,15": "ashen_sultanate",
+          "15,15": "ashen_sultanate",
+          "16,15": "ashen_sultanate"
+        }
+      }
+    },
+    "pois": [
+      {
+        "locationId": "watch_cape",
+        "anchor": {
+          "cell": "3,1"
+        }
+      },
+      {
+        "locationId": "elderwood",
+        "anchor": {
+          "cell": "7,2"
+        }
+      },
+      {
+        "locationId": "ironspine",
+        "anchor": {
+          "cell": "13,4"
+        }
+      },
+      {
+        "locationId": "saltmere",
+        "anchor": {
+          "cell": "0,8"
+        }
+      },
+      {
+        "locationId": "highcrown",
+        "anchor": {
+          "cell": "5,7"
+        }
+      },
+      {
+        "locationId": "riverford",
+        "anchor": {
+          "cell": "7,8"
+        }
+      },
+      {
+        "locationId": "mirefen",
+        "anchor": {
+          "cell": "3,13"
+        }
+      },
+      {
+        "locationId": "sunscar",
+        "anchor": {
+          "cell": "14,12"
+        }
+      }
+    ]
+  }
+}

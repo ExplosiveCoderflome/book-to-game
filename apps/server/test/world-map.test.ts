@@ -42,3 +42,29 @@ test('validateWorldMap: missing location, unbound, duplicate, out of bounds, sha
   assert.equal(issues.find(i => i.code === 'location_unbound')?.level, 'warning');
   assert.deepEqual(validateWorldMap({ ...map, pois: [{ locationId: 'a', anchor: { cell: '0,0' } }] }, ['a']), []);
 });
+
+import { readFileSync } from 'node:fs';
+import { describeMapForImagePrompt, renderMapSchematicSvg, validateMapLayers } from '@novel-game/rules';
+
+test('map layers: backward compatible (empty layers) and validated', () => {
+  assert.ok(worldMapSchema.safeParse({ ...map, layers: {} }).success);
+  assert.equal(worldMapSchema.safeParse({ ...map, layers: { terrain: { palette: [{ id: 'x', label: 'X', color: 'red' }], cells: {} } } }).success, false);
+  const bad = worldMapSchema.parse({ ...map, layers: {
+    terrain: { palette: [{ id: 'sea', label: 'Sea', color: '#0000ff' }, { id: 'sea', label: 'S2', color: '#0000ff' }], cells: { '0,0': 'lava', '50,0': 'sea' } },
+    factions: { factions: [{ id: 'f', name: 'F', color: '#ff0000' }], cells: { '0,0': 'g' } } } });
+  assert.deepEqual(validateMapLayers(bad).map(i => i.code).sort(), ['layer_cell_out_of_bounds', 'layer_duplicate_id', 'layer_unknown_faction', 'layer_unknown_terrain']);
+});
+
+test('fixture world: valid, no map errors, prompt and schematic deterministic', () => {
+  const world = worldContentSchema.parse(JSON.parse(readFileSync('fixtures/world-map/ember-reach.world.json', 'utf8')));
+  const m = world.map!;
+  assert.equal(validateWorldMap(m, world.locations.map(l => l.id)).filter(i => i.level === 'error').length, 0);
+  assert.equal(Object.keys(m.layers.terrain!.cells).length, 24 * 16);
+  const refs = { title: world.title, locations: world.locations.map(l => ({ id: l.id, title: l.title })) };
+  const prompt = describeMapForImagePrompt(m, refs);
+  assert.ok(prompt.length <= 900);
+  for (const s of ['Azure Crown', 'Sunscar Oasis', 'Mountains', '#c0392b']) assert.ok(prompt.includes(s), s);
+  assert.equal(prompt, describeMapForImagePrompt(m, refs));
+  const svg = renderMapSchematicSvg(m, { places: refs.locations });
+  assert.ok(svg.startsWith('<svg') && svg.includes('Highcrown'));
+});

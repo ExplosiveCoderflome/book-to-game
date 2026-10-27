@@ -30,11 +30,23 @@ export const worldMapPoiSchema = z.object({
   label: z.string().min(1).max(120).optional(),
 });
 
+const color = z.string().regex(/^#[0-9a-fA-F]{6}$/, '颜色须为 #rrggbb');
+/** Terrain layer (M2): palette + sparse cell→terrain id. Purely descriptive until rule kinds use it. */
+export const terrainLayerSchema = z.object({
+  palette: z.array(z.object({ id, label: z.string().min(1).max(60), color, tags: z.array(z.string().min(1).max(40)).max(10).optional() })).max(64),
+  cells: z.record(cellKeySchema, id),
+});
+/** Faction layer (M3): factions + sparse cell→faction id (authored baseline; session overlays come later). */
+export const factionLayerSchema = z.object({
+  factions: z.array(z.object({ id, name: z.string().min(1).max(80), color, description: z.string().max(1000).optional() })).max(32),
+  cells: z.record(cellKeySchema, id),
+});
+
 export const worldMapSchema = z.object({
   mapSchemaVersion: z.literal(WORLD_MAP_SCHEMA_VERSION),
   geometry: worldMapGeometrySchema,
-  /** Reserved layer bag (terrain/factions arrive in M2/M3); sparse by cell key. */
-  layers: z.object({}).default({}),
+  /** Optional layers, all sparse by cell key; absent layer = not authored. */
+  layers: z.object({ terrain: terrainLayerSchema.optional(), factions: factionLayerSchema.optional() }).default({}),
   pois: z.array(worldMapPoiSchema).max(200),
 });
 
@@ -42,3 +54,10 @@ export type HexGeometry = z.infer<typeof hexGeometrySchema>;
 export type WorldMapGeometry = z.infer<typeof worldMapGeometrySchema>;
 export type WorldMapPoi = z.infer<typeof worldMapPoiSchema>;
 export type WorldMap = z.infer<typeof worldMapSchema>;
+export type TerrainLayer = z.infer<typeof terrainLayerSchema>;
+export type FactionLayer = z.infer<typeof factionLayerSchema>;
+
+/** Port for future image-generation adapters (AI layer). Input is the deterministic prompt + schematic reference. */
+export interface MapImageRequest { prompt: string; schematicSvg?: string; width: number; height: number; seed?: number }
+export interface MapImageResult { mimeType: 'image/png' | 'image/webp' | 'image/jpeg'; data: Uint8Array; provider: string; revisedPrompt?: string }
+export interface MapImageProvider { readonly id: string; generate(req: MapImageRequest): Promise<MapImageResult> }

@@ -48,3 +48,9 @@ export {
   cellKey, parseCellKey, offsetToAxial, axialToOffset, hexInBounds, listHexCells, hexToPixel, hexCorners, hexDistance,
   validateWorldMap, type Axial, type WorldMapIssue, type WorldMapIssueCode,
 } from './world-map.js';
+
+export { validateMapLayers } from './world-map.js';
+export {
+  describeMapForImagePrompt, describeMapStructured, renderMapSchematicSvg, regionOf, DEFAULT_MAP_STYLE,
+  type MapDescription, type MapDescribeWorld, type MapPlaceRef, type MapPromptOptions, type SchematicOptions,
+} from './map-render.js';

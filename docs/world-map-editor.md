@@ -144,3 +144,12 @@ WorldMap = {
 6. **AI 生成质量**：小说地理常模糊 → 只生成拓扑与势力表，几何由程序布局 + 作者微调。
 7. **许可误用**：GPL 代码（Tiled 编辑器、Watabou）不得拷入；引入依赖前在 PR 记录许可。
 8. **性能**：大地图 SVG 卡顿 → 视口裁剪，必要时切 PixiJS。
+
+## 地形/势力图层与地图图片生成接缝（M2 前置）
+
+- **Schema（向后兼容）**：`map.layers.terrain = { palette: [{id,label,color,tags?}], cells: {"q,r": terrainId} }`，`map.layers.factions = { factions: [{id,name,color,description?}], cells: {"q,r": factionId} }`。都可选；`layers: {}` 的旧数据不变。`validateMapLayers`（rules）检查未定义的地形/势力引用、重复 id、越界格，并并入 `validateWorldMap`。
+- **渲染接缝（`packages/rules/src/map-render.ts`，纯函数、无 AI/IO）**：
+  - `describeMapStructured` / `describeMapForImagePrompt(map, world)`：按 3×3 区域（north-west…center）汇总地形分布、势力领土（含边界色）、地点位置，输出确定性的英文图片提示词（默认羊皮纸手绘奇幻地图风格，默认 ≤900 字符，可传 `style`/`maxChars`）。
+  - `renderMapSchematicSvg(map, opts)`：确定性示意图（地形填色、势力着色与边界线、地点标注、图例），作为 AI 出图的“真值参考”。
+- **端口**：`MapImageProvider`（contracts）：`generate({prompt, schematicSvg?, width, height, seed?}) → {mimeType, data, provider}`。目前只有 `StubMapImageProvider`（worlds 模块 infrastructure，调用即报未接入），未接路由。真正的图片生成 API 作为适配器实现此接口；AI 产出的图片只是展示层，不回写地形/势力数据。
+- **测试数据**：`fixtures/world-map/ember-reach.world.json`（24×16，8 地点、3 势力、8 种地形），由 `npx tsx scripts/gen-map-fixture.ts --out <dir>` 生成，同时输出 `map.json`、`prompt.txt`、`schematic.svg`。
