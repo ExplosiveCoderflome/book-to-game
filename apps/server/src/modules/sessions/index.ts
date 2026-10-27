@@ -3,3 +3,5 @@ export { SqliteSessionRepository } from './infrastructure/sqlite-session-reposit
 export type { SessionRepository, RevisionReader } from './application/ports.js';
 export type { SessionState } from './domain/session-state.js';
 export type { ActInput, SessionView } from '@novel-game/contracts';
+export { narrateSession, clearNarrateCache, type StoryNarrateModel } from './application/narrate.js';
+export { proposeActSession, type StoryProposeModel } from './application/propose-act.js';

@@ -3,9 +3,7 @@ import { actSchema, extendDraftSceneInputSchema, fillSceneTextInputSchema, gameC
 import type { Workbench } from '../workbench.js';
 import { command, emptySchema, idSchema } from './definition.js';
 import { extendDraftScene, fillDraftSceneText } from '../../modules/generation/index.js';
-import { proposeActSession } from '../../modules/sessions/application/propose-act.js';
-import { narrateSession } from '../../modules/sessions/application/narrate.js';
-import { ChatCompletionsProvider } from '../../platform/model/chat-completions.js';
+import { narrateSession, proposeActSession } from '../../modules/sessions/index.js';
 import { AppError } from '../../shared/errors.js';
 
 export function gameCommands(w: Workbench) {
@@ -25,18 +23,14 @@ export function gameCommands(w: Workbench) {
     command('extend_draft_scene', '从选中场景延申邻近节点与显式边，合并进草稿且不抹掉无关节点。需要模型配置。',
       extendDraftSceneInputSchema, false, async (input) => {
         if (!w.providerConfigured) throw new AppError('MODEL_NOT_CONFIGURED', '尚未配置模型。请进入“模型设置”后再延申节点。', 503);
-        const endpoint = w.modelSettings.resolve();
-        const provider = new ChatCompletionsProvider({...endpoint, maxAttempts: 2, repairAttempts: 2});
-        return extendDraftScene(w.games, provider, input, {providerConfigured: true});
+        return extendDraftScene(w.games, w.createPlayProvider(), input, {providerConfigured: true});
       }),
     command('fill_draft_scene_text', '作者态：加深选中场景正文（不改图/选项）。返回文案由客户端写入本地 dirty，不自动保存草稿。失败 soft-fail。',
       fillSceneTextInputSchema, false, async (input) => {
         if (!w.providerConfigured) {
           return { status: 'unavailable', sceneId: input.sceneId, text: null, title: null, reason: '尚未配置模型。请进入“模型设置”后再补全文。' };
         }
-        const endpoint = w.modelSettings.resolve();
-        const provider = new ChatCompletionsProvider({...endpoint, maxAttempts: 2, repairAttempts: 2});
-        return fillDraftSceneText(w.games, w.sources, input, provider);
+        return fillDraftSceneText(w.games, w.sources, input, w.createPlayProvider());
       }),
     command('list_games', '列出发布版本（作者视图，含所有分支）。', emptySchema, true, () => w.games.listRevisions()),
     command('start_session', '创建试玩存档，固定使用指定游戏发布版本；只返回当前场景。',
@@ -48,9 +42,7 @@ export function gameCommands(w: Workbench) {
     command('propose_act_session', 'L2：将玩家自由文本映射到当前可见且可用（含世界书过滤后）的 choiceId，或 none；默认映射成功后执行 act。禁止发明新边。',
       proposeActInputSchema.extend({id: z.string()}), false, async ({id, ...input}) => {
         if (!w.providerConfigured) throw new AppError('MODEL_NOT_CONFIGURED', '尚未配置模型。请进入“模型设置”后再使用自由输入。', 503);
-        const endpoint = w.modelSettings.resolve();
-        const provider = new ChatCompletionsProvider({...endpoint, maxAttempts: 2, repairAttempts: 2});
-        return proposeActSession(w.sessions, id, input, provider);
+        return proposeActSession(w.sessions, id, input, w.createPlayProvider());
       }),
     command('narrate_session', 'L1：为当前场景生成可选表演旁白（风味文案）。不改图、不改变量、不发明选项；失败时 soft-fail。默认由客户端关闭。',
       narrateInputSchema.extend({id: z.string()}), false, async ({id, ...input}) => {
@@ -58,9 +50,7 @@ export function gameCommands(w: Workbench) {
           const view = w.sessions.get(id);
           return { status: 'unavailable', text: null, sceneId: view.scene.id, turn: view.turn, reason: '尚未配置模型。请进入“模型设置”后再开启旁白。', cached: false };
         }
-        const endpoint = w.modelSettings.resolve();
-        const provider = new ChatCompletionsProvider({...endpoint, maxAttempts: 2, repairAttempts: 2});
-        return narrateSession(w.sessions, w.games, id, input, provider);
+        return narrateSession(w.sessions, w.games, id, input, w.createPlayProvider());
       }),
   ];
 }

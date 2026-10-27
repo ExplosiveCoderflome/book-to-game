@@ -10,6 +10,7 @@ import { ModelConnectionProbe } from '../platform/model/connection-probe.js';
 import { WorldService, SqliteWorldRepository } from '../modules/worlds/index.js';
 import { AdventureService, SqliteAdventureRepository } from '../modules/adventure-sessions/index.js';
 import type { Logger } from '../shared/logger.js';
+import { ChatCompletionsProvider } from '../platform/model/chat-completions.js';
 
 export function createWorkbench(db: SqliteDatabase, modelSettings: ModelSettingsService, logger?: Logger, options?: {repairAttempts?: number}) {
   const sources = new SourceService(new SqliteSourceRepository(db));
@@ -33,7 +34,12 @@ export function createWorkbench(db: SqliteDatabase, modelSettings: ModelSettings
   const probe = new ModelConnectionProbe();
   const testModelConnection = (input: ModelSettingsInput) => probe.test(modelSettings.forTest(input));
   const listModels = (input: ModelListInput) => probe.list(modelSettings.forList(input));
-  return {sources, games, sessions, worlds, adventures, jobs, createRunner, modelSettings, testModelConnection, listModels,
+  /** Interactive AI (extend/fill/propose/narrate): shared construction for command handlers. */
+  const createPlayProvider = () => {
+    const endpoint = modelSettings.resolve();
+    return new ChatCompletionsProvider({ ...endpoint, maxAttempts: 2, repairAttempts: 2 });
+  };
+  return {sources, games, sessions, worlds, adventures, jobs, createRunner, createPlayProvider, modelSettings, testModelConnection, listModels,
     get providerConfigured() {return modelSettings.get().configured;}};
 }
 export type Workbench = ReturnType<typeof createWorkbench>;

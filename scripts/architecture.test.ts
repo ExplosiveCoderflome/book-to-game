@@ -20,3 +20,17 @@ test('architecture guard allows ports and public modules but rejects internals a
   assert.ok(result.some(v => v.includes('内部')));
   assert.ok(result.some(v => v.includes('循环')));
 });
+
+test('architecture guard rejects composition-root deep imports past module index', () => {
+  const deep = checkImports([
+    {file: 'apps/server/src/app/commands/games.ts', imports: ['../../modules/sessions/application/propose-act.js']},
+    {file: 'apps/server/src/adapters/http/routes.ts', imports: ['../../modules/games/domain/validate.js']},
+  ]);
+  assert.equal(deep.length, 2);
+  assert.ok(deep.every(v => v.includes('组合根禁止深引用')));
+  assert.deepEqual(checkImports([
+    {file: 'apps/server/src/app/commands/games.ts', imports: ['../../modules/sessions/index.js']},
+    {file: 'apps/server/src/adapters/http/app.ts', imports: ['../../modules/games/index.js']},
+  ]), []);
+});
+
