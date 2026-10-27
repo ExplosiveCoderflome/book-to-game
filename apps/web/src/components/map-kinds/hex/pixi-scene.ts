@@ -117,7 +117,7 @@ export class HexPixiScene {
     const rColors = rPalChanged || !this.region!.colors ? colorsOf(s, 'region') : this.region!.colors;
     const showRegionFill = s.mode === 'region';
     L.region.visible = showRegionFill;
-    if (this.syncLayer(this.region!, layerCells(map, 'region'), rColors, rPalChanged, (sp, col) => { sp.visible = !!col; if (col) { sp.tint = hex(col); sp.alpha = 0.45; } }))
+    if (this.syncLayer(this.region!, layerCells(map, 'region'), rColors, rPalChanged, (sp, col) => { sp.visible = !!col; if (col) { sp.tint = hex(col); sp.alpha = 0.2; } }))
       this.drawBorders(L.regionBorders, this.region!.borders.all(), s.mode === 'region' ? 2.5 : 1.6, true);
     // region labels (recomputed only when region cells/palette change)
     const regionsRef = map.layers?.regions;

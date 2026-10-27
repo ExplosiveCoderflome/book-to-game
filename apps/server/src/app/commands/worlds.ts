@@ -13,6 +13,7 @@ export function worldCommands(w: Workbench) {
     command('update_world_draft', '替换世界草稿，version防止覆盖陈旧编辑。',
       z.object({id: z.string(), version: z.number().int().positive(), content: worldContentSchema}), false,
       ({id, ...input}) => w.worlds.update(id, input)),
+    command('archive_world_draft', '归档世界草稿：从列表隐藏，已发布版本与冒险存档保留，不做硬删除。', idSchema, false, ({id}) => w.worlds.archive(id)),
     command('validate_world_draft', '检查世界引用、原文范围和潜在连通；不能保证文学质量或所有策略可解。', idSchema, true, ({id}) => w.worlds.validate(id)),
     command('publish_world_draft', '发布已校验的世界版本，内容不可变；同一草稿版本重复发布幂等。',
       z.object({id: z.string(), version: z.number().int().positive()}), false, ({id, version}) => w.worlds.publish(id, {version})),

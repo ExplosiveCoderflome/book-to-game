@@ -20,6 +20,8 @@ export class WorldService {
     const draft = this.repository.getDraft(id); if (!draft) throw new AppError('DRAFT_NOT_FOUND', '世界草稿不存在', 404); return draft;
   }
   list(): WorldDraft[] {return this.repository.listDrafts();}
+  /** Soft-archive a draft (hidden from list, still readable by id; revisions untouched). */
+  archive(id: string): {id: string; archived: true} {this.get(id); this.repository.archiveDraft(id); return {id, archived: true};}
   validate(id: string): ValidationResult {
     const draft = this.get(id); return validateWorld(draft.content, this.sourceReader.get(draft.sourceId));
   }

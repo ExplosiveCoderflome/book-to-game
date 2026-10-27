@@ -1,17 +1,20 @@
-import { useMemo, useRef, useState, type DragEvent } from 'react';
+import { lazy, Suspense, useMemo, useRef, useState, type DragEvent } from 'react';
+import { MAP_SIZE_PRESETS, MAP_TEMPLATES, getMapTemplate, mapSizePreset } from '@novel-game/contracts';
 import { parseCellKey, validateWorldMap } from '@novel-game/rules';
 import { useI18n } from '../../lib/i18n';
-import { createEmptyMap, resizeMap, unbindLocation } from '../../lib/world-map';
+import { applyMapTemplate, createEmptyMap, resizeMap, resizeMapEdge, setPoiVenueType, unbindLocation, type MapEdge } from '../../lib/world-map';
 import { layerPalette } from '../../lib/world-map-edit';
 import { MapLayerPalette } from '../MapLayerPalette';
 import type { MapEditorProps } from './registry';
-import { PixiHexRenderer } from './hex/PixiHexRenderer';
 import { SvgHexRenderer } from './hex/SvgHexRenderer';
 import { preferredHexRenderer, setPreferredHexRenderer, webglAvailable, type HexRendererHandle, type HexRendererId } from './hex/renderer';
 import { DND_TYPE, useHexMapController, type HexTool } from './hex/useHexMapController';
 
 const MODE_LABEL: Record<'poi' | 'terrain' | 'faction' | 'region', string> = { poi: '地点', terrain: '地形', faction: '势力', region: '区域' };
+/** Pixi (and pixi.js itself) is only fetched when the WebGL renderer is actually used. */
+const PixiHexRenderer = lazy(() => import('./hex/PixiHexRenderer').then(m => ({ default: m.PixiHexRenderer })));
 const RENDERERS = { pixi: PixiHexRenderer, svg: SvgHexRenderer } as const;
+const EDGE_LABEL: Record<MapEdge, string> = { left: '左', right: '右', top: '上', bottom: '下' };
 
 /** Optional hex map layer for a world. Spatial view only: never creates movement edges.
  *  Shell (chrome/tray/legend/status) + renderer-agnostic controller + swappable renderer (Pixi default, SVG fallback). */
@@ -19,6 +22,8 @@ export function HexMapEditor(props: MapEditorProps) {
   const { content, selectedLocationId, onSelectLocation, readOnly = false } = props;
   const { t } = useI18n();
   const [draftSize, setDraftSize] = useState({ cols: 16, rows: 10 });
+  const [draftTemplate, setDraftTemplate] = useState('');
+  const [templateNote, setTemplateNote] = useState<string | null>(null);
   const [rendererId, setRendererId] = useState<HexRendererId>(() => preferredHexRenderer());
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const rendererRef = useRef<HexRendererHandle | null>(null);
@@ -44,10 +49,29 @@ export function HexMapEditor(props: MapEditorProps) {
         <div className="branch-canvas-empty-card">
           <strong>{t('尚未创建地图')}</strong>
           <p>{t('地图只做空间解释，移动仍由地点图中的行动决定。')}</p>
+          <div className="map-template-picker" data-testid="map-template-picker">
+            <p className="world-map-tray-label">{t('题材模板（可选，不按小说自动判定）')}</p>
+            <div className="map-template-cards">
+              {[{ id: '', label: '空白', blurb: '不预设地形与势力，全部自己定义。' }, ...MAP_TEMPLATES].map(tp => <button key={tp.id || 'blank'} type="button" data-testid={`map-template-${tp.id || 'blank'}`}
+                className={`map-template-card${draftTemplate === tp.id ? ' active' : ''}`}
+                onClick={() => { setDraftTemplate(tp.id); const full = getMapTemplate(tp.id); if (full) { const p = mapSizePreset(full.defaultSize); setDraftSize({ cols: p.cols, rows: p.rows }); } }}>
+                <strong>{t(tp.label)}</strong><span>{t(tp.blurb)}</span>
+                {'terrain' in tp && <span className="map-template-swatches">{tp.terrain.map(x => <i key={x.id} title={x.label} style={{ background: x.color }} />)}</span>}
+                {'hierarchy' in tp && <span className="hint">{tp.hierarchy.join(' › ')}</span>}
+              </button>)}
+            </div>
+          </div>
           <div className="world-map-size">
+            <div className="map-seg" role="group" aria-label={t('尺寸预设')}>
+              {MAP_SIZE_PRESETS.map(p => <button key={p.id} type="button" data-testid={`map-size-${p.id}`} className={`small${draftSize.cols === p.cols && draftSize.rows === p.rows ? ' active' : ''}`}
+                onClick={() => setDraftSize({ cols: p.cols, rows: p.rows })}>{t(p.label)} {p.cols}×{p.rows}</button>)}
+            </div>
             <label>{t('列')}<input type="number" min={1} max={64} value={draftSize.cols} onChange={e => setDraftSize(s => ({ ...s, cols: Number(e.target.value) }))} /></label>
             <label>{t('行')}<input type="number" min={1} max={48} value={draftSize.rows} onChange={e => setDraftSize(s => ({ ...s, rows: Number(e.target.value) }))} /></label>
-            <button type="button" className="primary small" disabled={readOnly} data-testid="create-map" onClick={() => commit(createEmptyMap(draftSize.cols, draftSize.rows))}>{t('创建空白地图')}</button>
+            <button type="button" className="primary small" disabled={readOnly} data-testid="create-map" onClick={() => {
+              const blank = createEmptyMap(draftSize.cols, draftSize.rows); const tp = getMapTemplate(draftTemplate);
+              commit(tp ? applyMapTemplate(blank, tp).map : blank);
+            }}>{t(draftTemplate ? '按模板创建地图' : '创建空白地图')}</button>
           </div>
         </div>
       </div>
@@ -79,8 +103,35 @@ export function HexMapEditor(props: MapEditorProps) {
           <button type="button" className="small" data-testid="map-undo" disabled={!hist.past.length || readOnly} title="Ctrl+Z" onClick={undo}>↶ {t('撤销')}</button>
           <button type="button" className="small" data-testid="map-redo" disabled={!hist.future.length || readOnly} title="Ctrl+Shift+Z" onClick={redo}>↷ {t('重做')}</button>
         </div>
-        <label className="inline">{t('列')}<input type="number" min={1} max={64} value={g.cols} disabled={readOnly} onChange={e => commit(resizeMap(map, Number(e.target.value), g.rows), 'resize')} /></label>
-        <label className="inline">{t('行')}<input type="number" min={1} max={48} value={g.rows} disabled={readOnly} onChange={e => commit(resizeMap(map, g.cols, Number(e.target.value)), 'resize')} /></label>
+        <details className="map-pop" data-testid="map-size-pop">
+          <summary className="small">{t('尺寸')} {g.cols}×{g.rows}</summary>
+          <div className="map-pop-body">
+            <p className="world-map-tray-label">{t('预设')}</p>
+            <div className="map-seg">{MAP_SIZE_PRESETS.map(p => <button key={p.id} type="button" className={`small${g.cols === p.cols && g.rows === p.rows ? ' active' : ''}`} data-testid={`map-preset-${p.id}`} disabled={readOnly}
+              onClick={() => commit(resizeMap(map, p.cols, p.rows))}>{t(p.label)} {p.cols}×{p.rows}</button>)}</div>
+            <div className="field-row">
+              <label className="inline">{t('列')}<input type="number" min={1} max={64} value={g.cols} disabled={readOnly} onChange={e => commit(resizeMap(map, Number(e.target.value), g.rows), 'resize')} /></label>
+              <label className="inline">{t('行')}<input type="number" min={1} max={48} value={g.rows} disabled={readOnly} onChange={e => commit(resizeMap(map, g.cols, Number(e.target.value)), 'resize')} /></label>
+            </div>
+            <p className="world-map-tray-label">{t('按边扩缩（左/上会平移已有内容）')}</p>
+            <div className="map-edge-grid">
+              {(['top', 'left', 'right', 'bottom'] as const).map(edge => <div key={edge} className={`map-edge ${edge}`}>
+                <span>{t(EDGE_LABEL[edge])}</span>
+                <button type="button" className="tiny" data-testid={`map-edge-${edge}-minus`} disabled={readOnly} onClick={() => commit(resizeMapEdge(map, edge, -1))}>−</button>
+                <button type="button" className="tiny" data-testid={`map-edge-${edge}-plus`} disabled={readOnly} onClick={() => commit(resizeMapEdge(map, edge, 1))}>+</button>
+              </div>)}
+            </div>
+          </div>
+        </details>
+        <details className="map-pop" data-testid="map-template-pop">
+          <summary className="small">{t('模板')}{map.mapTemplate ? ` · ${t(getMapTemplate(map.mapTemplate.mapTemplateId)?.label ?? map.mapTemplate.mapTemplateId)}` : ''}</summary>
+          <div className="map-pop-body">
+            <p className="hint">{t('只补充缺少的地形/势力/区域/场所类型，不会改名或删除已有条目。')}</p>
+            {MAP_TEMPLATES.map(tp => <button key={tp.id} type="button" className="small" disabled={readOnly} data-testid={`map-apply-${tp.id}`}
+              onClick={() => { const r = applyMapTemplate(map, tp); setTemplateNote(t('已补充 {n} 项', { n: r.added })); if (r.added) commit(r.map); }}>{t(tp.label)}</button>)}
+            {templateNote && <p className="hint">{templateNote}</p>}
+          </div>
+        </details>
         <select className="small" style={{ width: "auto" }} data-testid="map-renderer" value={rendererId} title={t('地图渲染器')} onChange={e => { const v = e.target.value as HexRendererId; setPreferredHexRenderer(v); setRendererId(v); }}>
           <option value="pixi" disabled={!webglAvailable()}>WebGL</option><option value="svg">SVG</option>
         </select>
@@ -125,6 +176,12 @@ export function HexMapEditor(props: MapEditorProps) {
               </li>;
             })}
           </ul>
+          {selectedLocationId && bound.has(selectedLocationId) && (map.venueTypes?.length ?? 0) > 0 && <label className="map-venue">{t('场所类型')}
+            <select data-testid="map-venue-type" disabled={readOnly} value={map.pois.find(p => p.locationId === selectedLocationId)?.venueType ?? ''}
+              onChange={e => commit(setPoiVenueType(map, selectedLocationId, e.target.value || undefined))}>
+              <option value="">{t('未指定')}</option>
+              {map.venueTypes!.map(v => <option key={v.id} value={v.id}>{t(v.label)}</option>)}
+            </select></label>}
         </>}
         {issues.length > 0 && <div className="world-map-issues" data-testid="world-map-issues">
           <p className="world-map-tray-label">{t('地图提示')} · {issues.length}</p>
@@ -133,7 +190,7 @@ export function HexMapEditor(props: MapEditorProps) {
       </aside>
       <div ref={viewportRef} className={`branch-canvas-viewport world-map-viewport${layerMode ? ` painting tool-${tool}` : ''}`} data-renderer={rendererId}
         {...c.handlers} onContextMenu={e => layerMode && e.preventDefault()}>
-        {renderState && <Renderer ref={rendererRef} state={renderState} view={c.view.current} />}
+        {renderState && <Suspense fallback={null}><Renderer ref={rendererRef} state={renderState} view={c.view.current} /></Suspense>}
         {!layerMode && (map.layers?.terrain || map.layers?.factions || map.layers?.regions) && <div className="world-map-legend" data-testid="world-map-legend">
           {map.layers?.terrain && <div><p className="world-map-tray-label">{t('地形')}</p>
             {map.layers.terrain.palette.map(p => <span key={p.id}><i style={{ background: p.color }} />{p.label}</span>)}</div>}

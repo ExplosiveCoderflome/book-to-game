@@ -2941,3 +2941,24 @@ summary:focus:not(:focus-visible) {
 .wr-chip i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; border: 1px solid rgba(0,0,0,.15); }
 .wr-chip.on { border-color: color-mix(in srgb, var(--green) 55%, var(--line)); background: color-mix(in srgb, var(--green) 12%, var(--paper)); font-weight: 600; }
 .wr-add { height: 28px; font-size: 12px; color: var(--muted); }
+
+/* map templates / size popovers */
+.map-template-picker { margin-top: 12px; text-align: left; }
+.map-template-cards { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 8px; }
+.map-template-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 12px; text-align: left; border: 1px solid var(--line, #d8d0c2); border-radius: 8px; background: var(--surface, #fff); font-size: 12px; line-height: 1.4; }
+.map-template-card strong { font-size: 13px; }
+.map-template-card.active { border-color: var(--accent, #8a5a2b); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #8a5a2b) 25%, transparent); }
+.map-template-swatches { display: flex; gap: 3px; }
+.map-template-swatches i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.world-map-size { flex-wrap: wrap; }
+.map-pop { position: relative; }
+.map-pop > summary { list-style: none; cursor: pointer; padding: 4px 10px; border: 1px solid var(--line, #d8d0c2); border-radius: 6px; font-size: 12px; background: var(--surface, #fff); }
+.map-pop > summary::-webkit-details-marker { display: none; }
+.map-pop[open] > summary { border-color: var(--accent, #8a5a2b); }
+.map-pop-body { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; width: 300px; display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--surface, #fff); border: 1px solid var(--line, #d8d0c2); border-radius: 8px; box-shadow: 0 8px 24px rgba(40, 30, 20, .14); }
+.map-pop-body .field-row { display: flex; gap: 8px; }
+.map-pop-body input { width: 64px; }
+.map-edge-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.map-edge { display: flex; align-items: center; gap: 4px; font-size: 12px; }
+.map-edge span { width: 18px; }
+.map-venue { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; font-size: 12px; }

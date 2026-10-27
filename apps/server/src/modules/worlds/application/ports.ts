@@ -4,6 +4,8 @@ export interface WorldRepository {
   insertDraft(draft: WorldDraft): void;
   getDraft(id: string): WorldDraft | undefined;
   listDrafts(): WorldDraft[];
+  /** Soft-archive: hidden from listDrafts; published revisions (immutable) are kept. */
+  archiveDraft(id: string): boolean;
   updateDraft(draft: WorldDraft, expectedVersion: number): void;
   getRevision(id: string): WorldRevision | undefined;
   findRevision(draftId: string, version: number): WorldRevision | undefined;

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 export * from './world.js';
 export * from './world-map.js';
+export * from './map-templates.js';
 export {
   worldbookSchema, worldbookEntrySchema, worldbookConstraintSchema, worldbookEntryKindSchema,
   worldbookScopeSchema, emptyWorldbook, validateWorldbookContent,

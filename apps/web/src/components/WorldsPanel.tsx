@@ -51,6 +51,12 @@ export function WorldsPanel({
   const [canvasMode, setCanvasMode] = useState<'edit' | 'play'>('edit');
   const [canvasView, setCanvasView] = useState<'graph' | 'split' | 'map'>('graph');
 
+  async function archiveDraft() {
+    if (!draft || !window.confirm(t('归档「{title}」？草稿将从列表隐藏，已发布版本和冒险存档保留。', { title: draft.content.title || draft.id }))) return;
+    setBusy(true); setError(null);
+    try { await request(token, `/worlds/drafts/${draft.id}/archive`, 'POST', {}); setDirty(false); setJson(null); select(''); await refresh(); }
+    catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
+  }
   useEffect(() => { onDirtyChange(dirty || json !== null); }, [dirty, json, onDirtyChange]);
   useEffect(() => {
     let active = true;
@@ -170,6 +176,7 @@ export function WorldsPanel({
         </select>
       </label>
       <span className="hint">{dirty || json !== null ? t('有未保存编辑') : draft ? t('当前 v{version}', { version: draft.version }) : t('可通过高级 JSON 粘贴完整世界')}</span>
+      {draft && <button type="button" className="small quiet" data-testid="archive-world" disabled={busy} onClick={archiveDraft}>{t('归档草稿')}</button>}
       {(dirty || json !== null || conflict) && <button disabled={busy} onClick={() => setReload(n => n + 1)}>{t('放弃编辑并重新载入')}</button>}
     </div>
     <Notice text={error} />
@@ -253,9 +260,9 @@ export function WorldsPanel({
                   playOverlay={canvasMode === 'play' ? playOverlay : null}
                   readOnly={canvasMode === 'play'}
                 />
-              ) : canvasView === 'map' ? <WorldMapCanvas content={content} selectedLocationId={selectedLocationId} onSelectLocation={selectLocationLinked} onMapChange={updateMap} /> : (
+              ) : canvasView === 'map' ? <WorldMapCanvas content={content} selectedLocationId={selectedLocationId} onSelectLocation={selectLocationLinked} onMapChange={updateMap} historyKey={draft?.id ?? 'new-world'} /> : (
                 <div className="world-split" data-testid="world-split">
-                  <WorldMapCanvas content={content} selectedLocationId={selectedLocationId} onSelectLocation={selectLocationLinked} onMapChange={updateMap} />
+                  <WorldMapCanvas content={content} selectedLocationId={selectedLocationId} onSelectLocation={selectLocationLinked} onMapChange={updateMap} historyKey={draft?.id ?? 'new-world'} />
                 <WorldGraphCanvas
                   primary
                   content={canvasMode === 'play' && latestRevision ? latestRevision.content : content}

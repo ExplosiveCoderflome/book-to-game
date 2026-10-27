@@ -49,3 +49,15 @@ test('architecture guard keeps contracts/rules packages free of frameworks and f
     {file: 'packages/rules/src/world-opening.ts', imports: ['@novel-game/contracts']},
   ]), []);
 });
+test('architecture guard keeps map-kind plugins behind map-kinds/index', () => {
+  assert.deepEqual(checkImports([
+    {file: 'apps/web/src/components/WorldMapCanvas.tsx', imports: ['./map-kinds']},
+    {file: 'apps/web/src/components/map-kinds/index.ts', imports: ['./HexMapEditor', './registry']},
+    {file: 'apps/web/src/components/map-kinds/hex/renderer.ts', imports: ['../../../lib/world-map']},
+  ]), []);
+  const v = checkImports([
+    {file: 'apps/web/src/components/WorldsPanel.tsx', imports: ['./map-kinds/hex/renderer']},
+    {file: 'apps/web/src/components/map-kinds/HexMapEditor.tsx', imports: ['../WorldsPanel']},
+  ]);
+  assert.equal(v.length, 2);
+});

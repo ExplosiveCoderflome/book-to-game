@@ -44,7 +44,7 @@ export function hexDistance(a: Axial, b: Axial): number {
   return (Math.abs(a.q - b.q) + Math.abs(a.q + a.r - b.q - b.r) + Math.abs(a.r - b.r)) / 2;
 }
 
-export type WorldMapIssueCode = 'poi_missing_location' | 'poi_out_of_bounds' | 'poi_duplicate_location' | 'poi_cell_shared' | 'location_unbound'
+export type WorldMapIssueCode = 'poi_unknown_venue' | 'poi_missing_location' | 'poi_out_of_bounds' | 'poi_duplicate_location' | 'poi_cell_shared' | 'location_unbound'
   | 'layer_unknown_terrain' | 'layer_unknown_faction' | 'layer_unknown_region' | 'layer_cell_out_of_bounds' | 'layer_duplicate_id';
 export interface WorldMapIssue { level: 'error' | 'warning'; code: WorldMapIssueCode; message: string; locationId?: string; cell?: CellKey }
 
@@ -66,6 +66,8 @@ export function validateWorldMap(map: WorldMap, locationIds: readonly string[]):
     cells.set(cell, locationId);
   }
   issues.push(...validateMapLayers(map));
+  const venues = new Set((map.venueTypes ?? []).map(v => v.id));
+  for (const poi of map.pois) if (poi.venueType && !venues.has(poi.venueType)) issues.push({ level: 'error', code: 'poi_unknown_venue', locationId: poi.locationId, cell: poi.anchor.cell, message: `地图标记的场所类型未定义：${poi.locationId} → ${poi.venueType}` });
   for (const id of locationIds) if (!bound.has(id)) issues.push({ level: 'warning', code: 'location_unbound', locationId: id, message: `地点尚未放到地图上：${id}` });
   return issues;
 }

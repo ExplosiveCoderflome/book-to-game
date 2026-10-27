@@ -16,7 +16,7 @@ const routes = [
   ['post', '/sessions/:id/narrate', 'narrate_session'],
   ['get', '/worlds/drafts', 'list_world_drafts'], ['post', '/worlds/drafts', 'create_world_draft'],
   ['get', '/worlds/drafts/:id', 'get_world_draft'], ['put', '/worlds/drafts/:id', 'update_world_draft'],
-  ['post', '/worlds/drafts/:id/validate', 'validate_world_draft'], ['post', '/worlds/drafts/:id/publish', 'publish_world_draft'],
+  ['post', '/worlds/drafts/:id/archive', 'archive_world_draft'], ['post', '/worlds/drafts/:id/validate', 'validate_world_draft'], ['post', '/worlds/drafts/:id/publish', 'publish_world_draft'],
   ['get', '/worlds/revisions', 'list_world_revisions'], ['get', '/adventures', 'list_adventures'], ['post', '/adventures', 'start_adventure'],
   ['get', '/adventures/:id', 'get_adventure'], ['post', '/adventures/:id/actions', 'act_adventure'],
   ['post', '/adventures/:id/propose-act', 'propose_act_adventure'],

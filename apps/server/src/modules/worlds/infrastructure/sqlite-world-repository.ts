@@ -18,13 +18,21 @@ export class SqliteWorldRepository implements WorldRepository {
       CREATE TRIGGER IF NOT EXISTS world_revisions_immutable_delete BEFORE DELETE ON world_revisions
       BEGIN SELECT RAISE(ABORT, 'Published world revisions are immutable'); END;
     `);
+    this.ensureArchiveColumn();
   }
   insertDraft(draft: WorldDraft): void {
     this.db.prepare('INSERT INTO world_drafts(id,source_id,version,data,created_at,updated_at) VALUES(?,?,?,?,?,?)')
       .run(draft.id, draft.sourceId, draft.version, JSON.stringify(draft), draft.createdAt, draft.updatedAt);
   }
+  private ensureArchiveColumn(): void {
+    const cols = this.db.prepare('PRAGMA table_info(world_drafts)').all() as {name: string}[];
+    if (!cols.some(c => c.name === 'archived_at')) this.db.exec('ALTER TABLE world_drafts ADD COLUMN archived_at TEXT');
+  }
+  archiveDraft(id: string): boolean {
+    return this.db.prepare('UPDATE world_drafts SET archived_at=? WHERE id=? AND archived_at IS NULL').run(new Date().toISOString(), id).changes > 0;
+  }
   getDraft(id: string): WorldDraft | undefined {return parse<WorldDraft>(this.db.prepare('SELECT data FROM world_drafts WHERE id=?').get(id));}
-  listDrafts(): WorldDraft[] {return this.db.prepare('SELECT data FROM world_drafts ORDER BY created_at DESC, id').all().map(row => parse<WorldDraft>(row)!);}
+  listDrafts(): WorldDraft[] {return this.db.prepare('SELECT data FROM world_drafts WHERE archived_at IS NULL ORDER BY created_at DESC, id').all().map(row => parse<WorldDraft>(row)!);}
   updateDraft(draft: WorldDraft, expectedVersion: number): void {
     const result = this.db.prepare('UPDATE world_drafts SET version=?,data=?,updated_at=? WHERE id=? AND version=?').run(draft.version, JSON.stringify(draft), draft.updatedAt, draft.id, expectedVersion);
     if (!result.changes) throw new AppError('DRAFT_VERSION_CONFLICT', '草稿已更新，请刷新后编辑', 409);

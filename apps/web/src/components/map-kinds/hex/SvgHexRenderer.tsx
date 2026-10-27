@@ -59,7 +59,7 @@ export const SvgHexRenderer = memo(forwardRef<HexRendererHandle, HexRendererProp
         <Lines segs={factionSegs} width={mode === 'faction' ? 3 : 2.5} />
       </g>
       {(regionLabels.length > 0 || mode === 'region') && <g className="world-map-regions" pointerEvents="none" data-testid="world-map-regions">
-        {mode === 'region' && <Fills topo={topo} values={regions} colors={regionColors} opacity={0.45} />}
+        {mode === 'region' && <Fills topo={topo} values={regions} colors={regionColors} opacity={0.2} />}
         <Lines segs={regionSegs} width={mode === 'region' ? 2.5 : 1.6} dash="6 4" />
         {regionLabels.map(l => <text key={l.id} data-region-label={l.id} x={l.x} y={l.y} textAnchor="middle" dominantBaseline="middle" className="region-label"
           style={{ fontSize: Math.max(14, Math.min(40, g.size * 0.9 + Math.sqrt(l.n) * 1.5)), fill: '#2a2118', stroke: '#fffaf0', strokeWidth: 4, paintOrder: 'stroke', fontWeight: 700, letterSpacing: 2, opacity: mode === 'region' ? 0.95 : 0.7 }}>{l.name}</text>)}

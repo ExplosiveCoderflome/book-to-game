@@ -4,6 +4,7 @@ import { cellKey, hexInBounds, parseCellKey } from '@novel-game/rules';
 import { cellsInRadius, floodFill, layerCells, layerPalette, paintCells, pixelToHex, pushHistory, redoHistory, undoHistory, type MapHistory, type MapLayerKind } from '../../../lib/world-map-edit';
 import { bindLocationToCell } from '../../../lib/world-map';
 import type { MapEditorProps } from '../registry';
+import { readMapHistory, writeMapHistory } from '../history-store';
 import type { HexEditMode, HexRenderState, HexRendererHandle, HexView } from './renderer';
 import { buildHexTopology } from './topology';
 
@@ -14,14 +15,19 @@ export const DND_TYPE = 'application/x-btg-location';
  * Renderer-agnostic hex editor controller: tools, palette selection, strokes, undo, hit-testing,
  * pan/zoom (kept in a ref, pushed imperatively to the renderer — never React state).
  */
-export function useHexMapController({ content, selectedLocationId, onSelectLocation, onMapChange, readOnly = false }: MapEditorProps,
+export function useHexMapController({ content, selectedLocationId, onSelectLocation, onMapChange, readOnly = false, historyKey }: MapEditorProps,
   viewportRef: RefObject<HTMLDivElement | null>, rendererRef: RefObject<HexRendererHandle | null>, zoomLabelRef: RefObject<HTMLSpanElement | null>) {
   const map = content.map;
   const [mode, setMode] = useState<HexEditMode>('poi');
   const [tool, setTool] = useState<HexTool>('brush');
   const [brush, setBrush] = useState(1);
   const [active, setActive] = useState<Record<MapLayerKind, string | null>>({ terrain: null, faction: null, region: null });
-  const [hist, setHist] = useState<MapHistory>({ past: [], future: [] });
+  const [hist, setHistState] = useState<MapHistory>(() => readMapHistory(historyKey));
+  const histRef = useRef(hist);
+  const setHist = useCallback((u: MapHistory | ((h: MapHistory) => MapHistory)) => {
+    const next = typeof u === 'function' ? u(histRef.current) : u; histRef.current = next; writeMapHistory(historyKey, next); setHistState(next);
+  }, [historyKey]);
+  useEffect(() => { const h = readMapHistory(historyKey); histRef.current = h; setHistState(h); }, [historyKey]);
   const [cursorCell, setCursorCell] = useState<string | null>(null);
   const [dropCell, setDropCell] = useState<string | null>(null);
   const [selectedCell, setSelectedCell] = useState<string | null>(null);
@@ -65,9 +71,9 @@ export function useHexMapController({ content, selectedLocationId, onSelectLocat
     if (!merge) setHist(h => pushHistory(h, live.current));
     lastCoalesce.current = coalesceKey ? { key: coalesceKey, at: now } : null;
     live.current = next; onMapChange(next);
-  }, [onMapChange]);
-  const undo = useCallback(() => { const r = undoHistory(hist, live.current); if (!r) return; setHist(r.h); lastCoalesce.current = null; live.current = r.map; onMapChange(r.map); }, [hist, onMapChange]);
-  const redo = useCallback(() => { const r = redoHistory(hist, live.current); if (!r) return; setHist(r.h); lastCoalesce.current = null; live.current = r.map; onMapChange(r.map); }, [hist, onMapChange]);
+  }, [onMapChange, setHist]);
+  const undo = useCallback(() => { const r = undoHistory(hist, live.current); if (!r) return; setHist(r.h); lastCoalesce.current = null; live.current = r.map; onMapChange(r.map); }, [hist, onMapChange, setHist]);
+  const redo = useCallback(() => { const r = redoHistory(hist, live.current); if (!r) return; setHist(r.h); lastCoalesce.current = null; live.current = r.map; onMapChange(r.map); }, [hist, onMapChange, setHist]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {

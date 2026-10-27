@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { useI18n } from '../lib/i18n';
 import { DEFAULT_MAP_KIND, mapKindEditor, type MapEditorProps } from './map-kinds';
 
@@ -7,5 +8,5 @@ export function WorldMapCanvas(props: MapEditorProps) {
   const kind = props.content.map?.geometry.kind ?? DEFAULT_MAP_KIND;
   const entry = mapKindEditor(kind);
   if (!entry) return <div className="branch-canvas primary world-map-pane" data-testid="world-map-canvas"><p className="hint">{t('不支持的地图类型：{kind}', { kind })}</p></div>;
-  return <entry.Editor {...props} />;
+  return <Suspense fallback={<div className="branch-canvas primary world-map-pane" data-testid="world-map-loading"><p className="hint">{t('正在载入地图编辑器…')}</p></div>}><entry.Editor {...props} /></Suspense>;
 }

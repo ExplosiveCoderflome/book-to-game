@@ -125,3 +125,14 @@ test('validateWorld does not count requires-locked visible actions toward openin
     assert.ok(result.errors.some(e => /开局可执行行动不足：起始地点仅有 1 个/.test(e)), result.errors.join(';'));
   } finally {db.close();}
 });
+
+test('archived world drafts leave the list but keep revisions readable', () => {
+  const db = new Database(':memory:'); try {
+    const worlds = setup(db); const draft = worlds.create({sourceId: source.id, content: content()});
+    worlds.publish(draft.id, {version: 1});
+    assert.deepEqual(worlds.archive(draft.id), {id: draft.id, archived: true});
+    assert.equal(worlds.list().length, 0); assert.equal(worlds.listRevisions().length, 1);
+    assert.equal(worlds.get(draft.id).id, draft.id);
+    assert.throws(() => worlds.archive('missing'), status(404));
+  } finally {db.close();}
+});

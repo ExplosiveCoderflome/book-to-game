@@ -37,6 +37,10 @@ export function checkImports(files: FileImports[]): string[] {
       if (isCompositionRoot(file) && /\/modules\/[^/]+\//.test(target) && !/\/modules\/[^/]+\/index\.(js|ts)$/.test(target)) {
         errors.push(`${file}: 组合根禁止深引用模块内部 ${specifier}`);
       }
+      // Map-kind plugins: outside code goes through map-kinds/index only; kinds never reach back into app panels.
+      const MK = 'apps/web/src/components/map-kinds/';
+      if (target.startsWith(MK) && !file.startsWith(MK) && !/^apps\/web\/src\/components\/map-kinds\/index(\.tsx?)?$/.test(target)) errors.push(`${file}: 地图类型插件仅可经 map-kinds/index 引用，禁止 ${specifier}`);
+      if (file.startsWith(MK) && /^apps\/web\/src\/(components\/[A-Z][^/]*Panel|App)(\.tsx?)?$/.test(target)) errors.push(`${file}: 地图类型插件禁止依赖应用面板 ${specifier}`);
       if (file.startsWith('apps/web/') && target.startsWith('apps/server/')) errors.push(`${file}: 前端不可引用服务端实现`);
     }
   }

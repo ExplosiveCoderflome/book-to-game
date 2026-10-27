@@ -28,7 +28,11 @@ export const worldMapPoiSchema = z.object({
   locationId: id,
   anchor: z.object({ cell: cellKeySchema }),
   label: z.string().min(1).max(120).optional(),
+  /** Optional venue/POI type id (e.g. hospital, safehouse); must exist in map.venueTypes. Authoring metadata. */
+  venueType: id.optional(),
 });
+/** Venue/POI type vocabulary (author-defined; templates may seed it). */
+export const venueTypeSchema = z.object({ id, label: z.string().min(1).max(60), tags: z.array(z.string().min(1).max(40)).max(10).optional() });
 
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/, '颜色须为 #rrggbb');
 /** Terrain layer (M2): palette + sparse cell→terrain id. Purely descriptive until rule kinds use it. */
@@ -61,6 +65,9 @@ export const worldMapSchema = z.object({
   /** Optional layers, all sparse by cell key; absent layer = not authored. */
   layers: z.object({ terrain: terrainLayerSchema.optional(), factions: factionLayerSchema.optional(), regions: regionLayerSchema.optional() }).default({}),
   pois: z.array(worldMapPoiSchema).max(200),
+  venueTypes: z.array(venueTypeSchema).max(64).optional(),
+  /** Authoring metadata: which genre map template seeded this map (never read by rules). */
+  mapTemplate: z.object({ mapTemplateId: z.string().min(1).max(40), mapTemplateVersion: z.number().int().positive() }).optional(),
 });
 
 export type HexGeometry = z.infer<typeof hexGeometrySchema>;
@@ -69,6 +76,7 @@ export type WorldMapPoi = z.infer<typeof worldMapPoiSchema>;
 export type WorldMap = z.infer<typeof worldMapSchema>;
 export type TerrainLayer = z.infer<typeof terrainLayerSchema>;
 export type FactionLayer = z.infer<typeof factionLayerSchema>;
+export type VenueType = z.infer<typeof venueTypeSchema>;
 export type RegionLayer = z.infer<typeof regionLayerSchema>;
 
 /** Port for future image-generation adapters (AI layer). Input is the deterministic prompt + schematic reference. */

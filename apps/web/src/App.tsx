@@ -1,16 +1,17 @@
 import { useI18n, I18nProvider } from './lib/i18n';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import type { AdventureView, WorldDraft, WorldRevision, Draft, GameRevision, GenerationJob, RuntimeInfo, SessionView, SourceSummary } from '@novel-game/contracts';
 import { errorMessage, request } from './lib/api';
-import { DraftPanel } from './components/DraftPanel';
 import { GenerationPanel } from './components/GenerationPanel';
 import { Notice } from './components/Notice';
-import { PlayPanel } from './components/PlayPanel';
 import { SourcePanel } from './components/SourcePanel';
 import { ModelSettingsPanel } from './components/ModelSettingsPanel';
-import { WorldsPanel } from './components/WorldsPanel';
-import { AdventurePanel } from './components/AdventurePanel';
 import { DemoPreview } from './components/DemoPreview';
+/** Workbench tabs are code-split so the shell stays under the main-chunk budget. */
+const DraftPanel = lazy(() => import('./components/DraftPanel').then(m => ({ default: m.DraftPanel })));
+const PlayPanel = lazy(() => import('./components/PlayPanel').then(m => ({ default: m.PlayPanel })));
+const WorldsPanel = lazy(() => import('./components/WorldsPanel').then(m => ({ default: m.WorldsPanel })));
+const AdventurePanel = lazy(() => import('./components/AdventurePanel').then(m => ({ default: m.AdventurePanel })));
 
 type Tab = 'sources' | 'generation' | 'worlds' | 'adventures' | 'drafts' | 'play' | 'settings';
 const tabs: { id: Tab; label: string; number: string }[] = [{ id: 'sources', label: '原作书架', number: '01' }, { id: 'generation', label: '改编生成', number: '02' }, {id: 'worlds', label: '世界草稿', number: '03'}, {id: 'adventures', label: '开放冒险', number: '04'}, { id: 'drafts', label: '分支草稿', number: '05' }, { id: 'play', label: '分支试玩', number: '06' }, {id: 'settings', label: '模型设置', number: '07'}];
@@ -92,10 +93,10 @@ function Workbench() {
         <Notice text={error} />
         <div hidden={tab !== 'sources'}><SourcePanel token={token} sources={data.sources} revisions={data.revisions} selectedId={sourceId} select={setSourceId} refresh={refresh} onGenerate={() => setTab('generation')} onDemoReady={revision => { setRevisionId(revision.id); setTab('play'); }} /></div>
         <div hidden={tab !== 'generation'}><GenerationPanel token={token} runtime={data.runtime} sources={data.sources} selectedId={sourceId} select={setSourceId} jobs={data.jobs} refresh={refresh} openDraft={openGeneratedDraft} onConfigure={() => setTab('settings')} /></div>
-        <div hidden={tab !== 'drafts'}><DraftPanel token={token} drafts={data.drafts} sources={data.sources} revisions={data.revisions} sessions={data.sessions} jobs={data.jobs} runtime={data.runtime} selectedId={draftId} select={setDraftId} refresh={refresh} onPublished={revision => { setRevisionId(revision.id); setTab('play'); }} onOpenPlay={id => { setRevisionId(id); setTab('play'); }} onOpenGeneration={() => setTab('generation')} onConfigure={() => setTab('settings')} /></div>
-        <div hidden={tab !== 'play'}><PlayPanel token={token} revisions={data.revisions} sessions={data.sessions} revisionId={revisionId} selectRevision={setRevisionId} refresh={refresh} /></div>
-        <div hidden={tab !== 'worlds'}><WorldsPanel onDirtyChange={setWorldDirty} token={token} drafts={data.worlds} sources={data.sources} revisions={data.worldRevisions} adventures={data.adventures} selectedId={worldDraftId} select={setWorldDraftId} refresh={refresh} onPublished={revision => {setWorldRevisionId(revision.id); setTab('adventures');}} onOpenAdventure={id => { setWorldRevisionId(id); setTab('adventures'); }} /></div>
-        <div hidden={tab !== 'adventures'}><AdventurePanel token={token} revisions={data.worldRevisions} adventures={data.adventures} revisionId={worldRevisionId} selectRevision={setWorldRevisionId} refresh={refresh} /></div>
+        <div hidden={tab !== 'drafts'}><Suspense fallback={null}><DraftPanel token={token} drafts={data.drafts} sources={data.sources} revisions={data.revisions} sessions={data.sessions} jobs={data.jobs} runtime={data.runtime} selectedId={draftId} select={setDraftId} refresh={refresh} onPublished={revision => { setRevisionId(revision.id); setTab('play'); }} onOpenPlay={id => { setRevisionId(id); setTab('play'); }} onOpenGeneration={() => setTab('generation')} onConfigure={() => setTab('settings')} /></Suspense></div>
+        <div hidden={tab !== 'play'}><Suspense fallback={null}><PlayPanel token={token} revisions={data.revisions} sessions={data.sessions} revisionId={revisionId} selectRevision={setRevisionId} refresh={refresh} /></Suspense></div>
+        <div hidden={tab !== 'worlds'}><Suspense fallback={null}><WorldsPanel onDirtyChange={setWorldDirty} token={token} drafts={data.worlds} sources={data.sources} revisions={data.worldRevisions} adventures={data.adventures} selectedId={worldDraftId} select={setWorldDraftId} refresh={refresh} onPublished={revision => {setWorldRevisionId(revision.id); setTab('adventures');}} onOpenAdventure={id => { setWorldRevisionId(id); setTab('adventures'); }} /></Suspense></div>
+        <div hidden={tab !== 'adventures'}><Suspense fallback={null}><AdventurePanel token={token} revisions={data.worldRevisions} adventures={data.adventures} revisionId={worldRevisionId} selectRevision={setWorldRevisionId} refresh={refresh} /></Suspense></div>
         {tab === 'settings' && <ModelSettingsPanel token={token} onSaved={refresh} />}
       </>}
     </main>

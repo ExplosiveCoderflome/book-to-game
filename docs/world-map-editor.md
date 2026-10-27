@@ -173,3 +173,12 @@ WorldMap = {
 2. **城市地形预设与场所类型**：住宅/商业/工业/码头/公园/水域/贫民窟等预设地形（数据而非代码）；POI 加 `venueType`（医院/警局/酒吧/安全屋…），新增 `at_venue` 条件。势力图层直接复用为帮派地盘/公司辖区/警力覆盖。
 3. **简化道路**：只记录“两格之间有主干道/地铁”的边，用于通勤时间与费用，不画精确街道线；接现代题材数值模板。
 4. **新地图类型**（按需）：vector / square / image，各自实现 `GeometryAdapter` + 编辑器，世界、规则、存档不变；OSM 导入作为 vector 类型的导入工具。
+
+## 题材地图模板（与数值模板同构）
+
+- 位置：`packages/contracts/src/map-templates.ts`（纯数据 + zod 校验，与 `stat-templates.ts` 同在 contracts 目录）。
+- 模板 = 地形调色板、势力/区域预设、场所类型（venue）列表、默认尺寸（小/中/大）、建议层级、规则条件示例（`at_terrain` / `in_faction_territory` / `in_region`）。
+- 首批：`fantasy_xianxia`（奇幻/仙侠）、`urban_modern`（都市/现代，城区：住宅/商业/工业/码头/公园/水域/贫民窟）、`post_apocalyptic`（末日/废土）。
+- 新建地图时可选；对已有地图「套用」只补缺失 id，不改名不删除（`applyMapTemplate`）。不按小说自动判定题材。`map.mapTemplate` 仅为作者元数据，规则不读。
+- POI 可选 `venueType`，须出现在 `map.venueTypes` 中，否则校验报 `poi_unknown_venue`。
+- 尺寸：预设 + 按任一边扩缩；左/上扩缩会平移全部格子与 POI（`resizeMapEdge`/`shiftMap`），越界内容保留并报警，不静默删除。

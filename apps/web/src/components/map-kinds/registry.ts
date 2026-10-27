@@ -9,6 +9,8 @@ export interface MapEditorProps {
   /** Called with the next map (undefined = remove map layer). Caller persists via the world save path. */
   onMapChange: (map: WorldMap | undefined) => void;
   readOnly?: boolean;
+  /** Stable per-world key; undo history is kept across editor remounts under this key. */
+  historyKey?: string;
 }
 
 export interface MapKindEditor {
