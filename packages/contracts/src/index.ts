@@ -166,6 +166,14 @@ export {
 } from './reachability.js';
 
 export {
+  proposeCandidateSchema, proposeActModelOutputSchema, proposeActInputSchema, proposeActResultSchema,
+  proposeAdventureModelOutputSchema, proposeAdventureActInputSchema, proposeAdventureActResultSchema,
+  resolveProposedId,
+  type ProposeCandidate, type ProposeActModelOutput, type ProposeActInput, type ProposeActResult,
+  type ProposeAdventureModelOutput, type ProposeAdventureActInput, type ProposeAdventureActResult,
+} from './propose-act.js';
+
+export {
   assessOpeningActions, initialWorldState, matchesWorldConditions, isWaitLikeAction,
   type OpeningActionReport, type OpeningEvalState,
 } from './world-opening.js';

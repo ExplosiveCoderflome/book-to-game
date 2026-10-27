@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { gameContentSchema, type CanvasLayout, type Draft, type GameContent, type GameRevision, type GenerationJob, type RuntimeInfo, type ScanDepth, type SessionView, type SourceDocument, type SourceSummary, type ValidationResult } from '@novel-game/contracts';
+import { gameContentSchema, type CanvasLayout, type Draft, type GameContent, type GameRevision, type GenerationJob, type RuntimeInfo, type ScanDepth, type ProposeActResult, type SessionView, type SourceDocument, type SourceSummary, type ValidationResult } from '@novel-game/contracts';
 import { errorMessage, request, RequestError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { relevantStoryJob } from '../lib/job-on-canvas';
@@ -14,6 +14,7 @@ import { BranchGraphCanvas } from './BranchGraphCanvas';
 import { SceneEditor } from './SceneEditor';
 import { StoryVariablesEditor } from './StoryVariablesEditor';
 import { WorldbookEditor } from './WorldbookEditor';
+import { ProposeActBox } from './ProposeActBox';
 
 const blankContent = (): GameContent => ({ title: '', mode: 'story', premise: '', adaptationNotes: '', startSceneId: '', scenes: [] });
 interface Props {
@@ -49,6 +50,7 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
   const [canvasMode, setCanvasMode] = useState<'edit' | 'play'>('edit');
   const [playSession, setPlaySession] = useState<SessionView | null>(null);
   const [playBusy, setPlayBusy] = useState(false);
+  const [proposeNote, setProposeNote] = useState<string | null>(null);
   const [extendBusy, setExtendBusy] = useState(false);
   const [scanDepth, setScanDepth] = useState<ScanDepth>('medium');
   const [scanDirection, setScanDirection] = useState(() => t('尊重原作世界规则，设计一次有明确选择后果的短篇冒险'));
@@ -453,6 +455,27 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
     } catch (e) { setError(errorMessage(e)); } finally { setPlayBusy(false); }
   }
 
+  async function proposeOnCanvas(text: string): Promise<ProposeActResult> {
+    if (!playSession) throw new Error('no session');
+    setPlayBusy(true); setError(null);
+    try {
+      const result = await request<ProposeActResult>(token, `/sessions/${playSession.id}/propose-act`, 'POST', {
+        text, expectedTurn: playSession.turn, requestId: crypto.randomUUID(), autoAct: true,
+      });
+      if (result.status === 'acted' && result.session) {
+        setProposeNote(result.label ? `已映射并执行：${result.label}` : '已映射并执行');
+        setPlaySession(result.session as SessionView);
+        await refresh();
+      } else if (result.status === 'none' || result.status === 'rejected') {
+        setProposeNote(result.reason);
+      }
+      return result;
+    } catch (e) {
+      setError(errorMessage(e));
+      throw e;
+    } finally { setPlayBusy(false); }
+  }
+
   const scene = content.scenes[sceneIndex];
   return <section className="work-section draft-workspace">
     <div className="section-heading"><div><p className="eyebrow">{t('05 / 分支草稿')}</p><h2>{t('无限画布工作台')}</h2><p>{t('分支图是主操作面：编辑与试玩可在同一画布切换；侧栏写场景，试玩时高亮路径。')}</p></div><span className="edition">CANVAS FIRST</span></div>
@@ -594,10 +617,12 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
                   : <>
                     <p className="hint">{t('发布版本 v{version} · 第 {turn} 幕', { version: latestRevision.version, turn: playSession.turn + 1 })}</p>
                     <h4>{playSession.scene.title}</h4>
+                    {proposeNote && <Notice kind="success" text={proposeNote} />}
                     <div className="reader-text">{playSession.scene.text.split(/\n+/).map((text, i) => <p key={i}>{text}</p>)}</div>
                     {Object.keys(playSession.variables ?? {}).length > 0 && <details open><summary>{t('当前故事变量')}</summary><dl>{Object.entries(playSession.variables ?? {}).map(([name, value]) => <div className="field-row" key={name}><dt>{name}</dt><dd>{typeof value === 'boolean' ? t(value ? '真' : '假') : String(value)}</dd></div>)}</dl></details>}
                     {playSession.ended && <div className="ending"><p className="eyebrow">{t('故事抵达了一个结局')}</p><p>{playSession.scene.ending ?? t('旅程告一段落。')}</p></div>}
                     {!playSession.ended && <div className="reader-choices"><p className="eyebrow">{t('你将如何选择？')}</p>{playSession.scene.choices.map((choice, i) => <button key={choice.id} type="button" disabled={playBusy} onClick={() => void actOnCanvas(choice.id)}><span aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>{choice.label}<span aria-hidden="true">→</span></button>)}</div>}
+                    {!playSession.ended && <ProposeActBox disabled={playBusy} busy={playBusy} onPropose={proposeOnCanvas} onPickCandidate={id => void actOnCanvas(id)} />}
                     {onOpenPlay && latestRevision && <button type="button" className="quiet small" onClick={() => onOpenPlay(latestRevision.id)}>{t('在读者席打开 →')}</button>}
                   </>}
               </div>

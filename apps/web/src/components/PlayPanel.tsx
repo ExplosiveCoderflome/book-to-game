@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { actSchema, type GameRevision, type SessionView } from '@novel-game/contracts';
+import { actSchema, type GameRevision, type ProposeActResult, type SessionView } from '@novel-game/contracts';
 import { errorMessage, request, RequestError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { PendingAction, type PendingActionValue } from '../lib/pending-action';
 import { playOverlayFromSession } from '../lib/play-overlay';
 import { BranchGraphCanvas } from './BranchGraphCanvas';
 import { Empty, Notice, dateLabel } from './Notice';
+import { ProposeActBox } from './ProposeActBox';
 
 const pendingKey = 'novel-game.pending-action';
 function restorePending(): PendingActionValue | null {
@@ -30,6 +31,7 @@ export function PlayPanel({ token, revisions, sessions, revisionId, selectRevisi
   const [uncertain, setUncertain] = useState(!!pending.current.value);
   const [reload, setReload] = useState(0);
   const [showPath, setShowPath] = useState(true);
+  const [proposeNote, setProposeNote] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
     setSession(null);
@@ -59,6 +61,26 @@ export function PlayPanel({ token, revisions, sessions, revisionId, selectRevisi
       else setUncertain(!!pending.current.value);
     } finally { setBusy(false); }
   }
+  async function propose(text: string): Promise<ProposeActResult> {
+    if (!session) throw new Error('no session');
+    setBusy(true); setError(null);
+    try {
+      const result = await request<ProposeActResult>(token, `/sessions/${session.id}/propose-act`, 'POST', {
+        text, expectedTurn: session.turn, requestId: crypto.randomUUID(), autoAct: true,
+      });
+      if (result.status === 'acted' && result.session) {
+        setProposeNote(result.label ? `已映射并执行：${result.label}` : '已映射并执行');
+        setSession(result.session as SessionView);
+        await refresh();
+      } else if (result.status === 'none' || result.status === 'rejected') {
+        setProposeNote(result.reason);
+      }
+      return result;
+    } catch (e) {
+      setError(errorMessage(e));
+      throw e;
+    } finally { setBusy(false); }
+  }
   const activeRevision = revisions.find(r => r.id === session?.gameRevisionId) ?? revisions.find(r => r.id === revisionId);
   const playOverlay = useMemo(() => {
     if (!session || !activeRevision) return null;
@@ -79,8 +101,10 @@ export function PlayPanel({ token, revisions, sessions, revisionId, selectRevisi
         <h3>{session.scene.title}</h3><div className="reader-text">{session.scene.text.split(/\n+/).map((text, i) => <p key={i}>{text}</p>)}</div>
         {Object.keys(session.variables ?? {}).length > 0 && <details><summary>{t('当前故事变量')}</summary><dl>{Object.entries(session.variables ?? {}).map(([name, value]) => <div className="field-row" key={name}><dt>{name}</dt><dd>{typeof value === 'boolean' ? t(value ? '真' : '假') : String(value)}</dd></div>)}</dl></details>}
         {session.ended && <div className="ending"><p className="eyebrow">{t('故事抵达了一个结局')}</p><p>{session.scene.ending ?? t('旅程告一段落。')}</p></div>}
+        {proposeNote && <Notice kind="success" text={proposeNote} />}
         {uncertain && pending.current.value && <button className="primary" disabled={busy} onClick={() => act(pending.current.value!.input.choiceId)}>{t(busy ? '正在确认…' : '重试并确认上一选择')}</button>}
         {!session.ended && <div className="reader-choices"><p className="eyebrow">{t('你将如何选择？')}</p>{session.scene.choices.map((choice, i) => <button key={choice.id} disabled={busy || uncertain} onClick={() => act(choice.id)}><span aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>{choice.label}<span aria-hidden="true">→</span></button>)}</div>}
+        {!session.ended && !uncertain && <ProposeActBox disabled={busy} busy={busy} onPropose={propose} onPickCandidate={id => void act(id)} />}
         <div className="reader-footer"><p className="hint">{t('选择成功后自动保存。存档 ID：{id}', { id: session.id })}</p><button className="quiet small" disabled={busy} onClick={() => setReload(v => v + 1)}>{t('重新读取存档')}</button></div>
         <details className="history"><summary>{t('回看行程 · {count} 条记录', { count: session.history.length })}</summary>{session.history.map((entry, i) => <div key={i}><p className="eyebrow">{t('第 {turn} 幕', { turn: entry.turn + 1 })}{entry.choiceLabel ? ` · ${entry.choiceLabel}` : ''}</p><p>{entry.text}</p></div>)}</details>
         {activeRevision && <div className="play-path-panel" data-testid="play-path-panel">

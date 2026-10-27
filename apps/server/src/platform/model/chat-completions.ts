@@ -1,4 +1,4 @@
-import { analysisSchema, branchSkeletonSchema, gameContentSchema, sceneExtensionSchema, worldContentSchema, type Analysis, type AnalysisResult, type BranchSkeleton, type GameContent, type ScanDepth, type SceneExtension, type WorldContent } from '@novel-game/contracts';
+import { analysisSchema, branchSkeletonSchema, gameContentSchema, proposeActModelOutputSchema, proposeAdventureModelOutputSchema, sceneExtensionSchema, worldContentSchema, type Analysis, type AnalysisResult, type BranchSkeleton, type GameContent, type ProposeActModelOutput, type ProposeAdventureModelOutput, type ProposeCandidate, type ScanDepth, type SceneExtension, type WorldContent } from '@novel-game/contracts';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { ZodType } from 'zod';
 import type { GenerationProvider, ModelRepairIssue, SourceChunk, WorldGenerationOptions } from '../../modules/generation/index.js';
@@ -6,7 +6,7 @@ import { AppError } from '../../shared/errors.js';
 import type { Logger } from '../../shared/logger.js';
 import { schemaIssueMessage, schemaIssues } from '../../shared/schema-issues.js';
 import { extractJsonValue, JsonContentError } from './extract-json.js';
-import { ANALYSIS_SYSTEM, EXPAND_SYSTEM, EXTEND_SCENE_SYSTEM, GAME_SYSTEM, SKELETON_SYSTEM, compactForGame, skeletonUserPayload } from './prompts.js';
+import { ANALYSIS_SYSTEM, EXPAND_SYSTEM, EXTEND_SCENE_SYSTEM, GAME_SYSTEM, PROPOSE_ACT_SYSTEM, PROPOSE_ADVENTURE_SYSTEM, SKELETON_SYSTEM, compactForGame, skeletonUserPayload } from './prompts.js';
 import { classifyStatus, parseRetryAfter, retryDelayMs } from './retry.js';
 import { sanitizeWorldCandidate } from './sanitize-world.js';
 import { WORLD_SYSTEM, compactWorldDossier } from './world-prompts.js';
@@ -58,6 +58,23 @@ export class ChatCompletionsProvider implements GenerationProvider {
   async generateWorld(analysis: AnalysisResult, options: WorldGenerationOptions, signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}): Promise<WorldContent> {
     return this.complete('generate_world', WORLD_SYSTEM, {plan: options, dossier: compactWorldDossier(analysis)}, signal, worldContentSchema, feedback?.errors ?? [], sanitizeWorldCandidate);
   }
+  async proposeAct(input: { text: string; sceneTitle: string; sceneText: string; candidates: ProposeCandidate[] }, signal: AbortSignal): Promise<ProposeActModelOutput> {
+    return this.complete('propose_act', PROPOSE_ACT_SYSTEM, {
+      text: input.text,
+      scene: { title: input.sceneTitle, text: input.sceneText.slice(0, 1200) },
+      candidates: input.candidates,
+      rule: 'choiceId 必须是 candidates 中的 id，或 none',
+    }, signal, proposeActModelOutputSchema, []);
+  }
+  async proposeAdventureAct(input: { text: string; locationTitle: string; locationText: string; candidates: ProposeCandidate[] }, signal: AbortSignal): Promise<ProposeAdventureModelOutput> {
+    return this.complete('propose_adventure_act', PROPOSE_ADVENTURE_SYSTEM, {
+      text: input.text,
+      location: { title: input.locationTitle, text: input.locationText.slice(0, 1200) },
+      candidates: input.candidates,
+      rule: 'actionId 必须是 candidates 中的 id，或 none',
+    }, signal, proposeAdventureModelOutputSchema, []);
+  }
+
 
   private async complete<T>(operation: string, system: string, data: unknown, signal: AbortSignal, schema: ZodType<T>, issues: ModelRepairIssue[], preprocess?: (value: unknown) => unknown): Promise<T> {
     const repairs = bound(this.config.repairAttempts, DEFAULT_REPAIR_ATTEMPTS, 1, 6);

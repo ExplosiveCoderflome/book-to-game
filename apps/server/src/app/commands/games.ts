@@ -1,8 +1,9 @@
 import { z } from 'zod';
-import { actSchema, extendDraftSceneInputSchema, gameContentSchema } from '@novel-game/contracts';
+import { actSchema, extendDraftSceneInputSchema, gameContentSchema, proposeActInputSchema } from '@novel-game/contracts';
 import type { Workbench } from '../workbench.js';
 import { command, emptySchema, idSchema } from './definition.js';
 import { extendDraftScene } from '../../modules/generation/index.js';
+import { proposeActSession } from '../../modules/sessions/application/propose-act.js';
 import { ChatCompletionsProvider } from '../../platform/model/chat-completions.js';
 import { AppError } from '../../shared/errors.js';
 
@@ -34,5 +35,12 @@ export function gameCommands(w: Workbench) {
     command('get_session', '恢复存档；返回已发生经历与当前选择，不返回未到达的剧情。', idSchema, true, ({id}) => w.sessions.get(id)),
     command('act_session', '执行可见选项。expectedTurn防止陈旧输入；网络失败必须使用完全相同requestId和参数重试。',
       actSchema.extend({id: z.string()}), false, ({id, ...input}) => w.sessions.act(id, input)),
+    command('propose_act_session', 'L2：将玩家自由文本映射到当前可见且可用（含世界书过滤后）的 choiceId，或 none；默认映射成功后执行 act。禁止发明新边。',
+      proposeActInputSchema.extend({id: z.string()}), false, async ({id, ...input}) => {
+        if (!w.providerConfigured) throw new AppError('MODEL_NOT_CONFIGURED', '尚未配置模型。请进入“模型设置”后再使用自由输入。', 503);
+        const endpoint = w.modelSettings.resolve();
+        const provider = new ChatCompletionsProvider({...endpoint, maxAttempts: 2, repairAttempts: 2});
+        return proposeActSession(w.sessions, id, input, provider);
+      }),
   ];
 }

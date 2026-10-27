@@ -12,11 +12,13 @@ const routes = [
   ['put', '/drafts/:id', 'update_draft'], ['post', '/drafts/:id/extend-scene', 'extend_draft_scene'], ['post', '/drafts/:id/validate', 'validate_draft'], ['post', '/drafts/:id/publish', 'publish_draft'],
   ['get', '/games', 'list_games'], ['get', '/sessions', 'list_sessions'], ['post', '/sessions', 'start_session'],
   ['get', '/sessions/:id', 'get_session'], ['post', '/sessions/:id/actions', 'act_session'],
+  ['post', '/sessions/:id/propose-act', 'propose_act_session'],
   ['get', '/worlds/drafts', 'list_world_drafts'], ['post', '/worlds/drafts', 'create_world_draft'],
   ['get', '/worlds/drafts/:id', 'get_world_draft'], ['put', '/worlds/drafts/:id', 'update_world_draft'],
   ['post', '/worlds/drafts/:id/validate', 'validate_world_draft'], ['post', '/worlds/drafts/:id/publish', 'publish_world_draft'],
   ['get', '/worlds/revisions', 'list_world_revisions'], ['get', '/adventures', 'list_adventures'], ['post', '/adventures', 'start_adventure'],
   ['get', '/adventures/:id', 'get_adventure'], ['post', '/adventures/:id/actions', 'act_adventure'],
+  ['post', '/adventures/:id/propose-act', 'propose_act_adventure'],
 ] as const;
 export function apiRouter(commands: Command[]) {
   const router = Router();

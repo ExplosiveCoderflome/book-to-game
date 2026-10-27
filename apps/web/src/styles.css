@@ -1570,3 +1570,11 @@ legend {
 
 .worldbook-entry { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--paper) 92%, #c9a227); }
 .worldbook-scene-scope { display: flex; flex-wrap: wrap; gap: 6px 12px; max-height: 140px; overflow: auto; }
+
+.propose-act-box { margin-top: 12px; padding: 10px 12px; border: 1px dashed color-mix(in srgb, #4a7cff 45%, var(--line)); border-radius: 10px; background: color-mix(in srgb, #e8f0ff 55%, var(--paper)); }
+.propose-act-row { display: flex; gap: 8px; align-items: center; }
+.propose-act-row input { flex: 1; min-width: 0; }
+.propose-act-result { margin-top: 8px; font-size: 13px; }
+.propose-act-result.propose-acted { color: #1f6b3a; }
+.propose-act-result.propose-none, .propose-act-result.propose-rejected { color: #8a3b1d; }
+.propose-fallback { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; align-items: center; }
