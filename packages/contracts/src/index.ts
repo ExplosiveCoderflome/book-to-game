@@ -10,6 +10,14 @@ export {
   type WorldbookPlaceKind,
 } from './worldbook.js';
 import { worldbookSchema } from './worldbook.js';
+export {
+  STAT_TEMPLATES, getStatTemplate, getStatTemplateRef, templateInitialVariables,
+  applyStatTemplateVariables, displayLabelForVariable, statTemplatePromptPayload,
+  statTemplateIdSchema, statRoleSchema, statTemplateSchema, statTemplateVariableSchema,
+  statTemplateRefSchema,
+  type StatTemplate, type StatTemplateId, type StatTemplateVariable, type StatRole,
+  type StatTemplateRef,
+} from './stat-templates.js';
 export { modelListInputSchema, modelSettingsInputSchema, type ModelListInput, type ModelListResult, type ModelSettingsInput, type ModelSettingsView, type ModelConnectionResult } from './model-settings.js';
 
 export const evidenceSchema = z.object({ chapterId: z.string().min(1).max(80), paragraphId: z.string().min(1).max(80) });
@@ -62,6 +70,10 @@ export const gameContentSchema = z.object({
   canvasLayout: canvasLayoutSchema.optional(),
   /** Lore + hard rules (power/upgrade/agency caps). Constraints are engine-enforced. */
   worldbook: worldbookSchema.optional(),
+  /** Optional genre stat-template id; authoring metadata for HUD labels / regen hints. */
+  statTemplateId: z.string().min(1).max(40).optional(),
+  /** Template catalog version stamped with id; ignored by the rule engine. */
+  statTemplateVersion: z.number().int().positive().optional(),
   startSceneId: z.string().min(1).max(80), scenes: z.array(sceneSchema).min(3).max(100),
 });
 export type GameContent = z.infer<typeof gameContentSchema>;
@@ -108,6 +120,8 @@ export interface GenerationJob {
   createdAt: string; updatedAt: string;
   mode?: 'story' | 'open'; chapterIds?: string[]; playerRole?: string; canonPolicy?: 'faithful' | 'divergent'; direction?: string;
   scanDepth?: ScanDepth;
+  /** Optional genre stat template for story skeleton variable seeding. */
+  statTemplateId?: string;
   failure?: JobFailure | null;
 }
 export const generationInputSchema = z.object({
@@ -117,6 +131,8 @@ export const generationInputSchema = z.object({
   playerRole: z.string().trim().max(500).optional(), canonPolicy: z.enum(['faithful', 'divergent']).optional(),
   /** Story first-scan node granularity: coarse=章弧, medium=默认, fine=细拍. Ignored for open. */
   scanDepth: scanDepthSchema.optional(),
+  /** Optional genre stat template id (story mode). Seeds preferred variables into skeleton prompt. */
+  statTemplateId: z.string().min(1).max(40).optional(),
 });
 export type GenerationInput = z.infer<typeof generationInputSchema>;
 export interface RuntimeInfo { providerConfigured: boolean; supportedModes: ('story' | 'open')[]; version: string }
@@ -135,6 +151,8 @@ export const branchSkeletonSchema = z.object({
   variables: z.record(variableNameSchema, variableValueSchema).optional(),
   canvasLayout: canvasLayoutSchema.optional(),
   worldbook: worldbookSchema.optional(),
+  statTemplateId: z.string().min(1).max(40).optional(),
+  statTemplateVersion: z.number().int().positive().optional(),
   startSceneId: z.string().min(1).max(80), scenes: z.array(skeletonSceneSchema).min(3).max(100),
 });
 export type SkeletonScene = z.infer<typeof skeletonSceneSchema>;

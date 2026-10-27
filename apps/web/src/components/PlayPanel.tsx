@@ -5,9 +5,11 @@ import { useI18n } from '../lib/i18n';
 import { readTiandaoCorrect } from '../lib/tiandao';
 import { PendingAction, type PendingActionValue } from '../lib/pending-action';
 import { playOverlayFromSession } from '../lib/play-overlay';
+import { costHintForChoice, diffVariables, type VariableDelta } from '../lib/variable-delta';
 import { BranchGraphCanvas } from './BranchGraphCanvas';
 import { Empty, Notice, dateLabel } from './Notice';
 import { NarrateBox } from './NarrateBox';
+import { PlayStatsBar } from './PlayStatsBar';
 import { TiandaoToggle } from './TiandaoToggle';
 import { ProposeActBox } from './ProposeActBox';
 
@@ -35,6 +37,12 @@ export function PlayPanel({ token, revisions, sessions, revisionId, selectRevisi
   const [reload, setReload] = useState(0);
   const [showPath, setShowPath] = useState(true);
   const [proposeNote, setProposeNote] = useState<string | null>(null);
+  const [varDeltas, setVarDeltas] = useState<VariableDelta[] | null>(null);
+  useEffect(() => {
+    if (!varDeltas?.length) return;
+    const timer = window.setTimeout(() => setVarDeltas(null), 4500);
+    return () => window.clearTimeout(timer);
+  }, [varDeltas]);
   useEffect(() => {
     let active = true;
     setSession(null);
@@ -52,12 +60,16 @@ export function PlayPanel({ token, revisions, sessions, revisionId, selectRevisi
   }
   async function act(choiceId: string) {
     if (!session) return;
-    setBusy(true); setError(null);
+    setBusy(true); setError(null); setVarDeltas(null);
     try {
+      const before = { ...(session.variables ?? {}) };
       const input = pending.current.begin(session.id, choiceId, session.turn);
       sessionStorage.setItem(pendingKey, JSON.stringify(pending.current.value));
       const result = await request<SessionView>(token, `/sessions/${session.id}/actions`, 'POST', input);
-      pending.current.confirm(); sessionStorage.removeItem(pendingKey); setUncertain(false); setSession(result); await refresh();
+      pending.current.confirm(); sessionStorage.removeItem(pendingKey); setUncertain(false);
+      const deltas = diffVariables(before, result.variables ?? {});
+      setVarDeltas(deltas.length ? deltas : null);
+      setSession(result); await refresh();
     } catch (e) {
       setError(errorMessage(e));
       if (e instanceof RequestError && !e.uncertain) { pending.current.confirm(); sessionStorage.removeItem(pendingKey); setUncertain(false); }
@@ -80,7 +92,10 @@ export function PlayPanel({ token, revisions, sessions, revisionId, selectRevisi
       });
       if (result.status === 'acted' && result.session) {
         setProposeNote(result.label ? `已映射并执行：${result.label}` : '已映射并执行');
-        setSession(result.session as SessionView);
+        const next = result.session as SessionView;
+        const deltas = diffVariables(session.variables ?? {}, next.variables ?? {});
+        setVarDeltas(deltas.length ? deltas : null);
+        setSession(next);
         await refresh();
       } else if (result.status === 'none' || result.status === 'rejected') {
         setProposeNote(result.reason);
@@ -111,11 +126,21 @@ export function PlayPanel({ token, revisions, sessions, revisionId, selectRevisi
         <h3>{session.scene.title}</h3><div className="reader-text">{session.scene.text.split(/\n+/).map((text, i) => <p key={i}>{text}</p>)}</div>
         <TiandaoToggle disabled={busy || uncertain} />
         <NarrateBox visitKey={`${session.id}:${session.scene.id}:${session.turn}`} disabled={busy || uncertain} onNarrate={narrate} />
-        {Object.keys(session.variables ?? {}).length > 0 && <details><summary>{t('当前故事变量')}</summary><dl>{Object.entries(session.variables ?? {}).map(([name, value]) => <div className="field-row" key={name}><dt>{name}</dt><dd>{typeof value === 'boolean' ? t(value ? '真' : '假') : String(value)}</dd></div>)}</dl></details>}
+        <PlayStatsBar variables={session.variables ?? {}} deltas={varDeltas} statTemplateId={activeRevision?.content.statTemplateId} statTemplateVersion={activeRevision?.content.statTemplateVersion} />
         {session.ended && <div className="ending"><p className="eyebrow">{t('故事抵达了一个结局')}</p><p>{session.scene.ending ?? t('旅程告一段落。')}</p></div>}
         {proposeNote && <Notice kind="success" text={proposeNote} />}
         {uncertain && pending.current.value && <button className="primary" disabled={busy} onClick={() => act(pending.current.value!.input.choiceId)}>{t(busy ? '正在确认…' : '重试并确认上一选择')}</button>}
-        {!session.ended && <div className="reader-choices"><p className="eyebrow">{t('你将如何选择？')}</p>{session.scene.choices.map((choice, i) => <button key={choice.id} disabled={busy || uncertain} onClick={() => act(choice.id)}><span aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>{choice.label}<span aria-hidden="true">→</span></button>)}</div>}
+        {!session.ended && <div className="reader-choices"><p className="eyebrow">{t('你将如何选择？')}</p>{session.scene.choices.map((choice, i) => {
+          const cost = costHintForChoice(activeRevision?.content, session.scene.id, choice.id);
+          return <button key={choice.id} type="button" className="reader-choice" disabled={busy || uncertain} onClick={() => act(choice.id)}>
+            <span className="reader-choice-index" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+            <span className="reader-choice-body">
+              <span className="reader-choice-label">{choice.label}</span>
+              {cost ? <span className="reader-choice-cost">{t('代价')}：{cost}</span> : null}
+            </span>
+            <span className="reader-choice-arrow" aria-hidden="true">→</span>
+          </button>;
+        })}</div>}
         {!session.ended && !uncertain && <ProposeActBox disabled={busy} busy={busy} onPropose={propose} onPickCandidate={id => void act(id)} />}
         <div className="reader-footer"><p className="hint">{t('选择成功后自动保存。存档 ID：{id}', { id: session.id })}</p><button className="quiet small" disabled={busy} onClick={() => setReload(v => v + 1)}>{t('重新读取存档')}</button></div>
         <details className="history"><summary>{t('回看行程 · {count} 条记录', { count: session.history.length })}</summary>{session.history.map((entry, i) => <div key={i}><p className="eyebrow">{t('第 {turn} 幕', { turn: entry.turn + 1 })}{entry.choiceLabel ? ` · ${entry.choiceLabel}` : ''}</p><p>{entry.text}</p></div>)}</details>

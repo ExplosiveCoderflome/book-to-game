@@ -6,12 +6,14 @@ import { readTiandaoCorrect } from '../lib/tiandao';
 import { relevantStoryJob } from '../lib/job-on-canvas';
 import { shouldShowSkeletonPlaceholder, skeletonToCanvasContent } from '../lib/skeleton-placeholder';
 import { playOverlayFromSession } from '../lib/play-overlay';
+import { costHintForChoice, diffVariables, type VariableDelta } from '../lib/variable-delta';
 import { selectedChapters } from '../lib/generation-scope';
 import { findLeafSceneIds } from '../lib/leaf-scenes';
 import { dismissExtendGuide, isExtendGuideDismissed } from '../lib/extend-guide';
 import { nextSceneSelection } from '../lib/multi-select';
 import { Empty, Notice } from './Notice';
 import { BranchGraphCanvas } from './BranchGraphCanvas';
+import { PlayStatsBar } from './PlayStatsBar';
 import { SceneEditor } from './SceneEditor';
 import { StoryVariablesEditor } from './StoryVariablesEditor';
 import { WorldbookEditor } from './WorldbookEditor';
@@ -55,6 +57,12 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
   const [playSession, setPlaySession] = useState<SessionView | null>(null);
   const [playBusy, setPlayBusy] = useState(false);
   const [proposeNote, setProposeNote] = useState<string | null>(null);
+  const [playVarDeltas, setPlayVarDeltas] = useState<VariableDelta[] | null>(null);
+  useEffect(() => {
+    if (!playVarDeltas?.length) return;
+    const timer = window.setTimeout(() => setPlayVarDeltas(null), 4500);
+    return () => window.clearTimeout(timer);
+  }, [playVarDeltas]);
   const [extendBusy, setExtendBusy] = useState(false);
   const [fillBusy, setFillBusy] = useState(false);
   const [fillDirection, setFillDirection] = useState('');
@@ -456,10 +464,13 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
 
   async function actOnCanvas(choiceId: string) {
     if (!playSession) return;
-    setPlayBusy(true); setError(null);
+    setPlayBusy(true); setError(null); setPlayVarDeltas(null);
     try {
+      const before = { ...(playSession.variables ?? {}) };
       const input = { choiceId, expectedTurn: playSession.turn, requestId: crypto.randomUUID() };
       const result = await request<SessionView>(token, `/sessions/${playSession.id}/actions`, 'POST', input);
+      const deltas = diffVariables(before, result.variables ?? {});
+      setPlayVarDeltas(deltas.length ? deltas : null);
       setPlaySession(result);
       await refresh();
     } catch (e) { setError(errorMessage(e)); } finally { setPlayBusy(false); }
@@ -520,7 +531,10 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
       });
       if (result.status === 'acted' && result.session) {
         setProposeNote(result.label ? `已映射并执行：${result.label}` : '已映射并执行');
-        setPlaySession(result.session as SessionView);
+        const next = result.session as SessionView;
+        const deltas = diffVariables(playSession.variables ?? {}, next.variables ?? {});
+        setPlayVarDeltas(deltas.length ? deltas : null);
+        setPlaySession(next);
         await refresh();
       } else if (result.status === 'none' || result.status === 'rejected') {
         setProposeNote(result.reason);
@@ -679,9 +693,19 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
                     <div className="reader-text">{playSession.scene.text.split(/\n+/).map((text, i) => <p key={i}>{text}</p>)}</div>
                     <TiandaoToggle disabled={playBusy} />
                     <NarrateBox visitKey={`${playSession.id}:${playSession.scene.id}:${playSession.turn}`} disabled={playBusy} onNarrate={narrateOnCanvas} />
-                    {Object.keys(playSession.variables ?? {}).length > 0 && <details open><summary>{t('当前故事变量')}</summary><dl>{Object.entries(playSession.variables ?? {}).map(([name, value]) => <div className="field-row" key={name}><dt>{name}</dt><dd>{typeof value === 'boolean' ? t(value ? '真' : '假') : String(value)}</dd></div>)}</dl></details>}
+                    <PlayStatsBar variables={playSession.variables ?? {}} deltas={playVarDeltas} statTemplateId={latestRevision?.content.statTemplateId} statTemplateVersion={latestRevision?.content.statTemplateVersion} />
                     {playSession.ended && <div className="ending"><p className="eyebrow">{t('故事抵达了一个结局')}</p><p>{playSession.scene.ending ?? t('旅程告一段落。')}</p></div>}
-                    {!playSession.ended && <div className="reader-choices"><p className="eyebrow">{t('你将如何选择？')}</p>{playSession.scene.choices.map((choice, i) => <button key={choice.id} type="button" disabled={playBusy} onClick={() => void actOnCanvas(choice.id)}><span aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>{choice.label}<span aria-hidden="true">→</span></button>)}</div>}
+                    {!playSession.ended && <div className="reader-choices"><p className="eyebrow">{t('你将如何选择？')}</p>{playSession.scene.choices.map((choice, i) => {
+                      const cost = costHintForChoice(latestRevision?.content, playSession.scene.id, choice.id);
+                      return <button key={choice.id} type="button" className="reader-choice" disabled={playBusy} onClick={() => void actOnCanvas(choice.id)}>
+                        <span className="reader-choice-index" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+                        <span className="reader-choice-body">
+                          <span className="reader-choice-label">{choice.label}</span>
+                          {cost ? <span className="reader-choice-cost">{t('代价')}：{cost}</span> : null}
+                        </span>
+                        <span className="reader-choice-arrow" aria-hidden="true">→</span>
+                      </button>;
+                    })}</div>}
                     {!playSession.ended && <ProposeActBox disabled={playBusy} busy={playBusy} onPropose={proposeOnCanvas} onPickCandidate={id => void actOnCanvas(id)} />}
                     {onOpenPlay && latestRevision && <button type="button" className="quiet small" onClick={() => onOpenPlay(latestRevision.id)}>{t('在读者席打开 →')}</button>}
                   </>}

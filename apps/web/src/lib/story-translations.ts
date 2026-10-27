@@ -79,5 +79,9 @@ export const storyTranslations: Record<string, string> = {
   '同时润色标题': 'Also polish title',
   '已补全正文并润色标题（未保存，可继续编辑或放弃）': 'Body filled and title polished (unsaved — keep editing or discard).',
 
+  '状态': 'Status',
+  '状态变化': 'Status change',
+  '暂无变量': 'No variables',
+  '代价': 'Cost',
 };
 export const storyEnglish = storyTranslations;

@@ -92,6 +92,7 @@ Anti-slop: no purple gradients, no AI lavender fills, no cream-literary chrome.
 - **Navbar:** `.site-header` + `.workspace-bar` underline tabs with quiet tabular numbers.
 - **Forms / inputs:** shared radius-sm; focus ring only on `:focus-visible`.
 - **Status strips:** `.branch-canvas-gen`, `.branch-canvas-banner`, skeleton/extend guides — compact left-accent strips.
+- **Play stats HUD:** `.play-stats` — always-visible variable chips above choices; `.play-stats-delta` flashes post-act changes; choice buttons may show muted `.reader-choice-cost` from effects (never invented).
 - **Inspectors:** flat hierarchy; no card-in-card elevation; dual panes ≥1440.
 - **Reader choices:** muted list actions, not brochure cards.
 

@@ -30,8 +30,8 @@ export class ChatCompletionsProvider implements GenerationProvider {
   async analyze(chunk: SourceChunk, signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}): Promise<Analysis> {
     return this.complete('analyze', ANALYSIS_SYSTEM, chunk, signal, analysisSchema, feedback?.errors ?? []);
   }
-  async generateSkeleton(analysis: AnalysisResult, direction: string, signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}, scanDepth: ScanDepth = 'medium'): Promise<BranchSkeleton> {
-    return this.complete('generate_skeleton', SKELETON_SYSTEM, skeletonUserPayload(analysis, direction, scanDepth), signal, branchSkeletonSchema, feedback?.errors ?? []);
+  async generateSkeleton(analysis: AnalysisResult, direction: string, signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}, scanDepth: ScanDepth = 'medium', options?: { statTemplateId?: string }): Promise<BranchSkeleton> {
+    return this.complete('generate_skeleton', SKELETON_SYSTEM, skeletonUserPayload(analysis, direction, scanDepth, options), signal, branchSkeletonSchema, feedback?.errors ?? []);
   }
   async extendScenes(content: GameContent, sceneId: string, direction: string, signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}, options?: {neighborCount?: 1 | 2}): Promise<SceneExtension> {
     const anchor = content.scenes.find(scene => scene.id === sceneId);

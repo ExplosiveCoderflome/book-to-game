@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { getStatTemplate } from '@novel-game/contracts';
 import { ZodError } from 'zod';
 import { AppError } from '../../../shared/errors.js';
 import type { Logger } from '../../../shared/logger.js';
@@ -82,8 +83,16 @@ export class GenerationRunner {
           step = 'generate_skeleton';
           this.logger?.info('generation.output.started', {jobId: job.id, requestId: job.requestId, mode: 'story', step});
           const skeleton = await this.withRepair(step, signal, context, async feedback => {
-            const draft = await this.provider.generateSkeleton!(analysis, job.direction, signal, feedback, job.scanDepth ?? 'medium');
+            const draft = await this.provider.generateSkeleton!(analysis, job.direction, signal, feedback, job.scanDepth ?? 'medium', job.statTemplateId ? { statTemplateId: job.statTemplateId } : undefined);
             assertPlayableSkeleton(draft);
+            const ref = getStatTemplate(job.statTemplateId);
+            if (ref) {
+              return {
+                ...draft,
+                statTemplateId: draft.statTemplateId ?? ref.id,
+                statTemplateVersion: draft.statTemplateVersion ?? ref.version,
+              };
+            }
             return draft;
           });
           if (!this.repository.saveSkeleton(job.id, owner, skeleton)) return true;
@@ -93,6 +102,14 @@ export class GenerationRunner {
           content = await this.withRepair(step, signal, context, async feedback => {
             const expanded = await this.provider.expandScenes!(analysis, job.direction, skeleton, signal, feedback);
             assertExpandedHonorsSkeleton(skeleton, expanded);
+            const ref = getStatTemplate(job.statTemplateId ?? skeleton.statTemplateId);
+            if (ref) {
+              return {
+                ...expanded,
+                statTemplateId: expanded.statTemplateId ?? ref.id,
+                statTemplateVersion: expanded.statTemplateVersion ?? skeleton.statTemplateVersion ?? ref.version,
+              };
+            }
             return expanded;
           });
         } else {
