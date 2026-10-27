@@ -2,12 +2,18 @@
 
 import { SYSTEM_WAIT_ACTION_ID, type WorldCondition, type WorldContent } from './world.js';
 
-export type OpeningEvalState = {
-  locationId: string;
+/** Minimal snapshot for WorldCondition matching (opening eval + adventure runtime). */
+export type WorldConditionState = {
   facts: Record<string, boolean>;
-  knownFactIds: string[];
-  npcs: Record<string, { locationId: string; knownFactIds: string[] }>;
+  knownFactIds: readonly string[];
+  npcs: Record<string, { knownFactIds: readonly string[] }>;
   elapsed: number;
+};
+
+export type OpeningEvalState = WorldConditionState & {
+  locationId: string;
+  npcs: Record<string, { locationId: string; knownFactIds: string[] }>;
+  knownFactIds: string[];
 };
 
 /** Build the factual snapshot a new adventure would start with (before settle). */
@@ -24,7 +30,7 @@ export function initialWorldState(world: WorldContent): OpeningEvalState {
   };
 }
 
-export function matchesWorldConditions(conditions: WorldCondition[], state: OpeningEvalState): boolean {
+export function matchesWorldConditions(conditions: WorldCondition[], state: WorldConditionState): boolean {
   return conditions.every(condition => {
     switch (condition.kind) {
       case 'fact': return state.facts[condition.factId] === condition.value;

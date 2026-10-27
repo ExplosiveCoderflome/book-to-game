@@ -95,7 +95,7 @@ flowchart LR
 | 风险 | 位置 | 严重度 | 处置 |
 |---|---|---|---|
 | Web 曾本地复制 `choiceAvailable`，与 contracts `reachability.choiceAvailable` 双份语义 | `apps/web/src/lib/play-overlay.ts` | 中 | **已修**：改为 `reachChoiceAvailable` 再导出，权威在 contracts |
-| `sessions/domain/story-variables.choiceAvailable` 与 contracts 逻辑同形；`applyChoiceEffects` 另含世界书 cap/spend | `story-variables.ts` vs `packages/contracts/src/reachability.ts` | 中 | **暂留**：服务端版本挂 worldbook，不能无脑替换；后续应抽「纯条件」共用、效果路径保留模块扩展点 |
+| `sessions` / `adventure-sessions` 纯条件·效果曾与 contracts 双份 | `story-variables.ts` · `rules.ts` vs contracts | 中 | **已修**：纯匹配/纯效果权威在 contracts；sessions 只包 worldbook cap/spend；adventures `matches` 委托 `matchesWorldConditions` |
 | 内置 Demo 本地实现 `canChoose` / 应用 effects（略宽于权威：缺 `Object.hasOwn`） | `apps/web/src/components/DemoPreview.tsx` | 低 | 文档记录；Demo 离线示意，真试玩走 API；有空再切到 contracts |
 | `moveTarget(effects)` 在 web 两处同形 | `world-play-overlay.ts`、`world-graph.ts` | 低 | 仅展示拓扑，不提交状态；可抽小 helper，非本轮 |
 | edge-summary / ChoiceRulesEditor 按 type 分支展示文案 | web 展示层 | 可接受 | 种类闭集来自 contracts；新增种类必须先改 schema |
@@ -105,9 +105,17 @@ flowchart LR
 | generation 直接 mutate sessions / adventures | 扫描无命中（经草稿写入端口 / 组合根） | — | 保持 |
 | 跨模块深引用越过 index | architecture 脚本 + 抽查无新增违规 | — | 保持门禁 |
 
-**未做（刻意）**：合并 story 与 adventure 规则引擎；把 worldbook-aware effects 强行塞进 contracts；自定义用户模板库；大挪移 DemoPreview。
+**未做（刻意）**：合并 story 与 adventure 规则引擎；把 worldbook-aware effects 强行塞进 contracts（仅纯路径统一）；自定义用户模板库；大挪移 DemoPreview。
 
 ---
+
+## 6.1 架构优化落地（2026-10-27 · 续）
+
+按审核 Top 3 已落地：
+
+1. **纯条件/效果权威**：`packages/contracts`（`choiceAvailable` / `applyChoiceEffects` / `matchesWorldConditions`）；sessions 只包 worldbook cap/spend；adventures `matches` 委托 contracts。
+2. **模块公开面 + 门禁**：`sessions` / `adventure-sessions` index 导出 narrate·propose；`app/`·`adapters/` 禁止深引用模块内部（architecture-rules）；`Workbench.createPlayProvider()` 收拢 ChatCompletions 构造。
+3. **作者 UI 缝**：`useStoryCanvasPlay` / `useWorldCanvasPlay` + `StoryPlayInspector` / `WorldPlayInspector` 拆出画布试玩与 AI 辅助，DraftPanel/WorldsPanel 保留作者壳。
 
 ## 7. 延伸路线图（纪律，非排期承诺）
 

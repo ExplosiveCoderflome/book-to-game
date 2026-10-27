@@ -1,18 +1,16 @@
-import type { Choice, VariableValue, Worldbook } from '@novel-game/contracts';
+import type { Choice, StoryEffect, VariableValue, Worldbook } from '@novel-game/contracts';
 import {
+  reachApplyEffects,
+  reachChoiceAvailable,
   worldbookBlockReason,
   worldbookIncrementCap,
   worldbookSpendsForChoice,
 } from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
 
+/** Pure variable conditions — authority lives in contracts.reachability. */
 export function choiceAvailable(choice: Choice, variables: Record<string, VariableValue>): boolean {
-  return (choice.conditions ?? []).every(condition => {
-    if (!Object.hasOwn(variables, condition.variable)) return false;
-    const current = variables[condition.variable];
-    return condition.type === 'variable.equals' ? current === condition.value
-      : typeof current === 'number' && Number.isFinite(current) && current >= condition.value;
-  });
+  return reachChoiceAvailable(choice, variables);
 }
 
 /** Variable conditions + worldbook hard rules. */
@@ -31,35 +29,22 @@ export function choiceAllowed(
   return { ok: true };
 }
 
+/**
+ * Apply choice effects. Pure set/increment come from contracts; worldbook
+ * only wraps increment caps and spend_on_choice deductions.
+ */
 export function applyChoiceEffects(
   choice: Choice,
   current: Record<string, VariableValue>,
   worldbook?: Worldbook,
   sceneId?: string,
 ): Record<string, VariableValue> {
-  const variables = {...current};
-  for (const effect of choice.effects ?? []) {
-    const previous = variables[effect.variable];
-    if (!Object.hasOwn(variables, effect.variable) || typeof previous !== typeof effect.value ||
-      (effect.type === 'variable.increment' && typeof previous !== 'number')) {
-      throw new AppError('INVALID_VARIABLE_STATE', '存档变量与游戏规则不一致，无法执行此选项', 409);
-    }
-    let nextValue: VariableValue;
-    if (effect.type === 'variable.increment') {
-      let delta = effect.value;
-      const cap = worldbookIncrementCap(effect.variable, worldbook);
-      if (cap !== undefined && Math.abs(delta) > cap) {
-        delta = delta > 0 ? cap : -cap;
-      }
-      nextValue = (previous as number) + delta;
-    } else {
-      nextValue = effect.value;
-    }
-    if (typeof nextValue === 'number' && !Number.isFinite(nextValue)) {
-      throw new AppError('INVALID_VARIABLE_STATE', '变量运算超出有限数字范围，无法执行此选项', 409);
-    }
-    variables[effect.variable] = nextValue;
+  const effects = cappedEffects(choice.effects ?? [], worldbook);
+  const applied = reachApplyEffects({ effects }, current);
+  if (!applied) {
+    throw new AppError('INVALID_VARIABLE_STATE', failureMessage(effects, current), 409);
   }
+  const variables = { ...applied };
   if (sceneId && worldbook) {
     for (const spend of worldbookSpendsForChoice(choice, sceneId, worldbook)) {
       const previous = variables[spend.variable];
@@ -74,4 +59,31 @@ export function applyChoiceEffects(
     }
   }
   return variables;
+}
+
+function failureMessage(
+  effects: StoryEffect[],
+  current: Record<string, VariableValue>,
+): string {
+  const typedOk = effects.every(effect => {
+    if (!Object.hasOwn(current, effect.variable)) return false;
+    const previous = current[effect.variable];
+    if (typeof previous !== typeof effect.value) return false;
+    if (effect.type === 'variable.increment' && typeof previous !== 'number') return false;
+    return true;
+  });
+  return typedOk
+    ? '变量运算超出有限数字范围，无法执行此选项'
+    : '存档变量与游戏规则不一致，无法执行此选项';
+}
+
+/** Worldbook extension: clamp increment deltas before pure apply. */
+function cappedEffects(effects: StoryEffect[], worldbook: Worldbook | undefined): StoryEffect[] {
+  if (!worldbook) return effects;
+  return effects.map(effect => {
+    if (effect.type !== 'variable.increment') return effect;
+    const cap = worldbookIncrementCap(effect.variable, worldbook);
+    if (cap === undefined || Math.abs(effect.value) <= cap) return effect;
+    return { ...effect, value: effect.value > 0 ? cap : -cap };
+  });
 }

@@ -1,4 +1,5 @@
 import {
+  matchesWorldConditions,
   mergeTakenTags,
   worldbookBlockReason,
   worldbookIncrementCap,
@@ -9,15 +10,9 @@ import {
 } from '@novel-game/contracts';
 import type { AdventureState } from './adventure-state.js';
 
+/** Pure WorldCondition match — authority lives in contracts.world-opening. */
 export function matches(conditions: WorldCondition[], state: AdventureState): boolean {
-  return conditions.every(condition => {
-    switch (condition.kind) {
-      case 'fact': return state.facts[condition.factId] === condition.value;
-      case 'known': return state.knownFactIds.includes(condition.factId);
-      case 'npc_knows': return state.npcs[condition.npcId]?.knownFactIds.includes(condition.factId) === true;
-      case 'time': return state.elapsed >= condition.atLeast;
-    }
-  });
+  return matchesWorldConditions(conditions, state);
 }
 function addOnce(items: string[], id: string): void { if (!items.includes(id)) items.push(id); }
 

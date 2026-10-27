@@ -206,6 +206,6 @@ export {
 
 export {
   assessOpeningActions, initialWorldState, matchesWorldConditions, isWaitLikeAction,
-  type OpeningActionReport, type OpeningEvalState,
+  type OpeningActionReport, type OpeningEvalState, type WorldConditionState,
 } from './world-opening.js';
 
