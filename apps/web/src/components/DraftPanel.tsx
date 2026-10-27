@@ -92,6 +92,13 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
     const index = scenes.findIndex(s => s.id === fromId);
     if (index >= 0) { setSceneIndex(index); setInspectorTab('scene'); setInspectorOpen(true); }
   }
+  function disconnectEdge(fromId: string, choiceId: string) {
+    const scenes = content.scenes.map(scene => {
+      if (scene.id !== fromId) return scene;
+      return { ...scene, choices: scene.choices.filter(choice => choice.id !== choiceId) };
+    });
+    change({ ...content, scenes });
+  }
   function applyJson() {
     try {
       const result = gameContentSchema.safeParse(JSON.parse(jsonText));
@@ -228,6 +235,7 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
             onAddScene={canvasMode === 'play' ? undefined : addScene}
             onLayoutChange={canvasMode === 'play' ? undefined : updateLayout}
             onConnectScenes={canvasMode === 'play' ? undefined : connectScenes}
+            onDisconnectEdge={canvasMode === 'play' ? undefined : disconnectEdge}
             playabilityMode="publish"
             playOverlay={canvasMode === 'play' ? playOverlay : null}
             readOnly={canvasMode === 'play'}

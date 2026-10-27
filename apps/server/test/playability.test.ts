@@ -124,3 +124,42 @@ test('skeleton rejects opening that only points to one target', () => {
   assert.equal(play.valid, false);
   assert.ok(play.errors.some(text => /开局|分叉|真实/.test(text)), play.errors.join(';'));
 });
+
+
+test('publish soft-gates low average out-degree and low effects coverage', () => {
+  // Non-ending degrees: a=2, b=1, c=1, d=2, f=1 → avg 1.4 < 1.5; effects 1/7 < 15%
+  const sparse = {
+    title: '低出度', mode: 'story' as const, premise: '测', adaptationNotes: '',
+    startSceneId: 'a',
+    variables: { trust: 0 },
+    scenes: [
+      {id: 'a', title: 'A', text: 'x', origin: 'adapted' as const, evidence: [], choices: [
+        {id: 'toB', label: '去仓库查货', targetSceneId: 'b'},
+        {id: 'toC', label: '去营地谈价', targetSceneId: 'c', effects: [{type: 'variable.set' as const, variable: 'trust', value: 1}]},
+      ]},
+      {id: 'b', title: 'B', text: 'y', origin: 'adapted' as const, evidence: [], choices: [
+        {id: 'toD', label: '继续往渡口', targetSceneId: 'd'},
+      ]},
+      {id: 'c', title: 'C', text: 'z', origin: 'adapted' as const, evidence: [], choices: [
+        {id: 'toF', label: '绕路中继', targetSceneId: 'f'},
+      ]},
+      {id: 'f', title: 'F', text: '中继', origin: 'adapted' as const, evidence: [], choices: [
+        {id: 'toD2', label: '赶到渡口', targetSceneId: 'd'},
+      ]},
+      {id: 'd', title: 'D', text: 'w', origin: 'adapted' as const, evidence: [], choices: [
+        {id: 'good', label: '付钱回家', targetSceneId: 'e1'},
+        {id: 'bad', label: '硬闯逃走', targetSceneId: 'e2'},
+      ]},
+      {id: 'e1', title: 'E1', text: 'ok', origin: 'adapted' as const, evidence: [], choices: [], ending: '平安'},
+      {id: 'e2', title: 'E2', text: 'bad', origin: 'adapted' as const, evidence: [], choices: [], ending: '逃走'},
+    ],
+  };
+  const publish = assessPlayability(sparse, 'publish');
+  assert.equal(publish.valid, true);
+  assert.ok(publish.warnings.some(w => /平均出度/.test(w)), publish.warnings.join(';'));
+  assert.ok(publish.warnings.some(w => /带状态后果的选项偏少|effects/.test(w)), publish.warnings.join(';'));
+  const ann = annotatePlayability(sparse, 'publish');
+  assert.ok(ann.issues.some(i => i.code === 'LOW_OUT_DEGREE'));
+  assert.ok(ann.issues.some(i => i.code === 'LOW_EFFECTS'));
+  assert.ok(ann.flaggedSceneIds.includes('b') || ann.flaggedSceneIds.includes('c'));
+});

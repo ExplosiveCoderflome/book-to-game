@@ -49,8 +49,8 @@ export function annotatePlayability(content: PlayabilityGraph, mode: Playability
   const issues = collectPlayabilityIssues(content, mode);
   const errors = issues.filter(i => i.severity === 'error').map(i => i.message);
   const warnings = issues.filter(i => i.severity === 'warning').map(i => i.message);
-  const flaggedSceneIds = [...new Set(issues.filter(i => i.severity === 'error' || i.code === 'CORRIDOR' || i.code === 'CHURN' || i.code === 'OPENING_FANOUT' || i.code === 'OPENING_DENSITY' || i.code === 'FAKE_BRANCH' || i.code === 'TOO_SHALLOW' || i.code === 'EMPTY_LABELS' || i.code === 'CONDITION_BLOCKED_ENDING' || i.code === 'FEW_STATE_ENDINGS' || i.code === 'DEAD_CONDITIONAL_EDGE').flatMap(i => i.sceneIds ?? []))];
-  const flaggedEdgeKeys = [...new Set(issues.filter(i => i.severity === 'error' || i.code === 'CORRIDOR' || i.code === 'CHURN' || i.code === 'FAKE_BRANCH' || i.code === 'EMPTY_LABELS' || i.code === 'OPENING_FANOUT' || i.code === 'CONDITION_BLOCKED_ENDING' || i.code === 'DEAD_CONDITIONAL_EDGE' || i.code === 'FEW_STATE_ENDINGS').flatMap(i => i.edgeKeys ?? []))];
+  const flaggedSceneIds = [...new Set(issues.filter(i => i.severity === 'error' || i.code === 'CORRIDOR' || i.code === 'CHURN' || i.code === 'OPENING_FANOUT' || i.code === 'OPENING_DENSITY' || i.code === 'FAKE_BRANCH' || i.code === 'TOO_SHALLOW' || i.code === 'EMPTY_LABELS' || i.code === 'CONDITION_BLOCKED_ENDING' || i.code === 'FEW_STATE_ENDINGS' || i.code === 'DEAD_CONDITIONAL_EDGE' || i.code === 'LOW_OUT_DEGREE' || i.code === 'LOW_EFFECTS').flatMap(i => i.sceneIds ?? []))];
+  const flaggedEdgeKeys = [...new Set(issues.filter(i => i.severity === 'error' || i.code === 'CORRIDOR' || i.code === 'CHURN' || i.code === 'FAKE_BRANCH' || i.code === 'EMPTY_LABELS' || i.code === 'OPENING_FANOUT' || i.code === 'CONDITION_BLOCKED_ENDING' || i.code === 'DEAD_CONDITIONAL_EDGE' || i.code === 'FEW_STATE_ENDINGS' || i.code === 'LOW_OUT_DEGREE' || i.code === 'LOW_EFFECTS').flatMap(i => i.edgeKeys ?? []))];
   return { result: { valid: errors.length === 0, errors, warnings }, issues, flaggedSceneIds, flaggedEdgeKeys };
 }
 
@@ -233,11 +233,20 @@ export function collectPlayabilityIssues(content: PlayabilityGraph, mode: Playab
 
   const withEffects = scenes.flatMap(scene => scene.choices).filter(choice => (choice.effects?.length ?? 0) > 0).length;
   const totalChoices = scenes.flatMap(scene => scene.choices).length;
-  if (mode !== 'publish' && totalChoices >= 4 && withEffects / totalChoices < 0.25) {
+  const effectRatio = totalChoices ? withEffects / totalChoices : 0;
+  if (mode !== 'publish' && totalChoices >= 4 && effectRatio < 0.25) {
     issues.push({
       code: 'FEW_EFFECTS',
       message: `带状态后果的选项过少：${withEffects}/${totalChoices}，生成阶段至少约 25% 选项应带 effects`,
       severity: 'error',
+    });
+  } else if (mode === 'publish' && totalChoices >= 4 && effectRatio < 0.15) {
+    const lowScenes = nonEnding.filter(scene => scene.choices.some(choice => !(choice.effects?.length))).map(s => s.id);
+    issues.push({
+      code: 'LOW_EFFECTS',
+      message: `带状态后果的选项偏少：${withEffects}/${totalChoices}（${Math.round(effectRatio * 100)}%），发布前建议至少约 15% 选项带 effects，否则选择缺少可见代价`,
+      severity: 'warning',
+      sceneIds: lowScenes.length ? lowScenes : nonEnding.map(s => s.id),
     });
   } else if (mode === 'publish' && totalChoices >= 4 && withEffects === 0 && Object.keys(content.variables ?? {}).length === 0) {
     issues.push({
@@ -245,6 +254,21 @@ export function collectPlayabilityIssues(content: PlayabilityGraph, mode: Playab
       message: '没有任何 variables/effects，选择可能缺少可见后果',
       severity: 'warning',
     });
+  }
+
+  if (nonEnding.length >= 2) {
+    const outDegrees = nonEnding.map(scene => scene.choices.length);
+    const avgOut = outDegrees.reduce((a, b) => a + b, 0) / outDegrees.length;
+    if (avgOut < 1.5) {
+      const sparse = nonEnding.filter(scene => scene.choices.length <= 1).map(s => s.id);
+      issues.push({
+        code: 'LOW_OUT_DEGREE',
+        message: `非结局平均出度偏低：${avgOut.toFixed(2)}（阈值 1.5）。图偏走廊/同质，请在画布上增删改边提高分叉，勿依赖隐含连线`,
+        severity: 'warning',
+        sceneIds: sparse.length ? sparse : nonEnding.map(s => s.id),
+        edgeKeys: nonEnding.flatMap(scene => scene.choices.map(c => `${scene.id}:${c.id}`)),
+      });
+    }
   }
 
   const hasConditions = scenes.some(scene => scene.choices.some(choice => (choice.conditions?.length ?? 0) > 0));

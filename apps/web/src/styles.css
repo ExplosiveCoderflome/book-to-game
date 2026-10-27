@@ -1403,6 +1403,15 @@ legend {
 .branch-canvas-banner-hint { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
 .branch-edge.flagged .branch-edge-stroke { stroke: #c44; stroke-width: 2.2; }
 .branch-edge.flagged text { fill: #a33; font-weight: 600; }
+
+.branch-edge.selected .branch-edge-stroke {
+  stroke: var(--accent, #3b6cff);
+  stroke-width: 2.6;
+}
+.branch-edge.selected .branch-edge-label {
+  fill: var(--accent, #3b6cff);
+  font-weight: 600;
+}
 .branch-edge.trail .branch-edge-stroke { stroke: #1a7a4c; stroke-width: 2.6; }
 .branch-edge.trail text { fill: #1a7a4c; font-weight: 600; }
 .branch-edge.blocked .branch-edge-stroke { stroke: color-mix(in srgb, var(--muted) 70%, transparent); stroke-width: 1.2; stroke-dasharray: 5 4; opacity: 0.55; }

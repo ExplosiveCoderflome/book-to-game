@@ -13,6 +13,7 @@ interface Props {
   onAddScene?: () => void;
   onLayoutChange?: (layout: CanvasLayout) => void;
   onConnectScenes?: (fromId: string, toId: string) => void;
+  onDisconnectEdge?: (fromId: string, choiceId: string) => void;
   primary?: boolean;
   playabilityMode?: 'publish' | 'skeleton';
   /** When set, highlight current scene / trail / blocked edges during playtest. */
@@ -33,7 +34,7 @@ const NODE_W = 168;
 const NODE_H = 64;
 
 export function BranchGraphCanvas({
-  content, selectedSceneId, onSelectScene, onAddScene, onLayoutChange, onConnectScenes,
+  content, selectedSceneId, onSelectScene, onAddScene, onLayoutChange, onConnectScenes, onDisconnectEdge,
   primary = false, playabilityMode = 'publish', playOverlay = null, readOnly = false,
   generationJob = null, onOpenGenerationDraft, onWatchGeneration,
 }: Props) {
@@ -48,6 +49,7 @@ export function BranchGraphCanvas({
   const [dragPos, setDragPos] = useState<{ id: string; x: number; y: number } | null>(null);
   const [hoveredEdgeKey, setHoveredEdgeKey] = useState<string | null>(null);
   const [hoverScreen, setHoverScreen] = useState<{ x: number; y: number } | null>(null);
+  const [selectedEdgeKey, setSelectedEdgeKey] = useState<string | null>(null);
 
   const autoLayout = useMemo(() => layoutNodes(content), [content]);
   const nodes = useMemo(() => {
@@ -65,7 +67,7 @@ export function BranchGraphCanvas({
   );
   const flaggedScenes = useMemo(() => new Set(annotation.flaggedSceneIds), [annotation]);
   const flaggedEdges = useMemo(() => new Set(annotation.flaggedEdgeKeys), [annotation]);
-  const bannerIssues = annotation.issues.filter(i => i.severity === 'error' || i.code === 'CORRIDOR' || i.code === 'CHURN' || i.code === 'OPENING_FANOUT' || i.code === 'OPENING_DENSITY' || i.code === 'TOO_SHALLOW' || i.code === 'CONDITION_BLOCKED_ENDING' || i.code === 'FEW_STATE_ENDINGS' || i.code === 'DEAD_CONDITIONAL_EDGE' || i.code === 'REACHABILITY_TRUNCATED');
+  const bannerIssues = annotation.issues.filter(i => i.severity === 'error' || i.code === 'CORRIDOR' || i.code === 'CHURN' || i.code === 'OPENING_FANOUT' || i.code === 'OPENING_DENSITY' || i.code === 'TOO_SHALLOW' || i.code === 'CONDITION_BLOCKED_ENDING' || i.code === 'FEW_STATE_ENDINGS' || i.code === 'DEAD_CONDITIONAL_EDGE' || i.code === 'REACHABILITY_TRUNCATED' || i.code === 'LOW_OUT_DEGREE' || i.code === 'LOW_EFFECTS' || i.code === 'NO_STATE');
 
   const trailEdges = useMemo(() => new Set(playOverlay?.trailEdgeKeys ?? []), [playOverlay]);
   const blockedEdges = useMemo(() => new Set(playOverlay?.blockedEdgeKeys ?? []), [playOverlay]);
@@ -251,6 +253,22 @@ export function BranchGraphCanvas({
             {t(connectFrom ? '连线中…点目标' : '连线')}
           </button>
         )}
+        {!readOnly && onDisconnectEdge && (
+          <button
+            type="button"
+            className="small"
+            disabled={!selectedEdgeKey}
+            title={t('点连线可选中，再点断开')}
+            onClick={() => {
+              if (!selectedEdgeKey) return;
+              const [fromId, choiceId] = selectedEdgeKey.split(':');
+              if (fromId && choiceId) onDisconnectEdge(fromId, choiceId);
+              setSelectedEdgeKey(null);
+            }}
+          >
+            {t('断开选中边')}
+          </button>
+        )}
         <button type="button" className="small" onClick={() => setZoom(z => Math.min(2.2, z * 1.12))} aria-label={t('放大')}>＋</button>
         <button type="button" className="small" onClick={() => setZoom(z => Math.max(0.45, z * 0.88))} aria-label={t('缩小')}>－</button>
         <button type="button" className="small" onClick={fitView}>{t('适应画布')}</button>
@@ -289,7 +307,7 @@ export function BranchGraphCanvas({
             <li key={`${issue.code}-${index}`}>{issue.message}</li>
           ))}
         </ul>
-        <p className="branch-canvas-banner-hint">{t('对照评分表：开局密度、分支代价、结局差异、反走廊、节奏')}</p>
+        <p className="branch-canvas-banner-hint">{t('对照评分表：开局密度、分支代价、结局差异、反走廊、出度与效果覆盖；流程改动请在画布上改边')}</p>
       </div>
     )}
     <div
@@ -326,7 +344,7 @@ export function BranchGraphCanvas({
             return (
               <g
                 key={edge.key}
-                className={`branch-edge${edge.flagged ? ' flagged' : ''}${edge.trail ? ' trail' : ''}${edge.blocked ? ' blocked' : ''}${active ? ' hovered' : ''}`}
+                className={`branch-edge${edge.flagged ? ' flagged' : ''}${edge.trail ? ' trail' : ''}${edge.blocked ? ' blocked' : ''}${active ? ' hovered' : ''}${selectedEdgeKey === edge.key ? ' selected' : ''}`}
                 data-edge-key={edge.key}
                 data-testid={active ? 'edge-hover-active' : undefined}
               >
@@ -344,6 +362,12 @@ export function BranchGraphCanvas({
                     if (rect) setHoverScreen({ x: event.clientX - rect.left, y: event.clientY - rect.top });
                   }}
                   onPointerLeave={() => { setHoveredEdgeKey(null); setHoverScreen(null); }}
+                  onClick={event => {
+                    if (readOnly || !onDisconnectEdge) return;
+                    event.stopPropagation();
+                    setSelectedEdgeKey(prev => prev === edge.key ? null : edge.key);
+                    setConnectFrom(null);
+                  }}
                 />
                 <path className="branch-edge-stroke" d={curve.d} fill="none" markerEnd={marker} />
                 <text x={curve.labelX} y={curve.labelY} textAnchor="middle" className="branch-edge-label">
