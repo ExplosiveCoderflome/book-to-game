@@ -41,3 +41,7 @@ Defined in `apps/web/src/styles.css` `:root`:
 | `--shell-gutter-lg` | Slightly larger inset on wide screens |
 | `--prose-max` | Optional reading measure (not for canvas) |
 | `--density-wide` | Wide density breakpoint (~1440px) — dual inspector / multi-column |
+
+## Related
+
+Visual chrome, type, and control principles: [`design-ui.md`](./design-ui.md).
