@@ -1,26 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { gameContentSchema, type CanvasLayout, type Draft, type GameContent, type GameRevision, type GenerationJob, type RuntimeInfo, type ScanDepth, type FillSceneTextResult, type NarrateResult, type ProposeActResult, type SessionView, type SourceDocument, type SourceSummary, type ValidationResult } from '@novel-game/contracts';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { gameContentSchema, type CanvasLayout, type Draft, type GameContent, type GameRevision, type GenerationJob, type RuntimeInfo, type ScanDepth, type FillSceneTextResult, type SessionView, type SourceDocument, type SourceSummary, type ValidationResult } from '@novel-game/contracts';
 import { StatTemplateSelect, type StatTemplateSelectValue } from './StatTemplateSelect';
 import { errorMessage, request, RequestError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
-import { readTiandaoCorrect } from '../lib/tiandao';
 import { relevantStoryJob } from '../lib/job-on-canvas';
 import { shouldShowSkeletonPlaceholder, skeletonToCanvasContent } from '../lib/skeleton-placeholder';
-import { playOverlayFromSession } from '../lib/play-overlay';
-import { costHintForChoice, diffVariables, labelFnFromContent, type VariableDelta } from '../lib/variable-delta';
 import { selectedChapters } from '../lib/generation-scope';
 import { findLeafSceneIds } from '../lib/leaf-scenes';
 import { dismissExtendGuide, isExtendGuideDismissed } from '../lib/extend-guide';
 import { nextSceneSelection } from '../lib/multi-select';
+import { useStoryCanvasPlay } from '../hooks/useStoryCanvasPlay';
 import { Empty, Notice } from './Notice';
 import { BranchGraphCanvas } from './BranchGraphCanvas';
-import { PlayStatsBar } from './PlayStatsBar';
 import { SceneEditor } from './SceneEditor';
 import { StoryVariablesEditor } from './StoryVariablesEditor';
 import { WorldbookEditor } from './WorldbookEditor';
-import { NarrateBox } from './NarrateBox';
-import { TiandaoToggle } from './TiandaoToggle';
-import { ProposeActBox } from './ProposeActBox';
+import { StoryPlayInspector } from './play/StoryPlayInspector';
 
 const blankContent = (): GameContent => ({ title: '', mode: 'story', premise: '', adaptationNotes: '', startSceneId: '', scenes: [] });
 interface Props {
@@ -55,15 +50,6 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
   const [message, setMessage] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [canvasMode, setCanvasMode] = useState<'edit' | 'play'>('edit');
-  const [playSession, setPlaySession] = useState<SessionView | null>(null);
-  const [playBusy, setPlayBusy] = useState(false);
-  const [proposeNote, setProposeNote] = useState<string | null>(null);
-  const [playVarDeltas, setPlayVarDeltas] = useState<VariableDelta[] | null>(null);
-  useEffect(() => {
-    if (!playVarDeltas?.length) return;
-    const timer = window.setTimeout(() => setPlayVarDeltas(null), 4500);
-    return () => window.clearTimeout(timer);
-  }, [playVarDeltas]);
   const [extendBusy, setExtendBusy] = useState(false);
   const [fillBusy, setFillBusy] = useState(false);
   const [fillDirection, setFillDirection] = useState('');
@@ -88,7 +74,7 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
   const [scanChapterIds, setScanChapterIds] = useState<string[]>([]);
   useEffect(() => {
     let active = true;
-    setDraft(null); setDirty(false); setConflict(false); setValidation(null); setError(null); setMessage(null); setJsonMode(false); setSceneIndex(0); setInspectorOpen(false); setInspectorTab('scene'); setCanvasMode('edit'); setPlaySession(null); setExtendFailedSceneId(null); setFocusSceneIds([]); setLastExtendSummary(null); setBatchExtendProgress(null); setShowExtendGuide(false); setSelectedSceneIds([]); setExtendConflict(false);
+    setDraft(null); setDirty(false); setConflict(false); setValidation(null); setError(null); setMessage(null); setJsonMode(false); setSceneIndex(0); setInspectorOpen(false); setInspectorTab('scene'); setCanvasMode('edit'); setExtendFailedSceneId(null); setFocusSceneIds([]); setLastExtendSummary(null); setBatchExtendProgress(null); setShowExtendGuide(false); setSelectedSceneIds([]); setExtendConflict(false);
     if (!selectedId) { setContent(blankContent()); return; }
     setBusy(true);
     request<Draft>(token, `/drafts/${selectedId}`).then(value => {
@@ -410,11 +396,20 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
     if (!latestRevision) return [] as SessionView[];
     return sessions.filter(s => s.gameRevisionId === latestRevision.id).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }, [sessions, latestRevision]);
-  const playOverlay = useMemo(() => {
-    if (!playSession || !latestRevision) return null;
-    return playOverlayFromSession(latestRevision.content, playSession);
-  }, [playSession, latestRevision]);
-  const canPlayOnCanvas = !!latestRevision && !dirty && !jsonMode;
+  const {
+    playSession, playBusy, proposeNote, playVarDeltas, playOverlay, canPlayOnCanvas,
+    actOnCanvas, narrateOnCanvas, proposeOnCanvas, resetPlay,
+  } = useStoryCanvasPlay({
+    token,
+    canvasMode,
+    latestRevision,
+    linkedSessions,
+    dirty,
+    jsonMode,
+    refresh,
+    onError: setError,
+  });
+  useEffect(() => { resetPlay(); }, [selectedId, resetPlay]);
   const generationJob = useMemo(
     () => relevantStoryJob(jobs, { sourceId: draft?.sourceId ?? (sourceId || null), draftId: draft?.id ?? (selectedId || null) }),
     [jobs, draft?.sourceId, draft?.id, sourceId, selectedId],
@@ -425,25 +420,6 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
     if (canvasMode === 'play' && latestRevision) return latestRevision.content;
     return content;
   }, [skeletonPlaceholder, generationJob?.skeleton, canvasMode, latestRevision, content]);
-
-  useEffect(() => {
-    if (canvasMode !== 'play' || !latestRevision) return;
-    const preferred = linkedSessions[0];
-    if (preferred && playSession?.id === preferred.id) return;
-    if (preferred) { setPlaySession(preferred); return; }
-    let active = true;
-    setPlayBusy(true);
-    request<SessionView>(token, '/sessions', 'POST', { gameRevisionId: latestRevision.id })
-      .then(async started => {
-        if (!active) return;
-        setPlaySession(started);
-        await refresh();
-      })
-      .catch(e => { if (active) setError(errorMessage(e)); })
-      .finally(() => { if (active) setPlayBusy(false); });
-    return () => { active = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canvasMode, latestRevision?.id]);
 
   const genWatchRef = useRef<string | null>(null);
   useEffect(() => {
@@ -464,28 +440,6 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
     setMessage(t('生成完成，已在画布打开新草稿。'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generationJob?.id, generationJob?.status, generationJob?.draftId]);
-
-  async function actOnCanvas(choiceId: string) {
-    if (!playSession) return;
-    setPlayBusy(true); setError(null); setPlayVarDeltas(null);
-    try {
-      const before = { ...(playSession.variables ?? {}) };
-      const input = { choiceId, expectedTurn: playSession.turn, requestId: crypto.randomUUID() };
-      const result = await request<SessionView>(token, `/sessions/${playSession.id}/actions`, 'POST', input);
-      const deltas = diffVariables(before, result.variables ?? {}, labelFnFromContent(latestRevision?.content));
-      setPlayVarDeltas(deltas.length ? deltas : null);
-      setPlaySession(result);
-      await refresh();
-    } catch (e) { setError(errorMessage(e)); } finally { setPlayBusy(false); }
-  }
-
-
-  const narrateOnCanvas = useCallback(async (force: boolean): Promise<NarrateResult> => {
-    if (!playSession) throw new Error('no session');
-    return request<NarrateResult>(token, `/sessions/${playSession.id}/narrate`, 'POST', {
-      expectedTurn: playSession.turn, force, tiandaoCorrect: readTiandaoCorrect(),
-    });
-  }, [playSession, token]);
 
   async function fillSelectedScene(sceneId: string) {
     if (!draft || fillBusy || extendBusy || jsonMode || canvasMode === 'play') return;
@@ -523,30 +477,6 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
     } finally {
       setFillBusy(false);
     }
-  }
-
-  async function proposeOnCanvas(text: string): Promise<ProposeActResult> {
-    if (!playSession) throw new Error('no session');
-    setPlayBusy(true); setError(null);
-    try {
-      const result = await request<ProposeActResult>(token, `/sessions/${playSession.id}/propose-act`, 'POST', {
-        text, expectedTurn: playSession.turn, requestId: crypto.randomUUID(), autoAct: true, tiandaoCorrect: readTiandaoCorrect(),
-      });
-      if (result.status === 'acted' && result.session) {
-        setProposeNote(result.label ? `已映射并执行：${result.label}` : '已映射并执行');
-        const next = result.session as SessionView;
-        const deltas = diffVariables(playSession.variables ?? {}, next.variables ?? {}, labelFnFromContent(latestRevision?.content));
-        setPlayVarDeltas(deltas.length ? deltas : null);
-        setPlaySession(next);
-        await refresh();
-      } else if (result.status === 'none' || result.status === 'rejected') {
-        setProposeNote(result.reason);
-      }
-      return result;
-    } catch (e) {
-      setError(errorMessage(e));
-      throw e;
-    } finally { setPlayBusy(false); }
   }
 
   const scene = content.scenes[sceneIndex];
@@ -687,42 +617,18 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
             onWatchGeneration={onOpenGeneration}
           />
           {canvasMode === 'play' ? (
-            <aside className="draft-inspector play-inspector" aria-label={t('试玩面板')} data-testid="draft-play-inspector">
-              <div className="draft-inspector-header">
-                <strong>{t('试玩')}</strong>
-                <button type="button" className="quiet small" onClick={() => setCanvasMode('edit')}>{t('返回编辑')}</button>
-              </div>
-              <div className="draft-inspector-body stack">
-                {!latestRevision ? <Empty>{t('请先发布一个版本，再在画布上试玩。')}</Empty>
-                  : playBusy && !playSession ? <p role="status">{t('正在准备试玩…')}</p>
-                  : !playSession ? <Empty>{t('尚未打开存档。')}</Empty>
-                  : <>
-                    <p className="hint">{t('发布版本 v{version} · 第 {turn} 幕', { version: latestRevision.version, turn: playSession.turn + 1 })}</p>
-                    <h4>{playSession.scene.title}</h4>
-                    {proposeNote && <Notice kind="success" text={proposeNote} />}
-                    <div className="reader-text">{playSession.scene.text.split(/\n+/).map((text, i) => <p key={i}>{text}</p>)}</div>
-                    <PlayStatsBar variables={playSession.variables ?? {}} deltas={playVarDeltas} statTemplateId={latestRevision?.content.statTemplateId} statTemplateVersion={latestRevision?.content.statTemplateVersion} />
-                    {playSession.ended && <div className="ending"><p className="eyebrow">{t('故事抵达了一个结局')}</p><p>{playSession.scene.ending ?? t('旅程告一段落。')}</p></div>}
-                    {!playSession.ended && <div className="reader-choices"><p className="eyebrow">{t('你将如何选择？')}</p>{playSession.scene.choices.map((choice, i) => {
-                      const cost = costHintForChoice(latestRevision?.content, playSession.scene.id, choice.id);
-                      return <button key={choice.id} type="button" className="reader-choice" disabled={playBusy} onClick={() => void actOnCanvas(choice.id)}>
-                        <span className="reader-choice-index" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
-                        <span className="reader-choice-body">
-                          <span className="reader-choice-label">{choice.label}</span>
-                          {cost ? <span className="reader-choice-cost">{t('代价')}：{cost}</span> : null}
-                        </span>
-                        <span className="reader-choice-arrow" aria-hidden="true">→</span>
-                      </button>;
-                    })}</div>}
-                    <div className="reader-aux stack">
-                      <TiandaoToggle disabled={playBusy} />
-                      <NarrateBox visitKey={`${playSession.id}:${playSession.scene.id}:${playSession.turn}`} disabled={playBusy} onNarrate={narrateOnCanvas} />
-                      {!playSession.ended && <ProposeActBox disabled={playBusy} busy={playBusy} onPropose={proposeOnCanvas} onPickCandidate={id => void actOnCanvas(id)} />}
-                    </div>
-                    {onOpenPlay && latestRevision && <button type="button" className="quiet small" onClick={() => onOpenPlay(latestRevision.id)}>{t('在读者席打开 →')}</button>}
-                  </>}
-              </div>
-            </aside>
+            <StoryPlayInspector
+              latestRevision={latestRevision}
+              playSession={playSession}
+              playBusy={playBusy}
+              proposeNote={proposeNote}
+              playVarDeltas={playVarDeltas}
+              onBackEdit={() => setCanvasMode('edit')}
+              onAct={actOnCanvas}
+              onNarrate={narrateOnCanvas}
+              onPropose={proposeOnCanvas}
+              onOpenPlay={onOpenPlay}
+            />
           ) : inspectorOpen && <aside className="draft-inspector dual-ready" aria-label={t('场景检视器')} data-testid="draft-inspector" data-secondary={inspectorSecondary}>
             <div className="draft-inspector-header">
               <div className="draft-inspector-tabs">
