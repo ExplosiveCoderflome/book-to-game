@@ -14,15 +14,18 @@ interface Props {
   onChange: (next: WorldMap, coalesceKey?: string) => void;
 }
 
+const NOUN: Record<MapLayerKind, string> = { terrain: '地形', faction: '势力', region: '区域' };
+
 /** Palette editor shared by terrain and faction layers. Ids are stable; delete always asks how to reassign. */
 export function MapLayerPalette({ map, kind, actions, activeId, readOnly, onActive, onChange }: Props) {
   const { t } = useI18n();
   const [pending, setPending] = useState<{ id: string; to: string } | null>(null);
   const entries = layerPalette(map, kind);
-  const noun = t(kind === 'terrain' ? '地形' : '势力');
+  const noun = t(NOUN[kind]);
   const refsTo = (id: string) => actions.filter(a => [...a.availableWhen, ...a.requires].some(c =>
     (c.kind === 'at_terrain' && kind === 'terrain' && c.terrainIds.includes(id))
-    || (c.kind === 'in_faction_territory' && kind === 'faction' && c.factionIds.includes(id)))).length;
+    || (c.kind === 'in_faction_territory' && kind === 'faction' && c.factionIds.includes(id))
+    || (c.kind === 'in_region' && kind === 'region' && c.regionIds.includes(id)))).length;
 
   function requestDelete(id: string) {
     if (countUsage(map, kind, id) === 0 && refsTo(id) === 0) { onChange(deletePaletteEntry(map, kind, id, null)); return; }
@@ -33,7 +36,7 @@ export function MapLayerPalette({ map, kind, actions, activeId, readOnly, onActi
     <div className="map-palette-head">
       <span className="world-map-tray-label">{t('{noun}调色板', { noun })} · {entries.length}</span>
       <button type="button" className="small quiet" disabled={readOnly} data-testid={`map-palette-add-${kind}`}
-        onClick={() => { const r = addPaletteEntry(map, kind, kind === 'terrain' ? t('新地形') : t('新势力')); onChange(r.map); onActive(r.id); }}>+ {t('新增')}</button>
+        onClick={() => { const r = addPaletteEntry(map, kind, t('新{noun}', { noun })); onChange(r.map); onActive(r.id); }}>+ {t('新增')}</button>
     </div>
     <ul>
       {entries.map(e => {

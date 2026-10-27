@@ -15,6 +15,8 @@ export const worldConditionSchema = z.discriminatedUnion('kind', [
   z.object({kind: z.literal('at_terrain'), terrainIds: z.array(id).min(1).max(20)}),
   /** Map-aware: player's current location POI cell is owned by one of factionIds (authored baseline). */
   z.object({kind: z.literal('in_faction_territory'), factionIds: z.array(id).min(1).max(20)}),
+  /** Map-aware: player's current location lies in one of the named regions/districts. */
+  z.object({kind: z.literal('in_region'), regionIds: z.array(id).min(1).max(20)}),
 ]);
 export const worldEffectSchema = z.discriminatedUnion('kind', [
   z.object({kind: z.literal('set'), factId: id, value: z.boolean()}),

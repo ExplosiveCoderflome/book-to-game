@@ -153,3 +153,23 @@ WorldMap = {
   - `renderMapSchematicSvg(map, opts)`：确定性示意图（地形填色、势力着色与边界线、地点标注、图例），作为 AI 出图的“真值参考”。
 - **端口**：`MapImageProvider`（contracts）：`generate({prompt, schematicSvg?, width, height, seed?}) → {mimeType, data, provider}`。目前只有 `StubMapImageProvider`（worlds 模块 infrastructure，调用即报未接入），未接路由。真正的图片生成 API 作为适配器实现此接口；AI 产出的图片只是展示层，不回写地形/势力数据。
 - **测试数据**：`fixtures/world-map/ember-reach.world.json`（24×16，8 地点、3 势力、8 种地形），由 `npx tsx scripts/gen-map-fixture.ts --out <dir>` 生成，同时输出 `map.json`、`prompt.txt`、`schematic.svg`。
+
+## 城市地图方案与扩展口子（city-map step 1 已落地）
+
+### 已落地的扩展口子
+- **地图格子类型**：`WorldMap.geometry.kind`（判别联合，当前仅 `'hex'`，`WORLD_MAP_KINDS`）。`mapSchemaVersion` 保持 1；老地图无 `layers.regions` 照常解析。新增类型 = contracts 加一种 geometry schema + rules 注册 `GeometryAdapter` + web 注册编辑器。
+- **可替换几何模块**：`packages/rules/src/map-geometry.ts` — `GeometryAdapter { inBounds, listCells, neighbors, distance }`，按 kind 注册（`registerGeometryKind` / `geometryFor`）。规则与世界书只调用 `locationSpatial(map, locationId) → { cell, terrainId, factionId, regionIds }` 与 `locationDistance`，不碰六边形数学。
+- **地点绑定不变**：`pois[].locationId → anchor.cell`。
+- **Web 编辑器按类型注册**：`apps/web/src/components/map-kinds/`（`registry.ts` + `HexMapEditor.tsx`）；`WorldMapCanvas` 只按 registry 分发，不按 kind 写分支。
+- **图层访问表**：`world-map-edit.ts` 的 `ACCESS` 表让地形/势力/区域共用画笔、填充、橡皮、吸管、调色板、删除重指派与撤销。
+
+### 区域（街区）
+- `layers.regions = { regions: [{id, name, color, tags?}], cells: {cell → regionId} }`，每格至多一个区域；标签画在区域质心。
+- 规则条件 `in_region { regionIds[] }`（KindRegistry），经 `locationSpatial` 求值；校验未知区域 id。
+- 世界书作用范围新增 `{ type: 'regions', regionIds }`：玩家所在地点落在任一区域时生效，复用 `entriesForPlace(..., 'location', { regionIds })`，硬规则与 AI 旁白同一判定。
+
+### 后续步骤（预想）
+1. **子地图**：地图挂到地点上（`parentMapId + parentLocationId`），层级不设限；地点图同步分层，进/出城是普通移动行动；编辑器可下钻并显示层级路径。
+2. **城市地形预设与场所类型**：住宅/商业/工业/码头/公园/水域/贫民窟等预设地形（数据而非代码）；POI 加 `venueType`（医院/警局/酒吧/安全屋…），新增 `at_venue` 条件。势力图层直接复用为帮派地盘/公司辖区/警力覆盖。
+3. **简化道路**：只记录“两格之间有主干道/地铁”的边，用于通勤时间与费用，不画精确街道线；接现代题材数值模板。
+4. **新地图类型**（按需）：vector / square / image，各自实现 `GeometryAdapter` + 编辑器，世界、规则、存档不变；OSM 导入作为 vector 类型的导入工具。

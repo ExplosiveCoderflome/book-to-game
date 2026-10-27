@@ -1,5 +1,5 @@
 import {narrateInputSchema, type AdventureView, type NarrateInput, type NarrateResult, type WorldRevision} from '@novel-game/contracts';
-import {entriesForPlace} from '@novel-game/rules';
+import {entriesForPlace, locationSpatial} from '@novel-game/rules';
 import { AppError } from '../../../shared/errors.js';
 import type { AdventureService } from './adventure-service.js';
 import type { RevisionReader } from './ports.js';
@@ -41,7 +41,7 @@ function worldbookSnippetsFor(view: AdventureView, revisionReader: RevisionReade
   let revision: WorldRevision;
   try { revision = revisionReader.getRevision(view.worldRevisionId); }
   catch { return []; }
-  const entries = entriesForPlace(revision.content.worldbook, view.location.id, 'location');
+  const entries = entriesForPlace(revision.content.worldbook, view.location.id, 'location', {regionIds: locationSpatial(revision.content.map, view.location.id).regionIds});
   return entries.slice(0, 6).map(entry => ({
     title: entry.title.slice(0, 80),
     content: entry.content.slice(0, 240),

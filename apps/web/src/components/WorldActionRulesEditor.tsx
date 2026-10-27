@@ -15,6 +15,7 @@ function defaultCondition(kind: string, w: WorldContent): WorldCondition | null 
     case 'time': return { kind, atLeast: 1 };
     case 'at_terrain': return { kind, terrainIds: [w.map?.layers?.terrain?.palette[0]?.id ?? 'terrain'] };
     case 'in_faction_territory': return { kind, factionIds: [w.map?.layers?.factions?.factions[0]?.id ?? 'faction'] };
+    case 'in_region': return { kind, regionIds: [w.map?.layers?.regions?.regions[0]?.id ?? 'region'] };
     default: return null;
   }
 }
@@ -26,6 +27,7 @@ export function WorldActionRulesEditor({ content: w, locationId, onChange }: { c
   const actions = w.actions.filter(a => a.locationId === locationId);
   const terrains = w.map?.layers?.terrain?.palette.map(p => ({ id: p.id, label: p.label, color: p.color })) ?? [];
   const factions = w.map?.layers?.factions?.factions.map(f => ({ id: f.id, label: f.name, color: f.color })) ?? [];
+  const regions = w.map?.layers?.regions?.regions.map(r => ({ id: r.id, label: r.name, color: r.color })) ?? [];
 
   function setAction(id: string, patch: Partial<Action>) {
     onChange({ ...w, actions: w.actions.map(a => (a.id === id ? { ...a, ...patch } : a)) });
@@ -56,6 +58,7 @@ export function WorldActionRulesEditor({ content: w, locationId, onChange }: { c
       case 'time': return <input type="number" min={0} max={100} value={c.atLeast} onChange={e => set({ ...c, atLeast: Math.max(0, Math.min(100, Math.round(Number(e.target.value) || 0))) })} />;
       case 'at_terrain': return idChips(c.terrainIds, terrains, terrainIds => set({ ...c, terrainIds }), t('地图没有地形图层'));
       case 'in_faction_territory': return idChips(c.factionIds, factions, factionIds => set({ ...c, factionIds }), t('地图没有势力图层'));
+      case 'in_region': return idChips(c.regionIds, regions, regionIds => set({ ...c, regionIds }), t('地图没有区域图层'));
     }
   }
 

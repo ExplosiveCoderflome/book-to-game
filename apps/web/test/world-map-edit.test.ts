@@ -5,7 +5,7 @@ import { hexToPixel } from '@novel-game/rules';
 import { createEmptyMap } from '../src/lib/world-map';
 import {
   addPaletteEntry, cellsInRadius, countUsage, deletePaletteEntry, floodFill, paintCells, pixelToHex,
-  pushHistory, redoHistory, undoHistory, updatePaletteEntry,
+  pushHistory, redoHistory, undoHistory, updatePaletteEntry, layerCentroids,
 } from '../src/lib/world-map-edit';
 
 test('brush radius covers 1 / 7 / 19 cells away from edges and clips at bounds', () => {
@@ -58,4 +58,21 @@ test('undo/redo history', () => {
   const u = undoHistory(h, m1)!; assert.equal(u.map, m0); h = u.h;
   const r = redoHistory(h, m0)!; assert.equal(r.map, m1);
   assert.equal(undoHistory({ past: [], future: [] }, m0), null);
+});
+
+test('region layer: paint/fill/palette/delete-reassign share the generic path', () => {
+  const base = { mapSchemaVersion: 1 as const, geometry: { kind: 'hex' as const, orientation: 'pointy' as const, cols: 4, rows: 3, size: 20 }, layers: {}, pois: [] };
+  const a = addPaletteEntry(base, 'region', '北境');
+  const b = addPaletteEntry(a.map, 'region', '南境');
+  let m = paintCells(b.map, 'region', ['0,0', '1,0'], a.id);
+  m = floodFill(m, 'region', '2,0', b.id);
+  assert.equal(countUsage(m, 'region', a.id), 2);
+  assert.equal(countUsage(m, 'region', b.id), 10);
+  m = updatePaletteEntry(m, 'region', a.id, { label: '北境林地' });
+  assert.equal(m.layers.regions?.regions.find(r => r.id === a.id)?.name, '北境林地');
+  m = deletePaletteEntry(m, 'region', a.id, b.id);
+  assert.equal(countUsage(m, 'region', b.id), 12);
+  assert.equal(m.layers.regions?.regions.length, 1);
+  const c = layerCentroids(m, 'region', () => ({ x: 1, y: 2 }));
+  assert.deepEqual(c.get(b.id), { x: 1, y: 2, n: 12 });
 });

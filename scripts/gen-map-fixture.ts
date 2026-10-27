@@ -37,10 +37,21 @@ function factionAt(c: number, r: number, t: string): string | undefined {
   if (c >= 16 && r >= 8) return 'ashen_sultanate';
   return undefined;
 }
-const tCells: Record<string, string> = {}, fCells: Record<string, string> = {};
+/** Named regions/districts (city-map step 1). Sea is left unassigned. */
+function regionAt(c: number, r: number, t: string): string | undefined {
+  if (t === 'sea') return undefined;
+  if (r <= 5 && c <= 13) return 'north_woods';
+  if (c >= 16 && r >= 8) return 'southeast_waste';
+  if (r >= 12 && c <= 15) return 'southern_marsh';
+  if (r >= 6 && (t === 'coast' || c <= 5)) return 'west_harbor';
+  if (r >= 6 && c <= 15) return 'crown_heartland';
+  return undefined;
+}
+const tCells: Record<string, string> = {}, fCells: Record<string, string> = {}, rCells: Record<string, string> = {};
 for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
   const t = terrainAt(c, r); tCells[key(c, r)] = t;
   const f = factionAt(c, r, t); if (f) fCells[key(c, r)] = f;
+  const g = regionAt(c, r, t); if (g) rCells[key(c, r)] = g;
 }
 
 /** First coast cell scanning eastward on a row (ports / capes must sit on the shoreline). */
@@ -77,6 +88,13 @@ const map: WorldMap = {
       { id: 'verdant_pact', name: '翠绿盟约', color: '#2e8b3e', description: '森林德鲁伊联盟。' },
       { id: 'ashen_sultanate', name: '灰烬苏丹国', color: '#c0392b', description: '沙漠帝国。' },
     ], cells: fCells },
+    regions: { regions: [
+      { id: 'north_woods', name: '北境林地', color: '#3d6b35', tags: ['wild'] },
+      { id: 'crown_heartland', name: '中央王畿', color: '#2f4f9f', tags: ['civilized'] },
+      { id: 'west_harbor', name: '西岸港区', color: '#1f7a8c', tags: ['port'] },
+      { id: 'southern_marsh', name: '南部沼泽', color: '#5b6b2e', tags: ['wild', 'miasma'] },
+      { id: 'southeast_waste', name: '东南荒漠', color: '#b5651d', tags: ['wild'] },
+    ], cells: rCells },
   },
   pois: places.map(([id, , c, r]) => ({ locationId: id, anchor: { cell: key(c, r) } })),
 };
@@ -91,6 +109,8 @@ const world: WorldContent = worldContentSchema.parse({
   facts: [
     { id: 'harbor_rumor', label: '港口传闻', description: '水手口中关于东方绿洲的消息。', kind: 'clue', initialValue: false, playerKnown: false, origin: 'adapted', evidence: ev },
     { id: 'crown_pass', label: '王冠通行令', description: '蔚蓝王冠签发的通行文书。', kind: 'item', initialValue: false, playerKnown: false, origin: 'adapted', evidence: ev },
+    { id: 'miasma_herb', label: '瘴草', description: '南部沼泽特有的发光草药。', kind: 'item', initialValue: false, playerKnown: false, origin: 'adapted', evidence: ev },
+    { id: 'campfire', label: '篝火', description: '你生起的火堆。', kind: 'event', initialValue: false, playerKnown: false, origin: 'adapted', evidence: ev },
     { id: 'charted', label: '全图绘成', description: '在绿洲完成了地图。', kind: 'event', initialValue: false, playerKnown: false, origin: 'adapted', evidence: ev },
   ], npcs: [],
   actions: [
@@ -103,11 +123,23 @@ const world: WorldContent = worldContentSchema.parse({
     { id: 'finish_map', label: '在绿洲完成地图', description: '', locationId: 'sunscar', availableWhen: [], requires: [{ kind: 'in_faction_territory', factionIds: ['ashen_sultanate'] }],
       blockedReason: '还未抵达苏丹国领土。', risk: '', timeCost: 1, once: true, effects: [{ kind: 'set', factId: 'charted', value: true }],
       text: '你在棕榈树下画完最后一笔。', origin: 'adapted', evidence: ev },
+    { id: 'gather_herb', label: '采集瘴草', description: '只有身处南部沼泽才能找到瘴草。', locationId: 'mirefen', availableWhen: [{ kind: 'in_region', regionIds: ['southern_marsh'] }], requires: [],
+      blockedReason: '这里不长瘴草。', risk: '', timeCost: 1, once: true, effects: [{ kind: 'set', factId: 'miasma_herb', value: true }, { kind: 'reveal', factId: 'miasma_herb' }], tags: ['gather'],
+      text: '你在泥水里拔出一把发着微光的瘴草。', origin: 'adapted', evidence: ev },
+    { id: 'make_fire', label: '生火取暖', description: '', locationId: 'mirefen', availableWhen: [], requires: [],
+      blockedReason: '此处不能生火。', risk: '', timeCost: 1, once: false, effects: [{ kind: 'set', factId: 'campfire', value: true }], tags: ['fire'],
+      text: '火光跳动起来。', origin: 'adapted', evidence: ev },
     ...routes.flatMap(([a, b]) => [[a, b], [b, a]]).map(([from, to]) => ({
     id: `go_${from}_${to}`, label: `前往${title(to)}`, description: '', locationId: from, availableWhen: [], requires: [],
     blockedReason: '道路不通。', risk: '', timeCost: 1, once: false, effects: [{ kind: 'move', locationId: to }],
     text: `你动身前往${title(to)}。`, origin: 'adapted', evidence: ev }))],
   events: [], endings: [{ id: 'arrive', title: '地图完成', text: '你带着完成的地图抵达日痕绿洲。', when: [{ kind: 'fact', factId: 'charted', value: true }] }],
+  worldbook: { entries: [
+    { id: 'wb_marsh_miasma', title: '沼泽瘴气', keys: ['瘴气', '沼泽'], kind: 'rule',
+      content: '南部沼泽终年弥漫可燃瘴气，当地人从不生明火，夜里只靠萤苔照明。',
+      scope: { type: 'regions', regionIds: ['southern_marsh'] },
+      constraints: [{ type: 'forbid_choice_tags', tags: ['fire'], message: '瘴气易燃，沼泽里不能生火。' }] },
+  ] },
   map,
 });
 

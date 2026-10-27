@@ -145,6 +145,36 @@
       ]
     },
     {
+      "id": "miasma_herb",
+      "label": "瘴草",
+      "description": "南部沼泽特有的发光草药。",
+      "kind": "item",
+      "initialValue": false,
+      "playerKnown": false,
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "campfire",
+      "label": "篝火",
+      "description": "你生起的火堆。",
+      "kind": "event",
+      "initialValue": false,
+      "playerKnown": false,
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
       "id": "charted",
       "label": "全图绘成",
       "description": "在绿洲完成了地图。",
@@ -264,6 +294,77 @@
         }
       ],
       "text": "你在棕榈树下画完最后一笔。",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "gather_herb",
+      "label": "采集瘴草",
+      "description": "只有身处南部沼泽才能找到瘴草。",
+      "locationId": "mirefen",
+      "availableWhen": [
+        {
+          "kind": "in_region",
+          "regionIds": [
+            "southern_marsh"
+          ]
+        }
+      ],
+      "requires": [],
+      "blockedReason": "这里不长瘴草。",
+      "risk": "",
+      "timeCost": 1,
+      "once": true,
+      "effects": [
+        {
+          "kind": "set",
+          "factId": "miasma_herb",
+          "value": true
+        },
+        {
+          "kind": "reveal",
+          "factId": "miasma_herb"
+        }
+      ],
+      "text": "你在泥水里拔出一把发着微光的瘴草。",
+      "tags": [
+        "gather"
+      ],
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "make_fire",
+      "label": "生火取暖",
+      "description": "",
+      "locationId": "mirefen",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "此处不能生火。",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {
+          "kind": "set",
+          "factId": "campfire",
+          "value": true
+        }
+      ],
+      "text": "火光跳动起来。",
+      "tags": [
+        "fire"
+      ],
       "origin": "adapted",
       "evidence": [
         {
@@ -756,6 +857,35 @@
       ]
     }
   ],
+  "worldbook": {
+    "entries": [
+      {
+        "id": "wb_marsh_miasma",
+        "title": "沼泽瘴气",
+        "keys": [
+          "瘴气",
+          "沼泽"
+        ],
+        "content": "南部沼泽终年弥漫可燃瘴气，当地人从不生明火，夜里只靠萤苔照明。",
+        "kind": "rule",
+        "scope": {
+          "type": "regions",
+          "regionIds": [
+            "southern_marsh"
+          ]
+        },
+        "constraints": [
+          {
+            "type": "forbid_choice_tags",
+            "tags": [
+              "fire"
+            ],
+            "message": "瘴气易燃，沼泽里不能生火。"
+          }
+        ]
+      }
+    ]
+  },
   "map": {
     "mapSchemaVersion": 1,
     "geometry": {
@@ -1426,6 +1556,312 @@
           "14,15": "ashen_sultanate",
           "15,15": "ashen_sultanate",
           "16,15": "ashen_sultanate"
+        }
+      },
+      "regions": {
+        "regions": [
+          {
+            "id": "north_woods",
+            "name": "北境林地",
+            "color": "#3d6b35",
+            "tags": [
+              "wild"
+            ]
+          },
+          {
+            "id": "crown_heartland",
+            "name": "中央王畿",
+            "color": "#2f4f9f",
+            "tags": [
+              "civilized"
+            ]
+          },
+          {
+            "id": "west_harbor",
+            "name": "西岸港区",
+            "color": "#1f7a8c",
+            "tags": [
+              "port"
+            ]
+          },
+          {
+            "id": "southern_marsh",
+            "name": "南部沼泽",
+            "color": "#5b6b2e",
+            "tags": [
+              "wild",
+              "miasma"
+            ]
+          },
+          {
+            "id": "southeast_waste",
+            "name": "东南荒漠",
+            "color": "#b5651d",
+            "tags": [
+              "wild"
+            ]
+          }
+        ],
+        "cells": {
+          "2,0": "north_woods",
+          "3,0": "north_woods",
+          "4,0": "north_woods",
+          "5,0": "north_woods",
+          "6,0": "north_woods",
+          "7,0": "north_woods",
+          "8,0": "north_woods",
+          "9,0": "north_woods",
+          "10,0": "north_woods",
+          "11,0": "north_woods",
+          "12,0": "north_woods",
+          "13,0": "north_woods",
+          "2,1": "north_woods",
+          "3,1": "north_woods",
+          "4,1": "north_woods",
+          "5,1": "north_woods",
+          "6,1": "north_woods",
+          "7,1": "north_woods",
+          "8,1": "north_woods",
+          "9,1": "north_woods",
+          "10,1": "north_woods",
+          "11,1": "north_woods",
+          "12,1": "north_woods",
+          "13,1": "north_woods",
+          "0,2": "north_woods",
+          "1,2": "north_woods",
+          "2,2": "north_woods",
+          "3,2": "north_woods",
+          "4,2": "north_woods",
+          "5,2": "north_woods",
+          "6,2": "north_woods",
+          "7,2": "north_woods",
+          "8,2": "north_woods",
+          "9,2": "north_woods",
+          "10,2": "north_woods",
+          "11,2": "north_woods",
+          "12,2": "north_woods",
+          "1,3": "north_woods",
+          "2,3": "north_woods",
+          "3,3": "north_woods",
+          "4,3": "north_woods",
+          "5,3": "north_woods",
+          "6,3": "north_woods",
+          "7,3": "north_woods",
+          "8,3": "north_woods",
+          "9,3": "north_woods",
+          "10,3": "north_woods",
+          "11,3": "north_woods",
+          "12,3": "north_woods",
+          "0,4": "north_woods",
+          "1,4": "north_woods",
+          "2,4": "north_woods",
+          "3,4": "north_woods",
+          "4,4": "north_woods",
+          "5,4": "north_woods",
+          "6,4": "north_woods",
+          "7,4": "north_woods",
+          "8,4": "north_woods",
+          "9,4": "north_woods",
+          "10,4": "north_woods",
+          "11,4": "north_woods",
+          "0,5": "north_woods",
+          "1,5": "north_woods",
+          "2,5": "north_woods",
+          "3,5": "north_woods",
+          "4,5": "north_woods",
+          "5,5": "north_woods",
+          "6,5": "north_woods",
+          "7,5": "north_woods",
+          "8,5": "north_woods",
+          "9,5": "north_woods",
+          "10,5": "north_woods",
+          "11,5": "north_woods",
+          "-1,6": "west_harbor",
+          "0,6": "west_harbor",
+          "1,6": "west_harbor",
+          "2,6": "west_harbor",
+          "3,6": "crown_heartland",
+          "4,6": "crown_heartland",
+          "5,6": "crown_heartland",
+          "6,6": "crown_heartland",
+          "7,6": "crown_heartland",
+          "8,6": "crown_heartland",
+          "9,6": "crown_heartland",
+          "10,6": "crown_heartland",
+          "11,6": "crown_heartland",
+          "12,6": "crown_heartland",
+          "0,7": "west_harbor",
+          "1,7": "west_harbor",
+          "2,7": "west_harbor",
+          "3,7": "crown_heartland",
+          "4,7": "crown_heartland",
+          "5,7": "crown_heartland",
+          "6,7": "crown_heartland",
+          "7,7": "crown_heartland",
+          "8,7": "crown_heartland",
+          "9,7": "crown_heartland",
+          "10,7": "crown_heartland",
+          "11,7": "crown_heartland",
+          "12,7": "crown_heartland",
+          "-2,8": "west_harbor",
+          "-1,8": "west_harbor",
+          "0,8": "west_harbor",
+          "1,8": "west_harbor",
+          "2,8": "crown_heartland",
+          "3,8": "crown_heartland",
+          "4,8": "crown_heartland",
+          "5,8": "crown_heartland",
+          "6,8": "crown_heartland",
+          "7,8": "crown_heartland",
+          "8,8": "crown_heartland",
+          "9,8": "crown_heartland",
+          "10,8": "crown_heartland",
+          "11,8": "crown_heartland",
+          "12,8": "southeast_waste",
+          "13,8": "southeast_waste",
+          "14,8": "southeast_waste",
+          "15,8": "southeast_waste",
+          "16,8": "southeast_waste",
+          "17,8": "southeast_waste",
+          "18,8": "southeast_waste",
+          "19,8": "southeast_waste",
+          "-2,9": "west_harbor",
+          "-1,9": "west_harbor",
+          "0,9": "west_harbor",
+          "1,9": "west_harbor",
+          "2,9": "crown_heartland",
+          "3,9": "crown_heartland",
+          "4,9": "crown_heartland",
+          "5,9": "crown_heartland",
+          "6,9": "crown_heartland",
+          "7,9": "crown_heartland",
+          "8,9": "crown_heartland",
+          "9,9": "crown_heartland",
+          "10,9": "crown_heartland",
+          "11,9": "crown_heartland",
+          "12,9": "southeast_waste",
+          "13,9": "southeast_waste",
+          "14,9": "southeast_waste",
+          "15,9": "southeast_waste",
+          "16,9": "southeast_waste",
+          "17,9": "southeast_waste",
+          "18,9": "southeast_waste",
+          "19,9": "southeast_waste",
+          "-1,10": "west_harbor",
+          "0,10": "west_harbor",
+          "1,10": "west_harbor",
+          "2,10": "crown_heartland",
+          "3,10": "crown_heartland",
+          "4,10": "crown_heartland",
+          "5,10": "crown_heartland",
+          "6,10": "crown_heartland",
+          "7,10": "crown_heartland",
+          "8,10": "crown_heartland",
+          "9,10": "crown_heartland",
+          "10,10": "crown_heartland",
+          "11,10": "southeast_waste",
+          "12,10": "southeast_waste",
+          "13,10": "southeast_waste",
+          "14,10": "southeast_waste",
+          "15,10": "southeast_waste",
+          "16,10": "southeast_waste",
+          "17,10": "southeast_waste",
+          "18,10": "southeast_waste",
+          "0,11": "west_harbor",
+          "1,11": "crown_heartland",
+          "2,11": "crown_heartland",
+          "3,11": "crown_heartland",
+          "4,11": "crown_heartland",
+          "5,11": "crown_heartland",
+          "6,11": "crown_heartland",
+          "7,11": "crown_heartland",
+          "8,11": "crown_heartland",
+          "9,11": "crown_heartland",
+          "10,11": "crown_heartland",
+          "11,11": "southeast_waste",
+          "12,11": "southeast_waste",
+          "13,11": "southeast_waste",
+          "14,11": "southeast_waste",
+          "15,11": "southeast_waste",
+          "16,11": "southeast_waste",
+          "17,11": "southeast_waste",
+          "18,11": "southeast_waste",
+          "-2,12": "southern_marsh",
+          "-1,12": "southern_marsh",
+          "0,12": "southern_marsh",
+          "1,12": "southern_marsh",
+          "2,12": "southern_marsh",
+          "3,12": "southern_marsh",
+          "4,12": "southern_marsh",
+          "5,12": "southern_marsh",
+          "6,12": "southern_marsh",
+          "7,12": "southern_marsh",
+          "8,12": "southern_marsh",
+          "9,12": "southern_marsh",
+          "10,12": "southeast_waste",
+          "11,12": "southeast_waste",
+          "12,12": "southeast_waste",
+          "13,12": "southeast_waste",
+          "14,12": "southeast_waste",
+          "15,12": "southeast_waste",
+          "16,12": "southeast_waste",
+          "17,12": "southeast_waste",
+          "-2,13": "southern_marsh",
+          "-1,13": "southern_marsh",
+          "0,13": "southern_marsh",
+          "1,13": "southern_marsh",
+          "2,13": "southern_marsh",
+          "3,13": "southern_marsh",
+          "4,13": "southern_marsh",
+          "5,13": "southern_marsh",
+          "6,13": "southern_marsh",
+          "7,13": "southern_marsh",
+          "8,13": "southern_marsh",
+          "9,13": "southern_marsh",
+          "10,13": "southeast_waste",
+          "11,13": "southeast_waste",
+          "12,13": "southeast_waste",
+          "13,13": "southeast_waste",
+          "14,13": "southeast_waste",
+          "15,13": "southeast_waste",
+          "16,13": "southeast_waste",
+          "17,13": "southeast_waste",
+          "-2,14": "southern_marsh",
+          "-1,14": "southern_marsh",
+          "0,14": "southern_marsh",
+          "1,14": "southern_marsh",
+          "2,14": "southern_marsh",
+          "3,14": "southern_marsh",
+          "4,14": "southern_marsh",
+          "5,14": "southern_marsh",
+          "6,14": "southern_marsh",
+          "7,14": "southern_marsh",
+          "8,14": "southern_marsh",
+          "9,14": "southeast_waste",
+          "10,14": "southeast_waste",
+          "11,14": "southeast_waste",
+          "12,14": "southeast_waste",
+          "13,14": "southeast_waste",
+          "14,14": "southeast_waste",
+          "15,14": "southeast_waste",
+          "16,14": "southeast_waste",
+          "0,15": "southern_marsh",
+          "1,15": "southern_marsh",
+          "2,15": "southern_marsh",
+          "3,15": "southern_marsh",
+          "4,15": "southern_marsh",
+          "5,15": "southern_marsh",
+          "6,15": "southern_marsh",
+          "7,15": "southern_marsh",
+          "8,15": "southern_marsh",
+          "9,15": "southeast_waste",
+          "10,15": "southeast_waste",
+          "11,15": "southeast_waste",
+          "12,15": "southeast_waste",
+          "13,15": "southeast_waste",
+          "14,15": "southeast_waste",
+          "15,15": "southeast_waste",
+          "16,15": "southeast_waste"
         }
       }
     },

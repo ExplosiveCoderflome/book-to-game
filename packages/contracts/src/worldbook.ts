@@ -17,6 +17,11 @@ export const worldbookScopeSchema = z.discriminatedUnion('type', [
     type: z.literal('locations'),
     locationIds: z.array(z.string().min(1).max(80)).min(1).max(50),
   }),
+  /** Map regions/districts: applies while the player's location lies in any listed region (open adventure). */
+  z.object({
+    type: z.literal('regions'),
+    regionIds: z.array(z.string().min(1).max(80)).min(1).max(50),
+  }),
 ]);
 export type WorldbookScope = z.infer<typeof worldbookScopeSchema>;
 
@@ -138,6 +143,8 @@ export function validateWorldbookContent(input: {
   worldbook?: Worldbook;
   sceneIds?: Set<string>;
   locationIds?: Set<string>;
+  /** Known map region ids; when omitted, region scopes are not checked. */
+  regionIds?: Set<string>;
   variables: Record<string, string | number | boolean>;
   choiceTags: Set<string>;
   /** zh-CN noun for numeric pools in errors (变量 / 资源). */
@@ -168,6 +175,11 @@ export function validateWorldbookContent(input: {
       const locationIds = input.locationIds ?? new Set<string>();
       for (const locationId of entry.scope.locationIds) {
         if (!locationIds.has(locationId)) errors.push(`世界书「${entry.title}」引用了不存在的地点：${locationId}`);
+      }
+    }
+    if (entry.scope.type === 'regions' && input.regionIds) {
+      for (const regionId of entry.scope.regionIds) {
+        if (!input.regionIds.has(regionId)) errors.push(`世界书「${entry.title}」引用了不存在的区域：${regionId}`);
       }
     }
     if (entry.kind === 'lore' && (entry.constraints?.length ?? 0) > 0) {

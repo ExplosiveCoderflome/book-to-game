@@ -55,6 +55,7 @@ export function WorldbookEditor({
   numericNames,
   places,
   placeScopeType,
+  regions,
   resourcesText,
   onResourcesText,
 }: {
@@ -63,6 +64,8 @@ export function WorldbookEditor({
   numericNames: string[];
   places: { id: string; title: string }[];
   placeScopeType: 'scenes' | 'locations';
+  /** Optional map regions (open worlds with a region layer). Enables the「指定区域」scope. */
+  regions?: { id: string; name: string; color: string }[];
   /** Open-mode optional: editable "qi=0, mana=2" resource pool string. */
   resourcesText?: string;
   onResourcesText?: (text: string) => void;
@@ -162,7 +165,10 @@ export function WorldbookEditor({
           <label>{t('正文 / 规则说明')}<textarea rows={3} maxLength={4000} value={entry.content} onChange={e => patch(entry.id, { content: e.target.value })} /></label>
           <label>{t('作用范围')}<select value={entry.scope.type} onChange={e => {
             if (e.target.value === 'global') patch(entry.id, { scope: { type: 'global' } });
-            else {
+            else if (e.target.value === 'regions') {
+              const first = regions?.[0]?.id;
+              if (first) patch(entry.id, { scope: { type: 'regions', regionIds: [first] } });
+            } else {
               const start = places[0]?.id;
               if (placeScopeType === 'locations') {
                 patch(entry.id, { scope: { type: 'locations', locationIds: start ? [start] : [] } });
@@ -173,7 +179,22 @@ export function WorldbookEditor({
           }}>
             <option value="global">{t('全局')}</option>
             <option value={placeScopeType}>{placeLabel}</option>
+            {(regions?.length || entry.scope.type === 'regions') ? <option value="regions">{t('指定区域（地图）')}</option> : null}
           </select></label>
+          {entry.scope.type === 'regions' && (() => {
+            const scope = entry.scope;
+            return <div className="wr-chips worldbook-region-scope" data-testid="worldbook-region-scope">
+              {(regions ?? []).map(r => {
+                const on = scope.regionIds.includes(r.id);
+                return <button key={r.id} type="button" className={`wr-chip${on ? ' on' : ''}`} onClick={() => {
+                  const regionIds = on ? scope.regionIds.filter(x => x !== r.id) : [...scope.regionIds, r.id];
+                  if (regionIds.length) patch(entry.id, { scope: { type: 'regions', regionIds } });
+                }}><i style={{ background: r.color }} />{r.name}</button>;
+              })}
+              {scope.regionIds.filter(id => !regions?.some(r => r.id === id)).map(id => <span key={id} className="wr-chip missing">{id}?</span>)}
+              <p className="hint">{t('玩家所在地点位于任一所选区域时，此条目生效（规则与 AI 旁白共用同一判定）。')}</p>
+            </div>;
+          })()}
           {((entry.scope.type === 'scenes' && placeScopeType === 'scenes') || (entry.scope.type === 'locations' && placeScopeType === 'locations')) && (
             <div className="worldbook-scene-scope" data-testid="worldbook-scene-scope">
               {places.map(place => {

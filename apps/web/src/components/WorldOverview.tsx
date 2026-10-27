@@ -17,6 +17,7 @@ export function WorldOverview({ content: w, focusLocationId }: Props) {
   const faction = (id: string) => w.map?.layers?.factions?.factions.find(f => f.id === id)?.name ?? id;
   const condition = (c: WorldCondition): string => c.kind === 'at_terrain' ? t('所在地形为 {list}', { list: c.terrainIds.map(terrain).join('/') })
     : c.kind === 'in_faction_territory' ? t('位于 {list} 领土', { list: c.factionIds.map(faction).join('/') })
+    : c.kind === 'in_region' ? t('位于区域 {list}', { list: c.regionIds.map(id => w.map?.layers?.regions?.regions.find(r => r.id === id)?.name ?? id).join('/') })
     : c.kind === 'time' ? t('耗时至少 {time}', { time: c.atLeast })
     : c.kind === 'npc_knows' ? t('{npc}知道「{fact}」', { npc: npc(c.npcId), fact: fact(c.factId) })
     : c.kind === 'known' ? t('玩家知道「{fact}」', { fact: fact(c.factId) }) : t('「{fact}」{value}', { fact: fact(c.factId), value: truth(c.value) });

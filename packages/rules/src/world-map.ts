@@ -45,7 +45,7 @@ export function hexDistance(a: Axial, b: Axial): number {
 }
 
 export type WorldMapIssueCode = 'poi_missing_location' | 'poi_out_of_bounds' | 'poi_duplicate_location' | 'poi_cell_shared' | 'location_unbound'
-  | 'layer_unknown_terrain' | 'layer_unknown_faction' | 'layer_cell_out_of_bounds' | 'layer_duplicate_id';
+  | 'layer_unknown_terrain' | 'layer_unknown_faction' | 'layer_unknown_region' | 'layer_cell_out_of_bounds' | 'layer_duplicate_id';
 export interface WorldMapIssue { level: 'error' | 'warning'; code: WorldMapIssueCode; message: string; locationId?: string; cell?: CellKey }
 
 /** Validate POI bindings against the location graph. Map never adds edges; it only reports. */
@@ -74,19 +74,23 @@ export function validateWorldMap(map: WorldMap, locationIds: readonly string[]):
 export function validateMapLayers(map: WorldMap): WorldMapIssue[] {
   const issues: WorldMapIssue[] = [];
   const layers = map.layers ?? {};
-  const check = (kind: 'terrain' | 'faction', ids: string[], cells: Record<string, string>) => {
+  const NOUN = { terrain: '地形', faction: '势力', region: '区域' } as const;
+  const CODE = { terrain: 'layer_unknown_terrain', faction: 'layer_unknown_faction', region: 'layer_unknown_region' } as const;
+  const check = (kind: 'terrain' | 'faction' | 'region', ids: string[], cells: Record<string, string>) => {
+    const noun = NOUN[kind];
     const known = new Set<string>();
     for (const i of ids) {
-      if (known.has(i)) issues.push({ level: 'error', code: 'layer_duplicate_id', message: `${kind === 'terrain' ? '地形' : '势力'} id 重复：${i}` });
+      if (known.has(i)) issues.push({ level: 'error', code: 'layer_duplicate_id', message: `${noun} id 重复：${i}` });
       known.add(i);
     }
     for (const [cell, ref] of Object.entries(cells)) {
       const a = parseCellKey(cell);
-      if (!a || !hexInBounds(map.geometry, a)) issues.push({ level: 'warning', code: 'layer_cell_out_of_bounds', cell, message: `${kind === 'terrain' ? '地形' : '势力'}格超出地图范围：${cell}` });
-      if (!known.has(ref)) issues.push({ level: 'error', code: kind === 'terrain' ? 'layer_unknown_terrain' : 'layer_unknown_faction', cell, message: `格 ${cell} 引用了未定义的${kind === 'terrain' ? '地形' : '势力'}：${ref}` });
+      if (!a || !hexInBounds(map.geometry, a)) issues.push({ level: 'warning', code: 'layer_cell_out_of_bounds', cell, message: `${noun}格超出地图范围：${cell}` });
+      if (!known.has(ref)) issues.push({ level: 'error', code: CODE[kind], cell, message: `格 ${cell} 引用了未定义的${noun}：${ref}` });
     }
   };
   if (layers.terrain) check('terrain', layers.terrain.palette.map(p => p.id), layers.terrain.cells);
   if (layers.factions) check('faction', layers.factions.factions.map(f => f.id), layers.factions.cells);
+  if (layers.regions) check('region', layers.regions.regions.map(r => r.id), layers.regions.cells);
   return issues;
 }

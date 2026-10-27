@@ -26,6 +26,11 @@ export function validateWorld(world: WorldContent, source: SourceDocument): Vali
         if (!world.map?.layers?.terrain) warnings.push(`${owner} 使用地形条件，但世界没有地形图层（条件恒不成立）`);
         else for (const tid of item.terrainIds) if (!known.has(tid)) errors.push(`${owner} 的地形不存在：${tid}`);
       }
+      if (item.kind === 'in_region') {
+        const known = new Set(world.map?.layers?.regions?.regions.map(r => r.id) ?? []);
+        if (!world.map?.layers?.regions) warnings.push(`${owner} 使用区域条件，但世界没有区域图层（条件恒不成立）`);
+        else for (const rid of item.regionIds) if (!known.has(rid)) errors.push(`${owner} 的区域不存在：${rid}`);
+      }
       if (item.kind === 'in_faction_territory') {
         const known = new Set(world.map?.layers?.factions?.factions.map(f => f.id) ?? []);
         if (!world.map?.layers?.factions) warnings.push(`${owner} 使用势力领土条件，但世界没有势力图层（条件恒不成立）`);
@@ -94,6 +99,7 @@ export function validateWorld(world: WorldContent, source: SourceDocument): Vali
   const wb = validateWorldbookContent({
     worldbook: world.worldbook,
     locationIds: locations,
+    regionIds: new Set(world.map?.layers?.regions?.regions.map(r => r.id) ?? []),
     sceneIds: new Set(),
     variables: { ...(world.resources ?? {}) },
     choiceTags: actionTags,

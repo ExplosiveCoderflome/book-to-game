@@ -42,11 +42,24 @@ export const factionLayerSchema = z.object({
   cells: z.record(cellKeySchema, id),
 });
 
+/** Region / district layer (city-map step 1): named areas, sparse cell→region id (one region per cell). */
+export const regionLayerSchema = z.object({
+  regions: z.array(z.object({ id, name: z.string().min(1).max(80), color, tags: z.array(z.string().min(1).max(40)).max(10).optional() })).max(64),
+  cells: z.record(cellKeySchema, id),
+});
+
+/**
+ * Map grid kind. Only 'hex' today; future kinds (square / vector / image) add a geometry schema here,
+ * a GeometryAdapter in @novel-game/rules and an editor in the web map-kind registry. Rules never branch on it.
+ */
+export const WORLD_MAP_KINDS = ['hex'] as const;
+export type WorldMapKind = (typeof WORLD_MAP_KINDS)[number];
+
 export const worldMapSchema = z.object({
   mapSchemaVersion: z.literal(WORLD_MAP_SCHEMA_VERSION),
   geometry: worldMapGeometrySchema,
   /** Optional layers, all sparse by cell key; absent layer = not authored. */
-  layers: z.object({ terrain: terrainLayerSchema.optional(), factions: factionLayerSchema.optional() }).default({}),
+  layers: z.object({ terrain: terrainLayerSchema.optional(), factions: factionLayerSchema.optional(), regions: regionLayerSchema.optional() }).default({}),
   pois: z.array(worldMapPoiSchema).max(200),
 });
 
@@ -56,6 +69,7 @@ export type WorldMapPoi = z.infer<typeof worldMapPoiSchema>;
 export type WorldMap = z.infer<typeof worldMapSchema>;
 export type TerrainLayer = z.infer<typeof terrainLayerSchema>;
 export type FactionLayer = z.infer<typeof factionLayerSchema>;
+export type RegionLayer = z.infer<typeof regionLayerSchema>;
 
 /** Port for future image-generation adapters (AI layer). Input is the deterministic prompt + schematic reference. */
 export interface MapImageRequest { prompt: string; schematicSvg?: string; width: number; height: number; seed?: number }

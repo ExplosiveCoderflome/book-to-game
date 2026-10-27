@@ -19,6 +19,7 @@ export {
 export {
   entryAppliesToScene, entryAppliesToLocation, entriesForPlace, entriesForScene,
   worldbookBlockReason, worldbookIncrementCap, worldbookSpendsForChoice, mergeTakenTags,
+  type WorldbookPlaceContext,
 } from './worldbook.js';
 
 export {
@@ -54,3 +55,8 @@ export {
   describeMapForImagePrompt, describeMapStructured, renderMapSchematicSvg, regionOf, DEFAULT_MAP_STYLE,
   type MapDescription, type MapDescribeWorld, type MapPlaceRef, type MapPromptOptions, type SchematicOptions,
 } from './map-render.js';
+
+export {
+  geometryFor, registerGeometryKind, registeredGeometryKinds, locationSpatial, locationDistance,
+  type GeometryAdapter, type LocationSpatial,
+} from './map-geometry.js';

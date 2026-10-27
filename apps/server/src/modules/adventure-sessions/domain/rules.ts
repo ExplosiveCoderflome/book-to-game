@@ -1,5 +1,5 @@
 import {type WorldContent, type WorldCondition, type WorldEffect} from '@novel-game/contracts';
-import {matchesWorldConditions, mergeTakenTags, worldbookBlockReason, worldbookIncrementCap, worldbookSpendsForChoice} from '@novel-game/rules';
+import {locationSpatial, matchesWorldConditions, mergeTakenTags, worldbookBlockReason, worldbookIncrementCap, worldbookSpendsForChoice} from '@novel-game/rules';
 import type { AdventureState } from './adventure-state.js';
 
 /** Pure WorldCondition match — authority lives in @novel-game/rules (world-opening). */
@@ -46,6 +46,7 @@ export function blockedReason(action: WorldContent['actions'][number], world: Wo
     world.worldbook,
     state.takenTags ?? [],
     'location',
+    {regionIds: locationSpatial(world.map, state.locationId).regionIds},
   );
   if (wb) return wb;
   return undefined;
@@ -58,7 +59,7 @@ export function applyWorldbookSpends(
   state: AdventureState,
 ): void {
   if (!state.resources) state.resources = { ...(world.resources ?? {}) };
-  for (const spend of worldbookSpendsForChoice(action, state.locationId, world.worldbook, 'location')) {
+  for (const spend of worldbookSpendsForChoice(action, state.locationId, world.worldbook, 'location', {regionIds: locationSpatial(world.map, state.locationId).regionIds})) {
     const previous = state.resources[spend.variable] ?? 0;
     state.resources[spend.variable] = previous - spend.amount;
   }

@@ -312,6 +312,13 @@ export function WorldsPanel({
                         <label>{t('时间上限')}<input type="number" min={3} max={100} value={content.timeLimit} onChange={e => change({ ...content, timeLimit: Number(e.target.value) })} /></label>
                       </div>
                     )}
+                    {inspectorTab === 'worldbook' && <WorldbookEditor key={draft?.id ?? 'new-wb'}
+                      worldbook={content.worldbook}
+                      onChange={worldbook => change({ ...content, worldbook })}
+                      numericNames={Object.entries(content.resources ?? {}).filter(([, v]) => typeof v === 'number').map(([k]) => k)}
+                      places={content.locations.map(l => ({ id: l.id, title: l.title }))}
+                      placeScopeType="locations"
+                      regions={content.map?.layers?.regions?.regions.map(r => ({ id: r.id, name: r.name, color: r.color }))} />}
                     {inspectorTab === 'all' && <WorldOverview content={content} />}
                   </div>
                 </aside>

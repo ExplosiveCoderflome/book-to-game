@@ -7,6 +7,7 @@ import type { WorldCondition } from '@novel-game/contracts';
 import { KindRegistry, type KindMeta } from './kind-registry.js';
 import type { ReachCondition, ReachEffect, ReachVarValue } from './reachability.js';
 import type { WorldConditionState } from './world-opening.js';
+import { locationSpatial } from './map-geometry.js';
 
 export type StoryConditionEvaluator = (
   condition: ReachCondition,
@@ -31,8 +32,7 @@ export const worldEffectKinds = new KindRegistry();
 
 /** POI cell of the player's current location (first POI wins). */
 export function locationCell(state: WorldConditionState): string | undefined {
-  if (!state.locationId || !state.map) return undefined;
-  return state.map.pois.find(p => p.locationId === state.locationId)?.anchor.cell;
+  return locationSpatial(state.map, state.locationId).cell;
 }
 
 function registerBuiltins(): void {
@@ -133,8 +133,7 @@ function registerBuiltins(): void {
       description: '玩家当前地点在地图上的格子地形属于所列地形之一（无地图/未放置 → 不成立）',
       evaluate: (condition, state) => {
         if (condition.kind !== 'at_terrain') return false;
-        const cell = locationCell(state);
-        const terrain = cell ? state.map?.layers?.terrain?.cells[cell] : undefined;
+        const terrain = locationSpatial(state.map, state.locationId).terrainId;
         return terrain !== undefined && condition.terrainIds.includes(terrain);
       },
     })
@@ -145,9 +144,18 @@ function registerBuiltins(): void {
       description: '玩家当前地点所在格子归属所列势力之一（作者基线领土）',
       evaluate: (condition, state) => {
         if (condition.kind !== 'in_faction_territory') return false;
-        const cell = locationCell(state);
-        const owner = cell ? state.map?.layers?.factions?.cells[cell] : undefined;
+        const owner = locationSpatial(state.map, state.locationId).factionId;
         return owner !== undefined && condition.factionIds.includes(owner);
+      },
+    })
+    .register({
+      kind: 'in_region',
+      family: 'world.condition',
+      label: '位于区域',
+      description: '玩家当前地点位于所列区域/街区之一（无地图/未放置/无区域 → 不成立）',
+      evaluate: (condition, state) => {
+        if (condition.kind !== 'in_region') return false;
+        return locationSpatial(state.map, state.locationId).regionIds.some(r => condition.regionIds.includes(r));
       },
     });
 

@@ -7,8 +7,15 @@ export function entryAppliesToScene(entry: WorldbookEntry, sceneId: string): boo
   return entry.scope.sceneIds.includes(sceneId);
 }
 
-export function entryAppliesToLocation(entry: WorldbookEntry, locationId: string): boolean {
+/**
+ * Optional spatial context for location places. Callers resolve it via `locationSpatial(map, id)`
+ * so worldbook stays ignorant of map geometry.
+ */
+export interface WorldbookPlaceContext { regionIds?: readonly string[] }
+
+export function entryAppliesToLocation(entry: WorldbookEntry, locationId: string, ctx?: WorldbookPlaceContext): boolean {
   if (entry.scope.type === 'global') return true;
+  if (entry.scope.type === 'regions') return (ctx?.regionIds ?? []).some(r => (entry.scope as { regionIds: string[] }).regionIds.includes(r));
   if (entry.scope.type !== 'locations') return false;
   return entry.scope.locationIds.includes(locationId);
 }
@@ -17,10 +24,11 @@ export function entriesForPlace(
   worldbook: Worldbook | undefined,
   placeId: string,
   placeKind: WorldbookPlaceKind = 'scene',
+  ctx?: WorldbookPlaceContext,
 ): WorldbookEntry[] {
   return (worldbook?.entries ?? []).filter(entry =>
     placeKind === 'location'
-      ? entryAppliesToLocation(entry, placeId)
+      ? entryAppliesToLocation(entry, placeId, ctx)
       : entryAppliesToScene(entry, placeId),
   );
 }
@@ -62,9 +70,10 @@ export function worldbookBlockReason(
   worldbook: Worldbook | undefined,
   takenTags: readonly string[] = [],
   placeKind: WorldbookPlaceKind = 'scene',
+  ctx?: WorldbookPlaceContext,
 ): string | undefined {
   const taken = new Set(takenTags);
-  for (const entry of entriesForPlace(worldbook, placeId, placeKind)) {
+  for (const entry of entriesForPlace(worldbook, placeId, placeKind, ctx)) {
     for (const constraint of entry.constraints ?? []) {
       if (constraint.type === 'forbid_choice_tags') {
         if (choiceHasAnyTag(choice, constraint.tags)) return constraint.message;
@@ -129,9 +138,10 @@ export function worldbookSpendsForChoice(
   placeId: string,
   worldbook: Worldbook | undefined,
   placeKind: WorldbookPlaceKind = 'scene',
+  ctx?: WorldbookPlaceContext,
 ): Array<{ variable: string; amount: number }> {
   const spends: Array<{ variable: string; amount: number }> = [];
-  for (const entry of entriesForPlace(worldbook, placeId, placeKind)) {
+  for (const entry of entriesForPlace(worldbook, placeId, placeKind, ctx)) {
     for (const constraint of entry.constraints ?? []) {
       if (constraint.type !== 'spend_on_choice') continue;
       if (!choiceHasAnyTag(choice, constraint.tags)) continue;
