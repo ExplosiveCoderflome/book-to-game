@@ -9,7 +9,7 @@ const routes = [
   ['post', '/jobs', 'create_generation_job'], ['get', '/jobs', 'list_jobs'], ['get', '/jobs/:id', 'get_job'],
   ['post', '/jobs/:id/retry', 'retry_job'], ['post', '/jobs/:id/cancel', 'cancel_job'],
   ['get', '/drafts', 'list_drafts'], ['post', '/drafts', 'create_draft'], ['get', '/drafts/:id', 'get_draft'],
-  ['put', '/drafts/:id', 'update_draft'], ['post', '/drafts/:id/extend-scene', 'extend_draft_scene'], ['post', '/drafts/:id/validate', 'validate_draft'], ['post', '/drafts/:id/publish', 'publish_draft'],
+  ['put', '/drafts/:id', 'update_draft'], ['post', '/drafts/:id/extend-scene', 'extend_draft_scene'], ['post', '/drafts/:id/fill-scene-text', 'fill_draft_scene_text'], ['post', '/drafts/:id/validate', 'validate_draft'], ['post', '/drafts/:id/publish', 'publish_draft'],
   ['get', '/games', 'list_games'], ['get', '/sessions', 'list_sessions'], ['post', '/sessions', 'start_session'],
   ['get', '/sessions/:id', 'get_session'], ['post', '/sessions/:id/actions', 'act_session'],
   ['post', '/sessions/:id/propose-act', 'propose_act_session'],

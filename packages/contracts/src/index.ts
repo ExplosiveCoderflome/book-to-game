@@ -182,6 +182,11 @@ export {
 } from './narrate.js';
 
 export {
+  fillSceneTextModelOutputSchema, fillSceneTextInputSchema, fillSceneTextResultSchema,
+  type FillSceneTextModelOutput, type FillSceneTextInput, type FillSceneTextResult,
+} from './fill-scene-text.js';
+
+export {
   assessOpeningActions, initialWorldState, matchesWorldConditions, isWaitLikeAction,
   type OpeningActionReport, type OpeningEvalState,
 } from './world-opening.js';

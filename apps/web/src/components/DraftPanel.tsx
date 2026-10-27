@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { gameContentSchema, type CanvasLayout, type Draft, type GameContent, type GameRevision, type GenerationJob, type RuntimeInfo, type ScanDepth, type NarrateResult, type ProposeActResult, type SessionView, type SourceDocument, type SourceSummary, type ValidationResult } from '@novel-game/contracts';
+import { gameContentSchema, type CanvasLayout, type Draft, type GameContent, type GameRevision, type GenerationJob, type RuntimeInfo, type ScanDepth, type FillSceneTextResult, type NarrateResult, type ProposeActResult, type SessionView, type SourceDocument, type SourceSummary, type ValidationResult } from '@novel-game/contracts';
 import { errorMessage, request, RequestError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { relevantStoryJob } from '../lib/job-on-canvas';
@@ -54,6 +54,7 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
   const [playBusy, setPlayBusy] = useState(false);
   const [proposeNote, setProposeNote] = useState<string | null>(null);
   const [extendBusy, setExtendBusy] = useState(false);
+  const [fillBusy, setFillBusy] = useState(false);
   const [scanDepth, setScanDepth] = useState<ScanDepth>('medium');
   const [scanDirection, setScanDirection] = useState(() => t('尊重原作世界规则，设计一次有明确选择后果的短篇冒险'));
   const [scanBusy, setScanBusy] = useState(false);
@@ -467,6 +468,39 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
       expectedTurn: playSession.turn, force,
     });
   }, [playSession, token]);
+
+  async function fillSelectedScene(sceneId: string) {
+    if (!draft || fillBusy || extendBusy || jsonMode || canvasMode === 'play') return;
+    const scene = content.scenes.find(s => s.id === sceneId);
+    if (!scene) return;
+    setFillBusy(true); setError(null); setMessage(null);
+    try {
+      const result = await request<FillSceneTextResult>(token, `/drafts/${draft.id}/fill-scene-text`, 'POST', {
+        sceneId,
+        direction: content.premise,
+        currentText: scene.text,
+        currentTitle: scene.title,
+      });
+      if (result.status === 'ok' && result.text) {
+        change({
+          ...content,
+          scenes: content.scenes.map(s => s.id === sceneId ? { ...s, text: result.text! } : s),
+        });
+        setMessage(t('已补全场景正文（未保存，可继续编辑或放弃）'));
+        setInspectorOpen(true);
+        setInspectorTab('scene');
+        const idx = content.scenes.findIndex(s => s.id === sceneId);
+        if (idx >= 0) setSceneIndex(idx);
+      } else {
+        setError(result.reason ?? t('补全文失败，正文未改动。'));
+      }
+    } catch (e) {
+      setError(errorMessage(e) || t('补全文失败，正文未改动。'));
+    } finally {
+      setFillBusy(false);
+    }
+  }
+
   async function proposeOnCanvas(text: string): Promise<ProposeActResult> {
     if (!playSession) throw new Error('no session');
     setPlayBusy(true); setError(null);
@@ -597,6 +631,8 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
             readOnly={skeletonPlaceholder || canvasMode === 'play'}
             skeletonPlaceholder={skeletonPlaceholder}
             onExtendScene={skeletonPlaceholder || canvasMode === 'play' || !draft || dirty ? undefined : extendSelectedScene}
+            onFillSceneText={skeletonPlaceholder || canvasMode === 'play' || !draft ? undefined : (id => void fillSelectedScene(id))}
+            fillBusy={fillBusy}
             extendBusy={extendBusy}
             extendNeighborCount={extendNeighborCount}
             onExtendNeighborCountChange={setExtendNeighborCount}
@@ -654,7 +690,7 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
               <div className={`draft-inspector-pane pane-scene${inspectorTab === 'scene' ? ' is-active' : ''}`} data-pane="scene">
                 <p className="draft-inspector-pane-label">{t('场景')}</p>
                 {scene
-                  ? <SceneEditor key={scene.id} scene={scene} scenes={content.scenes} variables={content.variables} update={value => change({ ...content, scenes: content.scenes.map((s, i) => i === sceneIndex ? value : s) })} remove={() => { change({ ...content, scenes: content.scenes.filter((_, i) => i !== sceneIndex) }); setSceneIndex(Math.max(0, sceneIndex - 1)); setInspectorOpen(false); }} />
+                  ? <SceneEditor key={scene.id} scene={scene} scenes={content.scenes} variables={content.variables} update={value => change({ ...content, scenes: content.scenes.map((s, i) => i === sceneIndex ? value : s) })} remove={() => { change({ ...content, scenes: content.scenes.filter((_, i) => i !== sceneIndex) }); setSceneIndex(Math.max(0, sceneIndex - 1)); setInspectorOpen(false); }} onFillText={draft && canvasMode === 'edit' ? (() => void fillSelectedScene(scene.id)) : undefined} fillBusy={fillBusy} />
                   : <Empty>{t('在画布上点击一个节点，或添加场景。')}</Empty>}
               </div>
               <div className={`draft-inspector-pane pane-secondary${inspectorTab !== 'scene' ? ' is-active' : ''}`} data-pane={inspectorSecondary}>

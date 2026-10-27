@@ -1607,6 +1607,7 @@ legend {
 .worldbook-scene-scope { display: flex; flex-wrap: wrap; gap: 6px 12px; max-height: 140px; overflow: auto; }
 
 
+.fill-scene-row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 4px 0 8px; }
 .narrate-box { margin: 10px 0 12px; padding: 10px 12px; border: 1px solid color-mix(in srgb, #8b6b3d 35%, var(--line)); border-radius: 10px; background: color-mix(in srgb, #fff6e8 70%, var(--paper)); }
 .narrate-toolbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
 .narrate-toggle { display: inline-flex; gap: 6px; align-items: center; font-weight: 600; cursor: pointer; }

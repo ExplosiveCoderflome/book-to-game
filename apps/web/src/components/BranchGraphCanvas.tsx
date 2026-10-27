@@ -32,6 +32,9 @@ interface Props {
   /** Progressive growth: extend neighbors from the selected scene. */
   onExtendScene?: (sceneId: string) => void;
   extendBusy?: boolean;
+  /** Author-time: deepen selected scene body text (no topology change). */
+  onFillSceneText?: (sceneId: string) => void;
+  fillBusy?: boolean;
   /** 1 = single leaf, 2 = two neighbors this round. */
   extendNeighborCount?: 1 | 2;
   onExtendNeighborCountChange?: (count: 1 | 2) => void;
@@ -67,7 +70,7 @@ export function BranchGraphCanvas({
   content, selectedSceneId, selectedSceneIds, onSelectScene, onClearSelection, onAddScene, onLayoutChange, onConnectScenes, onDisconnectEdge,
   primary = false, playabilityMode = 'publish', playOverlay = null, readOnly = false,
   generationJob = null, onOpenGenerationDraft, onWatchGeneration, skeletonPlaceholder = false,
-  onExtendScene, extendBusy = false, extendNeighborCount = 1, onExtendNeighborCountChange,
+  onExtendScene, extendBusy = false, onFillSceneText, fillBusy = false, extendNeighborCount = 1, onExtendNeighborCountChange,
   onExtendAgain, extendAgainTargetId = null, lastExtendSummary = null,
   onBatchExtendLeaves, onExtendSelectedScenes, onCancelExtend, batchExtendProgress = null, leafCount = 0,
   showExtendGuide = false, onDismissExtendGuide,
@@ -334,6 +337,17 @@ export function BranchGraphCanvas({
                 >{t(n === 1 ? '+1 叶' : '+2 邻')}</button>
               ))}
             </div>
+            {selectedSceneId && onFillSceneText && (
+              <button
+                type="button"
+                className="small"
+                data-testid="canvas-fill-scene-text"
+                disabled={extendBusy || fillBusy}
+                onClick={() => { if (!fillBusy) onFillSceneText(selectedSceneId); }}
+              >
+                {t(fillBusy ? '补全文中…' : '补全文')}
+              </button>
+            )}
             {selectedSceneId && (
               <button
                 type="button"

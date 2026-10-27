@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { actSchema, extendDraftSceneInputSchema, gameContentSchema, narrateInputSchema, proposeActInputSchema } from '@novel-game/contracts';
+import { actSchema, extendDraftSceneInputSchema, fillSceneTextInputSchema, gameContentSchema, narrateInputSchema, proposeActInputSchema } from '@novel-game/contracts';
 import type { Workbench } from '../workbench.js';
 import { command, emptySchema, idSchema } from './definition.js';
-import { extendDraftScene } from '../../modules/generation/index.js';
+import { extendDraftScene, fillDraftSceneText } from '../../modules/generation/index.js';
 import { proposeActSession } from '../../modules/sessions/application/propose-act.js';
 import { narrateSession } from '../../modules/sessions/application/narrate.js';
 import { ChatCompletionsProvider } from '../../platform/model/chat-completions.js';
@@ -28,6 +28,15 @@ export function gameCommands(w: Workbench) {
         const endpoint = w.modelSettings.resolve();
         const provider = new ChatCompletionsProvider({...endpoint, maxAttempts: 2, repairAttempts: 2});
         return extendDraftScene(w.games, provider, input, {providerConfigured: true});
+      }),
+    command('fill_draft_scene_text', '作者态：加深选中场景正文（不改图/选项）。返回文案由客户端写入本地 dirty，不自动保存草稿。失败 soft-fail。',
+      fillSceneTextInputSchema, false, async (input) => {
+        if (!w.providerConfigured) {
+          return { status: 'unavailable', sceneId: input.sceneId, text: null, reason: '尚未配置模型。请进入“模型设置”后再补全文。' };
+        }
+        const endpoint = w.modelSettings.resolve();
+        const provider = new ChatCompletionsProvider({...endpoint, maxAttempts: 2, repairAttempts: 2});
+        return fillDraftSceneText(w.games, w.sources, input, provider);
       }),
     command('list_games', '列出发布版本（作者视图，含所有分支）。', emptySchema, true, () => w.games.listRevisions()),
     command('start_session', '创建试玩存档，固定使用指定游戏发布版本；只返回当前场景。',

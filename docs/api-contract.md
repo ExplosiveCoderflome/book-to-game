@@ -23,6 +23,8 @@
 | PUT | /api/drafts/:id | {version,content:GameContent} → Draft |
 | POST | /api/drafts/:id/validate | {} → ValidationResult |
 | POST | /api/drafts/:id/publish | {version} → GameRevision |
+| POST | /api/drafts/:id/extend-scene | ExtendDraftSceneInput → Draft |
+| POST | /api/drafts/:id/fill-scene-text | FillSceneTextInput → FillSceneTextResult（作者态补全文；不自动存草稿） |
 | GET | /api/games | GameRevision[] |
 | POST | /api/sessions | {gameRevisionId} → SessionView |
 | GET | /api/sessions | SessionView[] |

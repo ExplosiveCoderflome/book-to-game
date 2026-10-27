@@ -59,5 +59,11 @@ export const storyTranslations: Record<string, string> = {
   '未能映射到可用选项。': 'Could not map to an available option.',
   '可选行动': 'Available actions',
 
+  '补全文': 'Fill scene text',
+  '补全文中…': 'Filling scene…',
+  '用模型加深本场景正文，不改选项与连线；结果写入本地未保存编辑。': 'Deepen this scene body with the model; choices and edges stay put. Result is a local unsaved edit.',
+  '已补全场景正文（未保存，可继续编辑或放弃）': 'Scene text filled (unsaved — keep editing or discard).',
+  '补全文失败，正文未改动。': 'Fill failed; scene text unchanged.',
+
 };
 export const storyEnglish = storyTranslations;
