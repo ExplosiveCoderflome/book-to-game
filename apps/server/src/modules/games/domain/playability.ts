@@ -1,91 +1,16 @@
-import type { BranchSkeleton, Choice, GameContent, SkeletonScene, ValidationResult } from '@novel-game/contracts';
+import {
+  annotatePlayability,
+  assessPlayability,
+  type BranchSkeleton,
+  type Choice,
+  type GameContent,
+  type PlayabilityMode,
+  type ValidationResult,
+} from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
 
-export type PlayabilityMode = 'publish' | 'skeleton' | 'generated';
-
-const EMPTY_LABEL = /^(继续|往前走|向前走|随便看看|离开|下一步|继续前进|看看周围|无事发生|走吧|…|\.{2,}|—+|-+)$/;
-
-type GraphScene = Pick<SkeletonScene, 'id' | 'title' | 'choices' | 'ending'>;
-
-export function assessPlayability(content: GameContent | BranchSkeleton, mode: PlayabilityMode = 'publish'): ValidationResult {
-  const errors: string[] = [];
-  const warnings: string[] = [];
-  const scenes = content.scenes as GraphScene[];
-  const byId = new Map(scenes.map(scene => [scene.id, scene]));
-  if (!byId.has(content.startSceneId)) {
-    errors.push(`起始场景不存在：${content.startSceneId}`);
-    return {valid: false, errors, warnings};
-  }
-
-  const start = byId.get(content.startSceneId)!;
-  const opening = start.choices.length;
-  if (opening < 2) {
-    const message = `开局可选行动不足：起始场景仅有 ${opening} 个选项，至少需要 2 个`;
-    if (mode === 'publish') warnings.push(message);
-    else errors.push(message);
-  }
-
-  const nonEnding = scenes.filter(scene => !scene.ending?.trim());
-  const endings = scenes.filter(scene => scene.ending?.trim());
-  if (mode !== 'publish' && nonEnding.length < 3) {
-    errors.push(`非结局场景过少：当前 ${nonEnding.length} 个，生成阶段至少需要 3 个以支撑短游戏体感`);
-  }
-
-  const labels = scenes.flatMap(scene => scene.choices.map(choice => choice.label.trim()));
-  if (labels.length) {
-    const empty = labels.filter(label => !label || EMPTY_LABEL.test(label)).length;
-    if (empty / labels.length >= 0.5) {
-      errors.push(`空洞选项过多：${empty}/${labels.length} 个选项像「继续/随便看看」式空转，请改成有代价或冲突的选择`);
-    }
-  }
-
-  let convergingHubs = 0;
-  for (const scene of nonEnding) {
-    const targets = [...new Set(scene.choices.map(choice => choice.targetSceneId))];
-    if (scene.choices.length >= 2 && targets.length === 1 && targets[0] === scene.id) convergingHubs++;
-  }
-  if (convergingHubs === nonEnding.length && nonEnding.length > 0) {
-    errors.push('所有非结局场景的选项都只回到自身，缺少通向不同结局的前进分支');
-  }
-
-  const {shortestEnding, longestPath, branchScenes} = graphMetrics(content.startSceneId, byId);
-  if (branchScenes === 0) {
-    // validate-game already errors; keep a playability note for generation feedback
-    if (mode !== 'publish') errors.push('缺少真正分支：至少需要一个可达场景含有两个不同去向');
-  }
-  if (shortestEnding < 0) {
-    errors.push('无法从入口到达任何结局');
-  } else if (mode !== 'publish' && shortestEnding < 2) {
-    errors.push(`路径过短：最短通关仅 ${shortestEnding} 步，生成阶段至少需要 2 步（避免三下结束）`);
-  } else if (mode === 'publish' && shortestEnding < 2) {
-    warnings.push(`最短通关仅 ${shortestEnding} 步，体感偏短；建议增加中间场景或有后果的自我循环选择`);
-  }
-  if (mode !== 'publish' && longestPath < 3) {
-    errors.push(`最长简单路径仅 ${longestPath} 步，生成阶段建议 ≥ 3 以形成可探索分支`);
-  } else if (mode === 'publish' && longestPath < 3) {
-    warnings.push(`最长简单路径仅 ${longestPath} 步，可玩深度偏浅`);
-  }
-
-  const withEffects = scenes.flatMap(scene => scene.choices).filter(choice => (choice.effects?.length ?? 0) > 0).length;
-  const totalChoices = scenes.flatMap(scene => scene.choices).length;
-  if (mode !== 'publish' && totalChoices >= 4 && withEffects / totalChoices < 0.25) {
-    errors.push(`带状态后果的选项过少：${withEffects}/${totalChoices}，生成阶段至少约 25% 选项应带 effects`);
-  } else if (mode === 'publish' && totalChoices >= 4 && withEffects === 0 && Object.keys(content.variables ?? {}).length === 0) {
-    warnings.push('没有任何 variables/effects，选择可能缺少可见后果');
-  }
-
-  // TODO(M2): variable-aware reachability — current graph metrics ignore conditions/effects.
-  if (scenes.some(scene => scene.choices.some(choice => choice.conditions?.length))) {
-    warnings.push('可玩性路径统计忽略变量条件（TODO: games/domain/reachability.ts），请试玩验证条件分支。');
-  }
-
-  if (endings.length >= 2) {
-    const distinct = new Set(endings.map(scene => scene.ending!.trim()));
-    if (distinct.size < 2 && mode !== 'publish') errors.push('结局文案需要至少两个不同文本');
-  }
-
-  return {valid: errors.length === 0, errors, warnings};
-}
+export type { PlayabilityMode };
+export { assessPlayability, annotatePlayability };
 
 export function assertPlayableSkeleton(skeleton: BranchSkeleton): void {
   const topology = assessTopology(skeleton);
@@ -179,34 +104,6 @@ function assessTopology(content: BranchSkeleton | GameContent): ValidationResult
   return {valid: errors.length === 0, errors, warnings};
 }
 
-function graphMetrics(startId: string, byId: Map<string, GraphScene>): {shortestEnding: number; longestPath: number; branchScenes: number} {
-  let shortestEnding = -1;
-  let longestPath = 0;
-  let branchScenes = 0;
-  const visit = (id: string, depth: number, stack: Set<string>) => {
-    const scene = byId.get(id);
-    if (!scene) return;
-    longestPath = Math.max(longestPath, depth);
-    if (scene.ending?.trim()) {
-      shortestEnding = shortestEnding < 0 ? depth : Math.min(shortestEnding, depth);
-      return;
-    }
-    const targets = new Set(scene.choices.map(choice => choice.targetSceneId));
-    if (targets.size >= 2) branchScenes++;
-    for (const choice of scene.choices) {
-      if (stack.has(choice.targetSceneId)) {
-        longestPath = Math.max(longestPath, depth + 1);
-        continue;
-      }
-      stack.add(choice.targetSceneId);
-      visit(choice.targetSceneId, depth + 1, stack);
-      stack.delete(choice.targetSceneId);
-    }
-  };
-  visit(startId, 0, new Set([startId]));
-  return {shortestEnding, longestPath, branchScenes};
-}
-
 function stableRules(choice: Choice): string {
   return JSON.stringify({conditions: choice.conditions ?? [], effects: choice.effects ?? []});
 }
@@ -223,5 +120,6 @@ function pathFrom(message: string): string {
   if (scene) return `scenes.${scene[1]}`;
   if (message.includes('开局')) return 'startSceneId';
   if (message.includes('连线') || message.includes('选项')) return 'choices';
+  if (message.includes('走廊') || message.includes('假分支')) return 'content';
   return 'content';
 }

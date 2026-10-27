@@ -37,10 +37,17 @@ export const sceneSchema = z.object({
   evidence: z.array(evidenceSchema).max(30), choices: z.array(choiceSchema).max(8),
   ending: z.string().max(1000).optional(),
 });
+export const canvasLayoutSchema = z.record(
+  z.string().min(1).max(80),
+  z.object({ x: z.number().finite(), y: z.number().finite() }),
+);
+export type CanvasLayout = z.infer<typeof canvasLayoutSchema>;
 export const gameContentSchema = z.object({
   title: z.string().min(1).max(200), mode: z.literal('story'),
   premise: z.string().min(1).max(4000), adaptationNotes: z.string().max(4000),
   variables: z.record(variableNameSchema, variableValueSchema).optional(),
+  /** Optional infinite-canvas node positions; authoring metadata, ignored by play runtime. */
+  canvasLayout: canvasLayoutSchema.optional(),
   startSceneId: z.string().min(1).max(80), scenes: z.array(sceneSchema).min(3).max(100),
 });
 export type GameContent = z.infer<typeof gameContentSchema>;
@@ -104,7 +111,13 @@ export const branchSkeletonSchema = z.object({
   title: z.string().min(1).max(200), mode: z.literal('story'),
   premise: z.string().min(1).max(4000), adaptationNotes: z.string().max(4000),
   variables: z.record(variableNameSchema, variableValueSchema).optional(),
+  canvasLayout: canvasLayoutSchema.optional(),
   startSceneId: z.string().min(1).max(80), scenes: z.array(skeletonSceneSchema).min(3).max(100),
 });
 export type SkeletonScene = z.infer<typeof skeletonSceneSchema>;
 export type BranchSkeleton = z.infer<typeof branchSkeletonSchema>;
+
+export {
+  assessPlayability, annotatePlayability, collectPlayabilityIssues,
+  type PlayabilityMode, type PlayabilityIssue, type PlayabilityAnnotation, type PlayabilityGraph, type PlayabilityResult,
+} from './playability.js';

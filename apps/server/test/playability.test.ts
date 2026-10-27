@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { assessPlayability, assertExpandedHonorsSkeleton, assertPlayableSkeleton } from '../src/modules/games/index.js';
+import { annotatePlayability, assessPlayability, assertExpandedHonorsSkeleton, assertPlayableSkeleton } from '../src/modules/games/index.js';
 import { playableSkeleton, playableStory, unreachableSkeleton } from './helpers/playable-story.js';
 
 const evidence = [{chapterId: 'c1', paragraphId: 'p1'}];
@@ -19,7 +19,7 @@ test('skeleton playability accepts a deep branching graph and rejects shallow sh
     {id: 'c', title: 'C', text: '', origin: 'adapted', evidence: [], choices: [], ending: '坏'},
   ];
   shallow.startSceneId = 'a';
-  assert.throws(() => assertPlayableSkeleton(shallow), /可玩性|空洞|路径|非结局/);
+  assert.throws(() => assertPlayableSkeleton(shallow), /可玩性|空洞|路径|非结局|走廊/);
 });
 
 test('unreachable skeleton fails topology before expand', () => {
@@ -51,5 +51,76 @@ test('publish mode keeps short hand-authored graphs valid with warnings', () => 
   };
   const result = assessPlayability(short, 'publish');
   assert.equal(result.valid, true);
-  assert.ok(result.warnings.some(text => text.includes('最短通关') || text.includes('路径')));
+  assert.ok(result.warnings.some(text => text.includes('最短通关') || text.includes('路径') || text.includes('深度')));
+});
+
+test('skeleton rejects corridor graphs that lack independent ending routes', () => {
+  const corridor = playableSkeleton(evidence);
+  corridor.scenes = [
+    {id: 'a', title: 'A', text: '', origin: 'adapted', evidence: [], choices: [
+      {id: 'n1', label: '往前探路', targetSceneId: 'b'},
+      {id: 'n2', label: '再确认一下方向后往前', targetSceneId: 'b'},
+    ]},
+    {id: 'b', title: 'B', text: '', origin: 'adapted', evidence: [], choices: [
+      {id: 'n3', label: '继续深入河谷', targetSceneId: 'c'},
+      {id: 'n4', label: '沿着河谷边缘前进', targetSceneId: 'c'},
+    ]},
+    {id: 'c', title: 'C', text: '', origin: 'adapted', evidence: [], choices: [
+      {id: 'good', label: '接受招安回城', targetSceneId: 'e1', effects: [{type: 'variable.set', variable: 'trust', value: 1}]},
+      {id: 'bad', label: '拒绝招安逃走', targetSceneId: 'e2'},
+    ]},
+    {id: 'e1', title: 'E1', text: '', origin: 'adapted', evidence: [], choices: [], ending: '回城'},
+    {id: 'e2', title: 'E2', text: '', origin: 'adapted', evidence: [], choices: [], ending: '逃走'},
+  ];
+  corridor.startSceneId = 'a';
+  corridor.variables = {trust: 0};
+  // Opening fanout fails (both to b) — corridor / opening
+  assert.throws(() => assertPlayableSkeleton(corridor), /开局|走廊|分叉|可玩性/);
+});
+
+test('annotatePlayability flags opening and empty-label scenes for the canvas', () => {
+  const weak = {
+    title: '弱图', mode: 'story' as const, premise: '测', adaptationNotes: '',
+    startSceneId: 'a',
+    scenes: [
+      {id: 'a', title: 'A', text: 'x', origin: 'adapted' as const, evidence: [], choices: [
+        {id: 'c1', label: '继续', targetSceneId: 'b'},
+      ]},
+      {id: 'b', title: 'B', text: 'y', origin: 'adapted' as const, evidence: [], choices: [
+        {id: 'c2', label: '随便看看', targetSceneId: 'e1'},
+        {id: 'c3', label: '下一步', targetSceneId: 'e2'},
+      ]},
+      {id: 'e1', title: 'E1', text: 'z', origin: 'adapted' as const, evidence: [], choices: [], ending: '甲'},
+      {id: 'e2', title: 'E2', text: 'w', origin: 'adapted' as const, evidence: [], choices: [], ending: '乙'},
+    ],
+  };
+  const ann = annotatePlayability(weak, 'skeleton');
+  assert.equal(ann.result.valid, false);
+  assert.ok(ann.flaggedSceneIds.includes('a'));
+  assert.ok(ann.issues.some(i => i.code === 'OPENING_DENSITY' || i.code === 'EMPTY_LABELS' || i.code === 'TOO_FEW_SCENES' || i.code === 'TOO_SHORT'));
+});
+
+test('skeleton rejects opening that only points to one target', () => {
+  const oneTarget = playableSkeleton(evidence);
+  const dock = oneTarget.scenes.find(s => s.id === 'dock')!;
+  dock.choices = [
+    {id: 'a', label: '匆忙登上白船冒险前行', targetSceneId: 'channel', effects: [{type: 'variable.set', variable: 'trust', value: 0}]},
+    {id: 'b', label: '犹豫片刻后仍登上白船', targetSceneId: 'channel'},
+    {id: 'c', label: '改走商队黑船绕路', targetSceneId: 'camp'},
+  ];
+  // Still only 2 distinct targets from start — but wait, channel+camp = 2. Force both labels to channel only and keep camp via channel side path.
+  dock.choices = [
+    {id: 'a', label: '匆忙登上白船冒险前行', targetSceneId: 'channel', effects: [{type: 'variable.set', variable: 'trust', value: 0}]},
+    {id: 'b', label: '犹豫片刻后仍登上白船', targetSceneId: 'channel'},
+  ];
+  // Keep camp reachable from channel so topology does not fail first
+  const channel = oneTarget.scenes.find(s => s.id === 'channel')!;
+  channel.choices = [
+    {id: 'toCamp', label: '改道去商队营地', targetSceneId: 'camp', effects: [{type: 'variable.increment', variable: 'trust', value: 1}]},
+    {id: 'push', label: '催促船夫强行穿雾', targetSceneId: 'reef'},
+    {id: 'wait', label: '等待雾散并支付额外船资', targetSceneId: 'ferry', effects: [{type: 'variable.increment', variable: 'trust', value: 1}]},
+  ];
+  const play = assessPlayability(oneTarget, 'skeleton');
+  assert.equal(play.valid, false);
+  assert.ok(play.errors.some(text => /开局|分叉|真实/.test(text)), play.errors.join(';'));
 });
