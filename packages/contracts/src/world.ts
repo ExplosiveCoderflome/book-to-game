@@ -36,6 +36,8 @@ export const worldContentSchema = z.object({
     effects: z.array(worldEffectSchema).min(1).max(20), text: z.string().max(2000), visibility: z.enum(['public', 'hidden'])})).max(40),
   endings: z.array(z.object({id, title: z.string().min(1).max(200), text: z.string().min(1).max(3000),
     when: z.array(worldConditionSchema).min(1).max(20)})).min(1).max(12),
+  /** Optional infinite-canvas location positions; authoring metadata, ignored by adventure runtime. */
+  canvasLayout: z.record(z.string().min(1).max(80), z.object({ x: z.number().finite(), y: z.number().finite() })).optional(),
 });
 export type WorldContent = z.infer<typeof worldContentSchema>;
 export type WorldCondition = z.infer<typeof worldConditionSchema>;
