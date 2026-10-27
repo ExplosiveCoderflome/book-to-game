@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
-import { gameContentSchema, type CanvasLayout, type Draft, type GameContent, type GameRevision, type SessionView, type SourceSummary, type ValidationResult } from '@novel-game/contracts';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { gameContentSchema, type CanvasLayout, type Draft, type GameContent, type GameRevision, type GenerationJob, type SessionView, type SourceSummary, type ValidationResult } from '@novel-game/contracts';
 import { errorMessage, request, RequestError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
+import { relevantStoryJob } from '../lib/job-on-canvas';
 import { playOverlayFromSession } from '../lib/play-overlay';
 import { Empty, Notice } from './Notice';
 import { BranchGraphCanvas } from './BranchGraphCanvas';
@@ -12,12 +13,14 @@ const blankContent = (): GameContent => ({ title: '', mode: 'story', premise: ''
 interface Props {
   token: string; drafts: Draft[]; sources: SourceSummary[];
   revisions: GameRevision[]; sessions: SessionView[];
+  jobs: GenerationJob[];
   selectedId: string; select: (id: string) => void; refresh: () => Promise<void>;
   onPublished: (revision: GameRevision) => void;
   onOpenPlay?: (revisionId: string) => void;
+  onOpenGeneration?: () => void;
 }
 
-export function DraftPanel({ token, drafts, sources, revisions, sessions, selectedId, select, refresh, onPublished, onOpenPlay }: Props) {
+export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, selectedId, select, refresh, onPublished, onOpenPlay, onOpenGeneration }: Props) {
   const { t } = useI18n();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [content, setContent] = useState<GameContent>(blankContent);
@@ -132,6 +135,10 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, select
     return playOverlayFromSession(latestRevision.content, playSession);
   }, [playSession, latestRevision]);
   const canPlayOnCanvas = !!latestRevision && !dirty && !jsonMode;
+  const generationJob = useMemo(
+    () => relevantStoryJob(jobs, { sourceId: draft?.sourceId ?? (sourceId || null), draftId: draft?.id ?? (selectedId || null) }),
+    [jobs, draft?.sourceId, draft?.id, sourceId, selectedId],
+  );
 
   useEffect(() => {
     if (canvasMode !== 'play' || !latestRevision) return;
@@ -151,6 +158,26 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, select
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canvasMode, latestRevision?.id]);
+
+  const genWatchRef = useRef<string | null>(null);
+  useEffect(() => {
+    const stamp = generationJob ? `${generationJob.id}:${generationJob.status}:${generationJob.draftId ?? ''}` : null;
+    const prev = genWatchRef.current;
+    genWatchRef.current = stamp;
+    if (!generationJob || generationJob.status !== 'succeeded' || !generationJob.draftId) return;
+    if (dirty || jsonMode) return;
+    // Only react when this job transitions into succeeded (not when reopening an old draft).
+    const transitioned = !!prev && prev.startsWith(`${generationJob.id}:`) && !prev.includes(':succeeded:');
+    if (!transitioned) return;
+    if (generationJob.draftId === selectedId) {
+      setReload(v => v + 1);
+      setMessage(t('生成完成，已刷新画布上的草稿。'));
+      return;
+    }
+    select(generationJob.draftId);
+    setMessage(t('生成完成，已在画布打开新草稿。'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generationJob?.id, generationJob?.status, generationJob?.draftId]);
 
   async function actOnCanvas(choiceId: string) {
     if (!playSession) return;
@@ -204,6 +231,9 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, select
             playabilityMode="publish"
             playOverlay={canvasMode === 'play' ? playOverlay : null}
             readOnly={canvasMode === 'play'}
+            generationJob={canvasMode === 'edit' ? generationJob : null}
+            onOpenGenerationDraft={generationJob?.draftId ? (() => select(generationJob.draftId!)) : undefined}
+            onWatchGeneration={onOpenGeneration}
           />
           {canvasMode === 'play' ? (
             <aside className="draft-inspector play-inspector" aria-label={t('试玩面板')} data-testid="draft-play-inspector">

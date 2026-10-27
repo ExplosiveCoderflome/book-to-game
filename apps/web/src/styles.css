@@ -1405,6 +1405,35 @@ legend {
   color: #1a7a4c; background: color-mix(in srgb, #1a7a4c 14%, var(--paper));
   border: 1px solid color-mix(in srgb, #1a7a4c 35%, var(--line));
 }
+.branch-canvas-gen {
+  padding: 10px 14px;
+  border-bottom: 1px solid color-mix(in srgb, #2f6fed 35%, var(--line));
+  background: color-mix(in srgb, #2f6fed 10%, var(--paper));
+  display: grid;
+  gap: 8px;
+}
+.branch-canvas-gen.succeeded {
+  border-bottom-color: color-mix(in srgb, #1a7a4c 35%, var(--line));
+  background: color-mix(in srgb, #1a7a4c 10%, var(--paper));
+}
+.branch-canvas-gen.failed {
+  border-bottom-color: color-mix(in srgb, #c44 35%, var(--line));
+  background: color-mix(in srgb, #c44 10%, var(--paper));
+}
+.branch-canvas-gen-head { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; }
+.branch-canvas-gen-head strong { color: #1f4fbf; }
+.branch-canvas-gen.succeeded .branch-canvas-gen-head strong { color: #1a7a4c; }
+.branch-canvas-gen.failed .branch-canvas-gen-head strong { color: #a33; }
+.branch-canvas-gen progress { width: 100%; height: 8px; }
+.gen-stage-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.gen-stage-chip {
+  font-size: 11px; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--muted); background: var(--paper);
+}
+.gen-stage-chip.done { color: #1a7a4c; border-color: color-mix(in srgb, #1a7a4c 40%, var(--line)); background: color-mix(in srgb, #1a7a4c 10%, var(--paper)); }
+.gen-stage-chip.active { color: #1f4fbf; border-color: color-mix(in srgb, #2f6fed 45%, var(--line)); background: color-mix(in srgb, #2f6fed 12%, var(--paper)); font-weight: 600; }
+.branch-canvas-gen-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
 .canvas-mode-toggle { display: inline-flex; gap: 0; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); }
 .canvas-mode-toggle button { border-radius: 0; border: 0; margin: 0; }
 .canvas-mode-toggle button.active {

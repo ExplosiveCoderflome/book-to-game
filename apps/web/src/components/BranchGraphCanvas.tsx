@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react';
-import { annotatePlayability, type CanvasLayout, type GameContent, type PlayabilityAnnotation } from '@novel-game/contracts';
+import { annotatePlayability, type CanvasLayout, type GameContent, type GenerationJob, type PlayabilityAnnotation } from '@novel-game/contracts';
 import { useI18n } from '../lib/i18n';
+import { jobProgressLabel, jobStageChips } from '../lib/job-on-canvas';
 import type { PlayOverlayState } from '../lib/play-overlay';
 
 interface Props {
@@ -16,6 +17,10 @@ interface Props {
   playOverlay?: PlayOverlayState | null;
   /** Soften editing affordances (no add/connect) for read-only play views. */
   readOnly?: boolean;
+  /** Related generation job to surface stage chips on the canvas. */
+  generationJob?: GenerationJob | null;
+  onOpenGenerationDraft?: () => void;
+  onWatchGeneration?: () => void;
 }
 
 interface LayoutNode {
@@ -28,6 +33,7 @@ const NODE_H = 64;
 export function BranchGraphCanvas({
   content, selectedSceneId, onSelectScene, onAddScene, onLayoutChange, onConnectScenes,
   primary = false, playabilityMode = 'publish', playOverlay = null, readOnly = false,
+  generationJob = null, onOpenGenerationDraft, onWatchGeneration,
 }: Props) {
   const { t } = useI18n();
   const markerPrefix = useId().replace(/:/g, '');
@@ -213,6 +219,31 @@ export function BranchGraphCanvas({
         <button type="button" className="small" onClick={fitView}>{t('适应画布')}</button>
       </div>
     </div>
+    {generationJob && (
+      <div className={`branch-canvas-gen${generationJob.status === 'failed' ? ' failed' : generationJob.status === 'succeeded' ? ' succeeded' : ' active'}`} data-canvas-ui data-testid="canvas-gen-strip" role="status">
+        <div className="branch-canvas-gen-head">
+          <strong>{t(generationJob.status === 'succeeded' ? '生成已完成' : generationJob.status === 'failed' ? '生成失败' : generationJob.status === 'cancelled' ? '生成已取消' : '正在生成到画布')}</strong>
+          <span className="hint">{generationJob.stage || t('准备中')} · {jobProgressLabel(generationJob)}</span>
+        </div>
+        <div className="gen-stage-chips" aria-label={t('生成阶段')}>
+          {jobStageChips(generationJob).map(chip => (
+            <span key={chip.id} className={`gen-stage-chip ${chip.state}`}>{chip.label}</span>
+          ))}
+        </div>
+        <progress max={1} value={Math.min(1, Math.max(0, generationJob.progress))} aria-label={t('生成进度')} />
+        <div className="branch-canvas-gen-actions">
+          {(generationJob.status === 'queued' || generationJob.status === 'running') && onWatchGeneration && (
+            <button type="button" className="small quiet" onClick={onWatchGeneration}>{t('查看生成任务')}</button>
+          )}
+          {generationJob.status === 'succeeded' && generationJob.draftId && onOpenGenerationDraft && (
+            <button type="button" className="small primary" onClick={onOpenGenerationDraft}>{t('在画布打开草稿 →')}</button>
+          )}
+          {(generationJob.status === 'failed' || generationJob.status === 'cancelled') && onWatchGeneration && (
+            <button type="button" className="small" onClick={onWatchGeneration}>{t('前往重试')}</button>
+          )}
+        </div>
+      </div>
+    )}
     {bannerIssues.length > 0 && (
       <div className="branch-canvas-banner" data-canvas-ui role="status">
         <strong>{t('可玩性提醒')}</strong>

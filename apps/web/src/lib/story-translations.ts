@@ -33,7 +33,12 @@ export const storyTranslations: Record<string, string> = {
   '正在准备试玩…': 'Preparing playtest…', '尚未打开存档。': 'No save opened yet.',
   '发布版本 v{version} · 第 {turn} 幕': 'Published v{version} · Turn {turn}',
   '在读者席打开 →': 'Open in reader seat →',
-  '分支图是主操作面：编辑与试玩可在同一画布切换；侧栏写场景，试玩时高亮路径。': 'The branch graph is the main surface: switch edit/play on the same canvas; edit in the side panel, highlight the path while playtesting.'
+  '分支图是主操作面：编辑与试玩可在同一画布切换；侧栏写场景，试玩时高亮路径。': 'The branch graph is the main surface: switch edit/play on the same canvas; edit in the side panel, highlight the path while playtesting.',
+  '正在生成到画布': 'Generating onto canvas', '生成已完成': 'Generation finished', '生成失败': 'Generation failed', '生成已取消': 'Generation cancelled',
+  '生成阶段': 'Generation stages', '生成进度': 'Generation progress', '查看生成任务': 'View generation job',
+  '在画布打开草稿 →': 'Open draft on canvas →', '前往重试': 'Go retry',
+  '生成完成，已刷新画布上的草稿。': 'Generation finished; canvas draft refreshed.',
+  '生成完成，已在画布打开新草稿。': 'Generation finished; opened the new draft on the canvas.',
 
 };
 export const storyEnglish = storyTranslations;

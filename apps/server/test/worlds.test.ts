@@ -86,3 +86,19 @@ test('prototype-like references require declared entities rather than inherited 
     assert.ok(result.errors.some(error => error.includes('toString'))); assert.throws(() => worlds.publish(draft.id, {version: 1}), status(400));
   } finally {db.close();}
 });
+
+test('validateWorld warns when opening location has fewer than 3 immediately available actions', () => {
+  const db = new Database(':memory:'); try {
+    const worlds = setup(db); const world = content();
+    // Keep schema-valid action count, but lock most opening actions behind availability gates.
+    for (const action of world.actions) {
+      if (action.locationId === world.initialLocationId && action.id !== 'wait') {
+        action.availableWhen = [{kind: 'fact', factId: 'permit', value: true}];
+      }
+    }
+    const draft = worlds.create({sourceId: source.id, content: world});
+    const result = worlds.validate(draft.id);
+    assert.equal(result.valid, true);
+    assert.ok(result.warnings.some(e => e.includes('开局行动密度不足')));
+  } finally {db.close();}
+});

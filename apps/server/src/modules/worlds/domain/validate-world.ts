@@ -51,6 +51,11 @@ export function validateWorld(world: WorldContent, source: SourceDocument): Vali
   }
   for (const event of world.events) {conditions(event.when, `事件 ${event.id}`); effects(event.effects, `事件 ${event.id}`);}
   for (const ending of world.endings) conditions(ending.when, `结局 ${ending.id}`);
+  // Opening action density: actions at the start location with no availability gate.
+  const openingActions = world.actions.filter(a => a.locationId === world.initialLocationId && a.availableWhen.length === 0);
+  if (openingActions.length < 3) {
+    warnings.push(`开局行动密度不足：起始地点仅有 ${openingActions.length} 个立即可用行动，建议至少 3 个（无额外 availableWhen 门槛）`);
+  }
   // Overapproximate connectivity: ignore conditions and permit event movement from any reachable location.
   // This can warn about disconnected geography; it cannot prove a winning strategy exists.
   const reachable = new Set<string>([world.initialLocationId]);
