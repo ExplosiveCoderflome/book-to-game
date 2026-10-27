@@ -32,7 +32,7 @@ export function gameCommands(w: Workbench) {
     command('fill_draft_scene_text', '作者态：加深选中场景正文（不改图/选项）。返回文案由客户端写入本地 dirty，不自动保存草稿。失败 soft-fail。',
       fillSceneTextInputSchema, false, async (input) => {
         if (!w.providerConfigured) {
-          return { status: 'unavailable', sceneId: input.sceneId, text: null, reason: '尚未配置模型。请进入“模型设置”后再补全文。' };
+          return { status: 'unavailable', sceneId: input.sceneId, text: null, title: null, reason: '尚未配置模型。请进入“模型设置”后再补全文。' };
         }
         const endpoint = w.modelSettings.resolve();
         const provider = new ChatCompletionsProvider({...endpoint, maxAttempts: 2, repairAttempts: 2});

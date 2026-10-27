@@ -55,6 +55,8 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
   const [proposeNote, setProposeNote] = useState<string | null>(null);
   const [extendBusy, setExtendBusy] = useState(false);
   const [fillBusy, setFillBusy] = useState(false);
+  const [fillDirection, setFillDirection] = useState('');
+  const [fillPolishTitle, setFillPolishTitle] = useState(false);
   const [scanDepth, setScanDepth] = useState<ScanDepth>('medium');
   const [scanDirection, setScanDirection] = useState(() => t('尊重原作世界规则，设计一次有明确选择后果的短篇冒险'));
   const [scanBusy, setScanBusy] = useState(false);
@@ -477,16 +479,22 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
     try {
       const result = await request<FillSceneTextResult>(token, `/drafts/${draft.id}/fill-scene-text`, 'POST', {
         sceneId,
-        direction: content.premise,
+        direction: fillDirection.trim() || undefined,
+        polishTitle: fillPolishTitle || undefined,
         currentText: scene.text,
         currentTitle: scene.title,
       });
       if (result.status === 'ok' && result.text) {
+        const nextTitle = fillPolishTitle && result.title?.trim() ? result.title.trim() : undefined;
         change({
           ...content,
-          scenes: content.scenes.map(s => s.id === sceneId ? { ...s, text: result.text! } : s),
+          scenes: content.scenes.map(s => s.id === sceneId
+            ? { ...s, text: result.text!, ...(nextTitle ? { title: nextTitle } : {}) }
+            : s),
         });
-        setMessage(t('已补全场景正文（未保存，可继续编辑或放弃）'));
+        setMessage(t(nextTitle
+          ? '已补全正文并润色标题（未保存，可继续编辑或放弃）'
+          : '已补全场景正文（未保存，可继续编辑或放弃）'));
         setInspectorOpen(true);
         setInspectorTab('scene');
         const idx = content.scenes.findIndex(s => s.id === sceneId);
@@ -690,7 +698,7 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
               <div className={`draft-inspector-pane pane-scene${inspectorTab === 'scene' ? ' is-active' : ''}`} data-pane="scene">
                 <p className="draft-inspector-pane-label">{t('场景')}</p>
                 {scene
-                  ? <SceneEditor key={scene.id} scene={scene} scenes={content.scenes} variables={content.variables} update={value => change({ ...content, scenes: content.scenes.map((s, i) => i === sceneIndex ? value : s) })} remove={() => { change({ ...content, scenes: content.scenes.filter((_, i) => i !== sceneIndex) }); setSceneIndex(Math.max(0, sceneIndex - 1)); setInspectorOpen(false); }} onFillText={draft && canvasMode === 'edit' ? (() => void fillSelectedScene(scene.id)) : undefined} fillBusy={fillBusy} />
+                  ? <SceneEditor key={scene.id} scene={scene} scenes={content.scenes} variables={content.variables} update={value => change({ ...content, scenes: content.scenes.map((s, i) => i === sceneIndex ? value : s) })} remove={() => { change({ ...content, scenes: content.scenes.filter((_, i) => i !== sceneIndex) }); setSceneIndex(Math.max(0, sceneIndex - 1)); setInspectorOpen(false); }} onFillText={draft && canvasMode === 'edit' ? (() => void fillSelectedScene(scene.id)) : undefined} fillBusy={fillBusy} fillDirection={fillDirection} onFillDirectionChange={setFillDirection} fillPolishTitle={fillPolishTitle} onFillPolishTitleChange={setFillPolishTitle} />
                   : <Empty>{t('在画布上点击一个节点，或添加场景。')}</Empty>}
               </div>
               <div className={`draft-inspector-pane pane-secondary${inspectorTab !== 'scene' ? ' is-active' : ''}`} data-pane={inspectorSecondary}>

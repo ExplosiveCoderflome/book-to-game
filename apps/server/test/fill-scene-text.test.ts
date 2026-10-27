@@ -49,24 +49,46 @@ test('fill deepens body text without mutating draft choices or topology', async 
   try {
     let called = 0;
     const result = await fillDraftSceneText(games, sources, {
-      id: draft.id, sceneId: 'dock', currentText: '雾起。',
+      id: draft.id, sceneId: 'dock', currentText: '雾起。', direction: '更细腻',
     }, {
       async fillSceneText(input) {
         called += 1;
         assert.equal(input.scene.title, '渡口');
+        assert.equal(input.direction, '更细腻');
+        assert.equal(input.polishTitle, false);
         assert.ok(input.scene.choiceLabels.includes('与船夫闲聊'));
         assert.ok(input.sourceExcerpts.some(e => e.text.includes('江雾')));
         assert.ok(input.worldbookSnippets.some(s => s.title.includes('旧约')));
         assert.ok(input.neighborHints.some(n => n.id === 'yard'));
-        return { text: '雾气贴着江面，船夫的灯影摇晃。你听见远处更鼓。' };
+        return { text: '雾气贴着江面，船夫的灯影摇晃。你听见远处更鼓。', title: '应被忽略的标题' };
       },
     });
     assert.equal(result.status, 'ok');
     assert.match(result.text ?? '', /灯影/);
+    assert.equal(result.title, null, 'title ignored unless polishTitle');
     const after = games.get(draft.id);
     assert.equal(after.content.scenes.find(s => s.id === 'dock')?.text, '雾起。', 'server draft unchanged');
     assert.equal(after.content.scenes.find(s => s.id === 'dock')?.choices.length, 2);
     assert.equal(called, 1);
+  } finally { db.close(); }
+});
+
+test('fill can return polished title when polishTitle is set', async () => {
+  const { db, games, draft, sources } = setup();
+  try {
+    const result = await fillDraftSceneText(games, sources, {
+      id: draft.id, sceneId: 'dock', polishTitle: true, direction: '更贴原文',
+    }, {
+      async fillSceneText(input) {
+        assert.equal(input.polishTitle, true);
+        assert.equal(input.direction, '更贴原文');
+        return { text: '江雾如纱，渡口灯火半明。', title: '雾渡灯火' };
+      },
+    });
+    assert.equal(result.status, 'ok');
+    assert.equal(result.title, '雾渡灯火');
+    assert.match(result.text ?? '', /江雾/);
+    assert.equal(games.get(draft.id).content.scenes.find(s => s.id === 'dock')?.title, '渡口');
   } finally { db.close(); }
 });
 
@@ -78,6 +100,7 @@ test('fill soft-fails when model throws', async () => {
     });
     assert.equal(result.status, 'unavailable');
     assert.equal(result.text, null);
+    assert.equal(result.title, null);
     assert.match(result.reason ?? '', /模型/);
   } finally { db.close(); }
 });

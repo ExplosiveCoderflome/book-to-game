@@ -72,6 +72,7 @@ export class ChatCompletionsProvider implements GenerationProvider {
     gameTitle: string;
     premise: string;
     direction: string;
+    polishTitle: boolean;
     scene: { id: string; title: string; text: string; ending?: string; choiceLabels: string[] };
     neighborHints: { id: string; title: string }[];
     worldbookSnippets: { title: string; content: string; kind: string }[];
@@ -81,6 +82,7 @@ export class ChatCompletionsProvider implements GenerationProvider {
       gameTitle: input.gameTitle,
       premise: input.premise.slice(0, 800),
       direction: input.direction.slice(0, 800),
+      polishTitle: input.polishTitle,
       scene: {
         id: input.scene.id,
         title: input.scene.title,
@@ -91,7 +93,9 @@ export class ChatCompletionsProvider implements GenerationProvider {
       neighborHints: input.neighborHints,
       worldbookSnippets: input.worldbookSnippets,
       sourceExcerpts: input.sourceExcerpts,
-      rule: '只输出加深后的 text；禁止新选项/新边/新状态',
+      rule: input.polishTitle
+        ? '输出加深后的 text，并可输出润色 title；禁止新选项/新边/新状态'
+        : '只输出加深后的 text；禁止新选项/新边/新状态；不要改 title',
     }, signal, fillSceneTextModelOutputSchema, []);
   }
 

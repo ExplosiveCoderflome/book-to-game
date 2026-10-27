@@ -67,5 +67,13 @@ export const storyTranslations: Record<string, string> = {
   '已补全场景正文（未保存，可继续编辑或放弃）': 'Scene text filled (unsaved — keep editing or discard).',
   '补全文失败，正文未改动。': 'Fill failed; scene text unchanged.',
 
+  '补全文方向': 'Fill direction',
+  '更细腻': 'More detailed',
+  '更紧凑': 'More compact',
+  '更贴原文': 'Closer to source',
+  '或自定义方向…': 'Or custom direction…',
+  '同时润色标题': 'Also polish title',
+  '已补全正文并润色标题（未保存，可继续编辑或放弃）': 'Body filled and title polished (unsaved — keep editing or discard).',
+
 };
 export const storyEnglish = storyTranslations;

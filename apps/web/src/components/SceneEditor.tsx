@@ -2,7 +2,9 @@ import type { Choice, Scene, VariableValue } from '@novel-game/contracts';
 import { useI18n } from '../lib/i18n';
 import { ChoiceRulesEditor } from './ChoiceRulesEditor';
 
-export function SceneEditor({ scene, scenes, variables = {}, update, remove, onFillText, fillBusy }: {
+export const FILL_DIRECTION_CHIPS = ['更细腻', '更紧凑', '更贴原文'] as const;
+
+export function SceneEditor({ scene, scenes, variables = {}, update, remove, onFillText, fillBusy, fillDirection = '', onFillDirectionChange, fillPolishTitle = false, onFillPolishTitleChange }: {
   scene: Scene;
   scenes: Scene[];
   variables?: Record<string, VariableValue>;
@@ -10,6 +12,10 @@ export function SceneEditor({ scene, scenes, variables = {}, update, remove, onF
   remove: () => void;
   onFillText?: () => void;
   fillBusy?: boolean;
+  fillDirection?: string;
+  onFillDirectionChange?: (value: string) => void;
+  fillPolishTitle?: boolean;
+  onFillPolishTitleChange?: (value: boolean) => void;
 }) {
   const { t } = useI18n();
   const updateChoice = (index: number, value: Choice) => update({ ...scene, choices: scene.choices.map((choice, i) => i === index ? value : choice) });
@@ -18,11 +24,44 @@ export function SceneEditor({ scene, scenes, variables = {}, update, remove, onF
     <div className="field-row"><label>{t('场景 ID')}<input value={scene.id} maxLength={80} onChange={e => update({ ...scene, id: e.target.value })} /></label><label>{t('标题')}<input value={scene.title} maxLength={200} onChange={e => update({ ...scene, title: e.target.value })} /></label></div>
     <label>{t('叙事正文')}<textarea className="story-input" rows={9} maxLength={12000} value={scene.text} onChange={e => update({ ...scene, text: e.target.value })} /></label>
     {onFillText && (
-      <div className="fill-scene-row" data-testid="fill-scene-row">
-        <button type="button" className="small primary" data-testid="fill-scene-text" disabled={!!fillBusy} onClick={() => { if (!fillBusy) onFillText(); }}>
-          {t(fillBusy ? '补全文中…' : '补全文')}
-        </button>
-        <span className="hint">{t('用模型加深本场景正文，不改选项与连线；结果写入本地未保存编辑。')}</span>
+      <div className="fill-scene-block" data-testid="fill-scene-row">
+        <div className="fill-direction-row" role="group" aria-label={t('补全文方向')}>
+          {FILL_DIRECTION_CHIPS.map(chip => (
+            <button
+              key={chip}
+              type="button"
+              className={`small${fillDirection === chip ? ' active' : ''}`}
+              data-testid={`fill-direction-${chip}`}
+              disabled={!!fillBusy}
+              onClick={() => onFillDirectionChange?.(fillDirection === chip ? '' : chip)}
+            >{t(chip)}</button>
+          ))}
+          <input
+            className="fill-direction-input"
+            data-testid="fill-direction-input"
+            maxLength={200}
+            placeholder={t('或自定义方向…')}
+            value={(FILL_DIRECTION_CHIPS as readonly string[]).includes(fillDirection) ? '' : fillDirection}
+            disabled={!!fillBusy}
+            onChange={e => onFillDirectionChange?.(e.target.value)}
+          />
+        </div>
+        <label className="fill-polish-title">
+          <input
+            type="checkbox"
+            data-testid="fill-polish-title"
+            checked={!!fillPolishTitle}
+            disabled={!!fillBusy}
+            onChange={e => onFillPolishTitleChange?.(e.target.checked)}
+          />
+          <span>{t('同时润色标题')}</span>
+        </label>
+        <div className="fill-scene-row">
+          <button type="button" className="small primary" data-testid="fill-scene-text" disabled={!!fillBusy} onClick={() => { if (!fillBusy) onFillText(); }}>
+            {t(fillBusy ? '补全文中…' : '补全文')}
+          </button>
+          <span className="hint">{t('用模型加深本场景正文，不改选项与连线；结果写入本地未保存编辑。')}</span>
+        </div>
       </div>
     )}
     <div className="field-row"><label>{t('内容来源')}<select value={scene.origin} onChange={e => update({ ...scene, origin: e.target.value as Scene['origin'] })}><option value="source">{t('依据原作')}</option><option value="adapted">{t('改编新增')}</option></select></label><label>{t('结局描述（仅结局场景）')}<input value={scene.ending ?? ''} maxLength={1000} onChange={e => update({ ...scene, ending: e.target.value || undefined })} placeholder={t('留空表示尚未结束')} /></label></div>
