@@ -5,17 +5,24 @@ export class RequestError extends Error {
   get uncertain() { return this.status === 0 || this.status >= 500; }
 }
 
-export async function request<T>(token: string, path: string, method = 'GET', body?: unknown): Promise<T> {
+export async function request<T>(token: string, path: string, method = 'GET', body?: unknown, options?: { signal?: AbortSignal }): Promise<T> {
   let response: Response;
   try {
     const headers: Record<string, string> = {};
     if (token) headers.Authorization = `Bearer ${token}`;
     if (body !== undefined) headers['Content-Type'] = 'application/json';
+    const timeout = AbortSignal.timeout(30000);
+    const signal = options?.signal
+      ? (typeof AbortSignal.any === 'function' ? AbortSignal.any([timeout, options.signal]) : options.signal)
+      : timeout;
     response = await fetch(`/api${path}`, {
       method, headers,
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(30000),
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}), signal,
     });
-  } catch {
+  } catch (err) {
+    if (options?.signal?.aborted || (err instanceof DOMException && err.name === 'AbortError')) {
+      throw new RequestError('操作已取消。', 'REQUEST_ABORTED', 0);
+    }
     throw new RequestError('无法确认请求结果。请检查本地服务，再重试同一操作。', 'NETWORK_UNCERTAIN', 0);
   }
   const data = await response.json().catch(() => null) as T | ApiError | null;
@@ -28,6 +35,7 @@ export async function request<T>(token: string, path: string, method = 'GET', bo
 }
 
 const commonErrors: Record<string, string> = {
+  REQUEST_ABORTED: '操作已取消。',
   UNAUTHORIZED: '受保护接口访问码无效，请检查 MCP 连接配置。',
   FORBIDDEN_ORIGIN: '当前请求没有访问权限。',
   MODEL_NOT_CONFIGURED: '尚未配置模型服务，请在模型设置中保存配置。',

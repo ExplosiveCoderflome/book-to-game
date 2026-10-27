@@ -9,7 +9,10 @@ import type { PlayOverlayState } from '../lib/play-overlay';
 interface Props {
   content: GameContent;
   selectedSceneId?: string;
-  onSelectScene: (sceneId: string) => void;
+  /** Multi-select set (Shift/⌘ click). Falls back to selectedSceneId alone. */
+  selectedSceneIds?: string[];
+  onSelectScene: (sceneId: string, opts?: { additive?: boolean }) => void;
+  onClearSelection?: () => void;
   onAddScene?: () => void;
   onLayoutChange?: (layout: CanvasLayout) => void;
   onConnectScenes?: (fromId: string, toId: string) => void;
@@ -39,6 +42,9 @@ interface Props {
   lastExtendSummary?: { addedCount: number; anchorTitle: string; neighborCount: 1 | 2 } | null;
   /** Batch extend all current leaf nodes (+1 each). */
   onBatchExtendLeaves?: () => void;
+  /** Extend each currently selected node (+neighborCount). */
+  onExtendSelectedScenes?: () => void;
+  onCancelExtend?: () => void;
   batchExtendProgress?: { done: number; total: number } | null;
   leafCount?: number;
   /** Post-generation progressive loop hint. */
@@ -58,12 +64,12 @@ const NODE_W = 168;
 const NODE_H = 64;
 
 export function BranchGraphCanvas({
-  content, selectedSceneId, onSelectScene, onAddScene, onLayoutChange, onConnectScenes, onDisconnectEdge,
+  content, selectedSceneId, selectedSceneIds, onSelectScene, onClearSelection, onAddScene, onLayoutChange, onConnectScenes, onDisconnectEdge,
   primary = false, playabilityMode = 'publish', playOverlay = null, readOnly = false,
   generationJob = null, onOpenGenerationDraft, onWatchGeneration, skeletonPlaceholder = false,
   onExtendScene, extendBusy = false, extendNeighborCount = 1, onExtendNeighborCountChange,
   onExtendAgain, extendAgainTargetId = null, lastExtendSummary = null,
-  onBatchExtendLeaves, batchExtendProgress = null, leafCount = 0,
+  onBatchExtendLeaves, onExtendSelectedScenes, onCancelExtend, batchExtendProgress = null, leafCount = 0,
   showExtendGuide = false, onDismissExtendGuide,
   focusSceneIds, focusNonce = 0,
 }: Props) {
@@ -74,7 +80,7 @@ export function BranchGraphCanvas({
   const [zoom, setZoom] = useState(1);
   const [connectFrom, setConnectFrom] = useState<string | null>(null);
   const panDrag = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
-  const nodeDrag = useRef<{ id: string; startX: number; startY: number; origX: number; origY: number; moved: boolean } | null>(null);
+  const nodeDrag = useRef<{ id: string; startX: number; startY: number; origX: number; origY: number; moved: boolean; additive: boolean } | null>(null);
   const [dragPos, setDragPos] = useState<{ id: string; x: number; y: number } | null>(null);
   const [hoveredEdgeKey, setHoveredEdgeKey] = useState<string | null>(null);
   const [hoverScreen, setHoverScreen] = useState<{ x: number; y: number } | null>(null);
@@ -229,7 +235,10 @@ export function BranchGraphCanvas({
         onSelectScene(id);
         return;
       }
-      nodeDrag.current = { id, startX: event.clientX, startY: event.clientY, origX: node.x, origY: node.y, moved: false };
+      nodeDrag.current = {
+        id, startX: event.clientX, startY: event.clientY, origX: node.x, origY: node.y, moved: false,
+        additive: event.shiftKey || event.metaKey || event.ctrlKey,
+      };
       event.currentTarget.setPointerCapture(event.pointerId);
       return;
     }
@@ -270,7 +279,7 @@ export function BranchGraphCanvas({
         base[drag.id] = { x: nextX, y: nextY };
         onLayoutChange(base);
       } else if (!drag.moved) {
-        onSelectScene(drag.id);
+        onSelectScene(drag.id, { additive: drag.additive });
       }
       setDragPos(null);
     }
@@ -282,7 +291,7 @@ export function BranchGraphCanvas({
     <div className="branch-canvas-chrome" data-canvas-ui>
       <div>
         <h4>{t('分支画布')}</h4>
-        <small className="hint">{t('主编辑面：拖节点排版，拖空白平移，滚轮缩放；点选打开侧栏。')}</small>
+        <small className="hint">{t('主编辑面：拖节点排版；Shift/⌘ 点选多选；滚轮缩放。')}</small>
       </div>
       <div className="branch-canvas-toolbar">
         <span className="hint">{t('{count} 个场景', { count: content.scenes.length })}</span>
@@ -366,6 +375,42 @@ export function BranchGraphCanvas({
                     : { count: leafCount },
                 )}
               </button>
+            )}
+            {onExtendSelectedScenes && (selectedSceneIds?.length ?? 0) >= 1 && (
+              <button
+                type="button"
+                className="small primary"
+                data-testid="canvas-extend-selected"
+                disabled={extendBusy || (selectedSceneIds?.length ?? 0) < 1}
+                title={t('对当前多选节点各延申一轮')}
+                onClick={() => { if (!extendBusy) onExtendSelectedScenes(); }}
+              >
+                {t(
+                  batchExtendProgress
+                    ? '选中延申 {done}/{total}…'
+                    : '对选中各延申（{count}）',
+                  batchExtendProgress
+                    ? { done: batchExtendProgress.done, total: batchExtendProgress.total }
+                    : { count: selectedSceneIds?.length ?? 0 },
+                )}
+              </button>
+            )}
+            {onClearSelection && (selectedSceneIds?.length ?? 0) > 1 && (
+              <button
+                type="button"
+                className="quiet small"
+                data-testid="canvas-clear-selection"
+                disabled={extendBusy}
+                onClick={onClearSelection}
+              >{t('清除多选')}</button>
+            )}
+            {onCancelExtend && extendBusy && (
+              <button
+                type="button"
+                className="quiet small"
+                data-testid="canvas-cancel-extend"
+                onClick={onCancelExtend}
+              >{t('取消延申')}</button>
             )}
           </>
         )}
@@ -511,7 +556,9 @@ export function BranchGraphCanvas({
             );
           })}
           {nodes.map(node => {
-            const selected = node.id === selectedSceneId;
+            const selected = (selectedSceneIds && selectedSceneIds.length > 0)
+              ? selectedSceneIds.includes(node.id)
+              : node.id === selectedSceneId;
             const flagged = flaggedScenes.has(node.id);
             const connecting = !readOnly && connectFrom === node.id;
             const isCurrent = currentPlaySceneId === node.id;
@@ -524,7 +571,7 @@ export function BranchGraphCanvas({
               data-play-visited={visited ? 'true' : undefined}
               data-skeleton={skeletonPlaceholder ? 'true' : undefined}
               transform={`translate(${node.x} ${node.y})`}
-              className={`branch-node${selected ? ' selected' : ''}${node.ending ? ' ending' : ''}${node.isStart ? ' start' : ''}${flagged ? ' flagged' : ''}${connecting ? ' connecting' : ''}${isCurrent ? ' play-current' : ''}${visited && !isCurrent ? ' play-visited' : ''}${skeletonPlaceholder ? ' skeleton' : ''}${focusSceneIds?.includes(node.id) ? ' just-extended' : ''}`}
+              className={`branch-node${selected ? ' selected' : ''}${selected && selectedSceneIds && selectedSceneIds.length > 1 ? ' multi-selected' : ''}${node.ending ? ' ending' : ''}${node.isStart ? ' start' : ''}${flagged ? ' flagged' : ''}${connecting ? ' connecting' : ''}${isCurrent ? ' play-current' : ''}${visited && !isCurrent ? ' play-visited' : ''}${skeletonPlaceholder ? ' skeleton' : ''}${focusSceneIds?.includes(node.id) ? ' just-extended' : ''}`}
               style={{ cursor: readOnly ? 'pointer' : 'grab' }}
             >
               <rect width={NODE_W} height={NODE_H} rx="10" ry="10" />
