@@ -1,6 +1,7 @@
 /** Opening action density & initial-state condition matching for open worlds. */
 
 import { SYSTEM_WAIT_ACTION_ID, type WorldCondition, type WorldContent } from '@novel-game/contracts';
+import { evalWorldCondition } from './kind-builtins.js';
 
 /** Minimal snapshot for WorldCondition matching (opening eval + adventure runtime). */
 export type WorldConditionState = {
@@ -31,14 +32,7 @@ export function initialWorldState(world: WorldContent): OpeningEvalState {
 }
 
 export function matchesWorldConditions(conditions: WorldCondition[], state: WorldConditionState): boolean {
-  return conditions.every(condition => {
-    switch (condition.kind) {
-      case 'fact': return state.facts[condition.factId] === condition.value;
-      case 'known': return state.knownFactIds.includes(condition.factId);
-      case 'npc_knows': return state.npcs[condition.npcId]?.knownFactIds.includes(condition.factId) === true;
-      case 'time': return state.elapsed >= condition.atLeast;
-    }
-  });
+  return conditions.every(condition => evalWorldCondition(condition, state));
 }
 
 /** Pure time-sink labels — do not count toward opening density. */

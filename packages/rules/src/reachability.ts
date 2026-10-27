@@ -1,5 +1,7 @@
 /** Variable-aware story reachability: BFS over (sceneId, variableState). */
 
+import { applyStoryEffect, evalStoryCondition } from './kind-builtins.js';
+
 export type ReachVarValue = string | number | boolean;
 
 export type ReachCondition =
@@ -44,34 +46,18 @@ export function choiceAvailable(
   choice: Pick<ReachChoice, 'conditions'>,
   variables: Record<string, ReachVarValue>,
 ): boolean {
-  return (choice.conditions ?? []).every(condition => {
-    if (!Object.hasOwn(variables, condition.variable)) return false;
-    const current = variables[condition.variable];
-    return condition.type === 'variable.equals'
-      ? current === condition.value
-      : typeof current === 'number' && Number.isFinite(current) && current >= condition.value;
-  });
+  return (choice.conditions ?? []).every(condition => evalStoryCondition(condition, variables));
 }
 
 export function applyChoiceEffects(
   choice: Pick<ReachChoice, 'effects'>,
   current: Record<string, ReachVarValue>,
 ): Record<string, ReachVarValue> | null {
-  const variables = { ...current };
+  let variables = { ...current };
   for (const effect of choice.effects ?? []) {
-    const previous = variables[effect.variable];
-    if (
-      !Object.hasOwn(variables, effect.variable)
-      || typeof previous !== typeof effect.value
-      || (effect.type === 'variable.increment' && typeof previous !== 'number')
-    ) {
-      return null;
-    }
-    const value = effect.type === 'variable.increment'
-      ? (previous as number) + effect.value
-      : effect.value;
-    if (typeof value === 'number' && !Number.isFinite(value)) return null;
-    variables[effect.variable] = value;
+    const next = applyStoryEffect(effect, variables);
+    if (!next) return null;
+    variables = next;
   }
   return variables;
 }

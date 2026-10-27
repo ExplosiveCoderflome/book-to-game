@@ -105,7 +105,7 @@ flowchart LR
 | generation 直接 mutate sessions / adventures | 扫描无命中（经草稿写入端口 / 组合根） | — | 保持 |
 | 跨模块深引用越过 index | architecture 脚本 + 抽查无新增违规 | — | 保持门禁 |
 
-**未做（刻意）**：合并 story 与 adventure 规则引擎；条件/效果插件注册表；自定义用户模板库；旁白 visitCache 抽成跨进程 port（仍为单进程软缓存）。
+**未做（刻意）**：合并 story 与 adventure 规则引擎；自定义用户模板库；旁白 visitCache 抽成跨进程 port（仍为单进程软缓存）；世界效果纯 apply 迁入 rules；磁盘插件加载 / 运行时用户自定义种类。
 
 ---
 
@@ -118,6 +118,7 @@ flowchart LR
 3. **作者 UI 缝**：`useStoryCanvasPlay` / `useWorldCanvasPlay` + `StoryPlayInspector` / `WorldPlayInspector` 拆出画布试玩与 AI 辅助，DraftPanel/WorldsPanel 保留作者壳。
 4. **P2 低风险去重（续）**：DemoPreview 对齐 rules；`moveTarget` 抽到 `world-move.ts`；AI 适配器落点 + visitCache 软缓存纪律写入本文。
 5. **contracts / rules 分包**：纯求值引擎迁入 `packages/rules`；contracts 只留 schema/DTO/编目。
+6. **KindRegistry 缝**：内置 condition/effect 元数据 + 求值调度；未知 kind 失败关闭；世界效果暂仅 meta。
 
 ## 6.2 AI 适配器落点（当前，轻量）
 
@@ -142,13 +143,35 @@ flowchart LR
 
 依赖方向：**rules → contracts**，禁止反向。sessions / adventure-sessions 继续只包 worldbook 感知包装（cap/spend + AppError），不复制纯匹配。
 
-**TODO（未做）**：条件/效果 **插件注册表**（开放种类扩展）；当前仍为 contracts 闭集 + rules 硬编码分支。
+### 条件/效果 KindRegistry 缝（2026-10-27）
+
+v1 **仍用 contracts 闭集 zod** 保证线缆安全；`@novel-game/rules` 增加 `KindRegistry` 作为机械延伸缝：
+
+| API | 用途 |
+|---|---|
+| `storyConditionKinds` / `storyEffectKinds` / `worldConditionKinds` / `worldEffectKinds` | `register` / `get` / `list`；内置种类模块加载时注册 |
+| `evalStoryCondition` / `applyStoryEffect` / `evalWorldCondition` | 按 kind 字符串调度；未知 kind **失败关闭**（条件假 / 效果 `null`） |
+| `listAllKindMeta()` | UI 可读的 label/description 编目 |
+| `choiceAvailable` / `applyChoiceEffects` / `matchesWorldConditions` | 已改为经注册表调度（语义与硬编码分支对齐） |
+
+**世界效果**：`worldEffectKinds` 目前只挂元数据；纯 apply（含资源/移动）仍在 `adventure-sessions`（世界书 cap 包装）。迁入 rules 后再挂 `evaluate`。
+
+#### 新增一种 condition/effect 的检查清单
+
+1. 在 `@novel-game/contracts` 扩展对应 discriminatedUnion（保持闭集校验）
+2. 在 `packages/rules/src/kind-builtins.ts` `register`：meta（label/description）+ 纯 `evaluate`
+3. 确认 `choiceAvailable` / `applyChoiceEffects` / `matchesWorldConditions`（或世界效果 apply）经注册表走到新 kind
+4. 同步 **story 与 open** 两边运行时包装（worldbook 等）
+5. UI（`ChoiceRulesEditor` 等）从 `*.list()` / `get().label` 读文案，禁止本地再写一套 kind 表
+6. 迁移策略 + 测试（含未知 kind 失败关闭）
+
+**仍不做**：磁盘插件加载、用户在运行时注册任意 kind、开放 zod 为自由字符串。
 
 ## 7. 延伸路线图（纪律，非排期承诺）
 
 
 1. **Catalog 加厚**：题材包 = 模板 + 提示种子 + 可选可玩性权重；仍 compile-down。  
-2. **条件/效果种类扩展**：contracts schema → rules 求值 → 双运行时包装 → 迁移文档 → UI；一次一种。  
+2. **条件/效果种类扩展**：contracts schema → `kind-builtins` register → 双运行时包装 → 迁移文档 → UI 读 registry；一次一种。  
 3. **AI 新能力**：一律「建议 / 映射 / 填文」，提交仍走 act 端口。  
 4. **作者面**：StatEditor / 画布 / HUD 消费 contracts（形状）+ rules（求值）；不复制权威求值。  
 5. **开放世界与分支故事**：共享命令与设计纪律；schema 分治，避免编辑器强绑。

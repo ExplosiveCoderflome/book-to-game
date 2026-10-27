@@ -1,15 +1,15 @@
 import type { Choice, StoryCondition, StoryEffect, VariableValue } from '@novel-game/contracts';
+import { storyConditionKinds, storyEffectKinds } from '@novel-game/rules';
 import { useRef } from 'react';
 import { useI18n } from '../lib/i18n';
 import { StoryValueInput } from './StoryVariablesEditor';
 
 type Rule = StoryCondition | StoryEffect;
-const operationLabels: Record<Rule['type'], string> = {
-  'variable.equals': '等于',
-  'variable.gte': '大于或等于',
-  'variable.set': '设置为',
-  'variable.increment': '增加（负数为减少）',
-};
+function operationLabel(type: Rule['type']): string {
+  return storyConditionKinds.get(type)?.label
+    ?? storyEffectKinds.get(type)?.label
+    ?? type;
+}
 
 /** Dense instrument editor: conditions = gate, effects = cost. Logic unchanged. */
 export function ChoiceRulesEditor({
@@ -136,10 +136,10 @@ export function ChoiceRulesEditor({
                           );
                         }}
                       >
-                        <option value={defaultType}>{t(operationLabels[defaultType])}</option>
+                        <option value={defaultType}>{t(operationLabel(defaultType))}</option>
                         {(numeric || rule.type === numericType) && (
                           <option value={numericType} disabled={!numeric}>
-                            {t(operationLabels[numericType])}
+                            {t(operationLabel(numericType))}
                           </option>
                         )}
                       </select>

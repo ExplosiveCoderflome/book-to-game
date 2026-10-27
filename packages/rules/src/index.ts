@@ -20,3 +20,26 @@ export {
   entryAppliesToScene, entryAppliesToLocation, entriesForPlace, entriesForScene,
   worldbookBlockReason, worldbookIncrementCap, worldbookSpendsForChoice, mergeTakenTags,
 } from './worldbook.js';
+
+export {
+  KindRegistry,
+  type KindFamily,
+  type KindMeta,
+  type KindEntry,
+} from './kind-registry.js';
+
+export {
+  storyConditionKinds,
+  storyEffectKinds,
+  worldConditionKinds,
+  worldEffectKinds,
+  evalStoryCondition,
+  applyStoryEffect,
+  evalWorldCondition,
+  listAllKindMeta,
+  resetBuiltinKinds,
+  type StoryConditionEvaluator,
+  type StoryEffectApplier,
+  type WorldConditionEvaluator,
+} from './kind-builtins.js';
+
