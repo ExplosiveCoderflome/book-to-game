@@ -1,5 +1,5 @@
 import {SYSTEM_WAIT_ACTION_ID, validateWorldbookContent, type WorldContent, type WorldCondition, type WorldEffect, type SourceDocument, type ValidationResult} from '@novel-game/contracts';
-import {assessOpeningActions, validateWorldMap} from '@novel-game/rules';
+import {assessOpeningActions, mapIdOf, validateWorldMap, worldFactions, worldMaps} from '@novel-game/rules';
 export function validateWorld(world: WorldContent, source: SourceDocument): ValidationResult {
   const errors: string[] = []; const warnings: string[] = [];
   function ids(entries: {id: string}[], category: string): Set<string> {
@@ -17,6 +17,13 @@ export function validateWorld(world: WorldContent, source: SourceDocument): Vali
   function reference(set: Set<string>, id: string, owner: string, kind: string): void {
     if (!set.has(id)) errors.push(`${owner} 的${kind}不存在：${id}`);
   }
+  const factionIds = new Set(worldFactions(world).map(f => f.id));
+  const mapIds = new Set(worldMaps(world).map(mapIdOf));
+  for (const r of world.factionRelations ?? []) {
+    reference(factionIds, r.a, '势力关系', '势力'); reference(factionIds, r.b, '势力关系', '势力');
+    if (r.a === r.b) errors.push(`势力关系不能指向自身：${r.a}`);
+  }
+  for (const f of worldFactions(world)) for (const st of f.stats ?? []) if (!(world.resources && st.resourceId in world.resources)) errors.push(`势力 ${f.name} 的数值「${st.label}」引用了不存在的资源：${st.resourceId}`);
   function conditions(items: WorldCondition[], owner: string): void {
     for (const item of items) {
       if (item.kind === 'fact' || item.kind === 'known' || item.kind === 'npc_knows') reference(facts, item.factId, owner, '事实');
@@ -36,6 +43,8 @@ export function validateWorld(world: WorldContent, source: SourceDocument): Vali
         if (!world.map?.layers?.factions) warnings.push(`${owner} 使用势力领土条件，但世界没有势力图层（条件恒不成立）`);
         else for (const fid of item.factionIds) if (!known.has(fid)) errors.push(`${owner} 的势力不存在：${fid}`);
       }
+      if (item.kind === 'faction_relation') { reference(factionIds, item.a, owner, '势力'); reference(factionIds, item.b, owner, '势力'); }
+      if (item.kind === 'npc_at_location') { reference(npcs, item.npcId, owner, 'NPC'); reference(locations, item.locationId, owner, '地点'); }
       if (item.kind === 'time' && item.atLeast > world.timeLimit) warnings.push(`${owner} 的时间条件超过时限`);
     }
   }
@@ -45,6 +54,12 @@ export function validateWorld(world: WorldContent, source: SourceDocument): Vali
       if (item.kind === 'set' || item.kind === 'reveal' || item.kind === 'npc_learn') reference(facts, item.factId, owner, '事实');
       if (item.kind === 'npc_move' || item.kind === 'npc_learn') reference(npcs, item.npcId, owner, 'NPC');
       if (item.kind === 'move' || item.kind === 'npc_move') reference(locations, item.locationId, owner, '地点');
+      if (item.kind === 'set_territory') {
+        if (item.factionId !== null) reference(factionIds, item.factionId, owner, '势力');
+        if (item.mapId && !mapIds.has(item.mapId)) errors.push(`${owner} 的地图不存在：${item.mapId}`);
+        if (!world.map) warnings.push(`${owner} 改变领土，但世界没有地图（效果无作用）`);
+      }
+      if (item.kind === 'set_faction_relation') { reference(factionIds, item.a, owner, '势力'); reference(factionIds, item.b, owner, '势力'); }
       if (item.kind === 'resource' && !resourceIds.has(item.resourceId)) {
         errors.push(`${owner} 的资源不存在：${item.resourceId}`);
       }

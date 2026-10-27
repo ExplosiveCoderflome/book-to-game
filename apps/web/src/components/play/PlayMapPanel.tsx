@@ -1,5 +1,5 @@
 import type { AdventureView, WorldContent } from '@novel-game/contracts';
-import { findMap } from '@novel-game/rules';
+import { applyTerritoryOverlay, findMap, STANCE_LABEL, worldFactions } from '@novel-game/rules';
 import { useI18n } from '../../lib/i18n';
 import { WorldMapViewer } from '../WorldMapViewer';
 
@@ -8,7 +8,10 @@ export function PlayMapPanel({ content, session, overlayMap }: { content: WorldC
   const { t } = useI18n();
   const mv = session.map; if (!mv) return null;
   const authored = findMap(content, mv.mapId); if (!authored) return null;
-  const map = overlayMap ? overlayMap(authored) : authored;
+  const withTerritory = applyTerritoryOverlay(authored, mv.territory);
+  const map = overlayMap ? overlayMap(withTerritory) : withTerritory;
+  const fname = new Map(worldFactions(content).map(f => [f.id, f]));
+  const changed = Object.keys(mv.territory ?? {}).length;
   const reachable = mv.reachable.filter(r => r.enabled).map(r => r.locationId);
   const titles = new Map(content.locations.map(l => [l.id, l.title]));
   const explored = mv.fog ? mv.explored ?? [] : undefined;
@@ -25,6 +28,9 @@ export function PlayMapPanel({ content, session, overlayMap }: { content: WorldC
     <div className="play-map-legend">
       <span><i className="lg-player" />{t('你在这里')}</span><span><i className="lg-reach" />{t('可前往')}</span>{mv.fog && <span><i className="lg-fog" />{t('未探索')}</span>}
     </div>
+    {changed > 0 && <p className="hint" data-testid="play-territory-changed">{t('本局领土变化 {n} 格（只影响本存档）', { n: changed })}</p>}
+    {mv.relations && mv.relations.length > 0 && <div className="play-relations" data-testid="play-relations">{mv.relations.map(r => <span key={`${r.a}|${r.b}`} className={`rel-pill st-${r.stance}`}>
+      {fname.get(r.a)?.name ?? r.a} ↔ {fname.get(r.b)?.name ?? r.b} · {t(STANCE_LABEL[r.stance])} {r.standing > 0 ? '+' : ''}{r.standing}</span>)}</div>}
     {mv.reachable.length > 0 && <ul className="play-map-dests">{mv.reachable.map(r => <li key={r.actionId} className={r.enabled ? '' : 'disabled'}>→ {titles.get(r.locationId) ?? r.locationId}{!r.enabled && <small> · {t('暂不可行')}</small>}</li>)}</ul>}
   </section>;
 }

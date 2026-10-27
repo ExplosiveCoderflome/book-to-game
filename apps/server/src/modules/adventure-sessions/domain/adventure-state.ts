@@ -11,6 +11,10 @@ export interface AdventureState {
   performedActionIds: string[]; triggeredEventIds: string[];
   /** Fog of war: explored cells per map id (session-only; authored maps never change). */
   explored?: Record<string, string[]>;
+  /** Dynamic territory overlay per map id: cell → faction id ('' = unclaimed). */
+  territory?: Record<string, Record<string, string>>;
+  /** Faction relation overrides keyed by sorted pair "a|b". */
+  factionRelations?: Record<string, {stance: 'ally' | 'neutral' | 'hostile'; standing: number}>;
   ending?: {id: string; title: string; text: string};
   history: AdventureHistory[]; createdAt: string; updatedAt: string;
 }

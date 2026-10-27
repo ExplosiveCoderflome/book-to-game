@@ -1,5 +1,5 @@
-import type { WorldCondition, WorldContent } from '@novel-game/contracts';
-import { worldConditionKinds } from '@novel-game/rules';
+import { FACTION_STANCES, type FactionStance, type WorldCondition, type WorldContent, type WorldEffect } from '@novel-game/contracts';
+import { STANCE_LABEL, worldConditionKinds, worldEffectKinds, worldFactions } from '@novel-game/rules';
 import { useI18n } from '../lib/i18n';
 
 type Action = WorldContent['actions'][number];
@@ -16,6 +16,8 @@ function defaultCondition(kind: string, w: WorldContent): WorldCondition | null 
     case 'at_terrain': return { kind, terrainIds: [w.map?.layers?.terrain?.palette[0]?.id ?? 'terrain'] };
     case 'in_faction_territory': return { kind, factionIds: [w.map?.layers?.factions?.factions[0]?.id ?? 'faction'] };
     case 'in_region': return { kind, regionIds: [w.map?.layers?.regions?.regions[0]?.id ?? 'region'] };
+    case 'faction_relation': { const f = worldFactions(w); return { kind, a: f[0]?.id ?? 'a', b: f[1]?.id ?? f[0]?.id ?? 'b', stances: ['hostile'] }; }
+    case 'npc_at_location': return { kind, npcId: npc, locationId: w.locations[0]?.id ?? 'loc' };
     default: return null;
   }
 }
@@ -28,6 +30,10 @@ export function WorldActionRulesEditor({ content: w, locationId, onChange }: { c
   const terrains = w.map?.layers?.terrain?.palette.map(p => ({ id: p.id, label: p.label, color: p.color })) ?? [];
   const factions = w.map?.layers?.factions?.factions.map(f => ({ id: f.id, label: f.name, color: f.color })) ?? [];
   const regions = w.map?.layers?.regions?.regions.map(r => ({ id: r.id, label: r.name, color: r.color })) ?? [];
+  const allFactions = worldFactions(w);
+  const factionSel = (value: string, onSet: (id: string) => void) => <select value={value} onChange={e => onSet(e.target.value)}>
+    {!allFactions.some(f => f.id === value) && <option value={value}>{value}</option>}
+    {allFactions.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</select>;
 
   function setAction(id: string, patch: Partial<Action>) {
     onChange({ ...w, actions: w.actions.map(a => (a.id === id ? { ...a, ...patch } : a)) });
@@ -59,6 +65,11 @@ export function WorldActionRulesEditor({ content: w, locationId, onChange }: { c
       case 'at_terrain': return idChips(c.terrainIds, terrains, terrainIds => set({ ...c, terrainIds }), t('地图没有地形图层'));
       case 'in_faction_territory': return idChips(c.factionIds, factions, factionIds => set({ ...c, factionIds }), t('地图没有势力图层'));
       case 'in_region': return idChips(c.regionIds, regions, regionIds => set({ ...c, regionIds }), t('地图没有区域图层'));
+      case 'faction_relation': return <>{factionSel(c.a, a => set({ ...c, a }))}{factionSel(c.b, b => set({ ...c, b }))}
+        <select value={c.stances?.[0] ?? ''} onChange={e => set({ ...c, stances: e.target.value ? [e.target.value as FactionStance] : undefined })}><option value="">{t('任意立场')}</option>{FACTION_STANCES.map(x => <option key={x} value={x}>{t(STANCE_LABEL[x])}</option>)}</select>
+        <input type="number" placeholder="≥" title={t('好感至少')} value={c.atLeast ?? ''} onChange={e => set({ ...c, atLeast: e.target.value === '' ? undefined : Number(e.target.value) })} /></>;
+      case 'npc_at_location': return <><select value={c.npcId} onChange={e => set({ ...c, npcId: e.target.value })}>{w.npcs.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}</select>
+        <select value={c.locationId} onChange={e => set({ ...c, locationId: e.target.value })}>{w.locations.map(l => <option key={l.id} value={l.id}>{l.title}</option>)}</select></>;
     }
   }
 
@@ -84,6 +95,38 @@ export function WorldActionRulesEditor({ content: w, locationId, onChange }: { c
     </div>;
   }
 
+  /** Map/world effects (territory + relations). Other effect kinds stay read-only chips here. */
+  function effectEditor(a: Action) {
+    const MAP_KINDS = ['set_territory', 'set_faction_relation'];
+    const setEff = (effects: WorldEffect[]) => setAction(a.id, { effects });
+    const def = (kind: string): WorldEffect | null => kind === 'set_territory'
+      ? { kind, factionId: allFactions[0]?.id ?? null, regionId: regions[0]?.id, ...(regions[0] ? {} : { cells: [w.map?.pois.find(p => p.locationId === a.locationId)?.anchor.cell ?? '0,0'] }) }
+      : kind === 'set_faction_relation' ? { kind, a: allFactions[0]?.id ?? 'a', b: allFactions[1]?.id ?? 'b', standingDelta: -20 } : null;
+    return <div className="wr-slot">
+      <div className="wr-slot-head"><strong>{t('执行效果')}</strong><span className="hint">{a.effects.filter(e => !MAP_KINDS.includes(e.kind)).map(e => t(worldEffectKinds.get(e.kind)?.label ?? e.kind)).join(' · ')}</span></div>
+      {a.effects.map((e, i) => {
+        if (e.kind !== 'set_territory' && e.kind !== 'set_faction_relation') return null;
+        const put = (n: WorldEffect) => setEff(a.effects.map((x, j) => j === i ? n : x));
+        return <div key={i} className="wr-row" data-testid={`wr-eff-${a.id}-${i}`}>
+          <span className="wr-kind">{t(worldEffectKinds.get(e.kind)?.label ?? e.kind)}</span>
+          <div className="wr-params">{e.kind === 'set_territory' ? <>
+            <select value={e.regionId ?? ''} onChange={ev => put({ ...e, regionId: ev.target.value || undefined, cells: ev.target.value ? undefined : e.cells?.length ? e.cells : [w.map?.pois.find(p => p.locationId === a.locationId)?.anchor.cell ?? '0,0'] })}>
+              <option value="">{t('此地所在格')}</option>{regions.map(r => <option key={r.id} value={r.id}>{t('区域')}·{r.label}</option>)}</select>
+            <span>→</span>
+            <select value={e.factionId ?? ''} onChange={ev => put({ ...e, factionId: ev.target.value || null })}><option value="">{t('无主')}</option>{allFactions.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</select>
+          </> : <>
+            {factionSel(e.a, x => put({ ...e, a: x }))}{factionSel(e.b, x => put({ ...e, b: x }))}
+            <select value={e.stance ?? ''} onChange={ev => put({ ...e, stance: (ev.target.value || undefined) as FactionStance | undefined })}><option value="">{t('立场不变')}</option>{FACTION_STANCES.map(x => <option key={x} value={x}>{t(STANCE_LABEL[x])}</option>)}</select>
+            <input type="number" title={t('好感增减')} value={e.standingDelta ?? 0} onChange={ev => put({ ...e, standingDelta: Number(ev.target.value) || undefined })} />
+          </>}</div>
+          <button type="button" className="quiet tiny" onClick={() => setEff(a.effects.filter((_, j) => j !== i))}>×</button>
+        </div>;
+      })}
+      {allFactions.length > 0 && <select className="wr-add" value="" data-testid={`wr-add-eff-${a.id}`} onChange={ev => { const d = def(ev.target.value); if (d) setEff([...a.effects, d]); }}>
+        <option value="">+ {t('添加地图效果…')}</option>{MAP_KINDS.map(k => <option key={k} value={k}>{t(worldEffectKinds.get(k)?.label ?? k)}</option>)}</select>}
+    </div>;
+  }
+
   if (!actions.length) return null;
   return <div className="world-rules" data-testid="world-action-rules">
     <p className="world-map-tray-label">{t('此地行动条件')} · {actions.length}</p>
@@ -91,6 +134,7 @@ export function WorldActionRulesEditor({ content: w, locationId, onChange }: { c
       <summary><span>{a.label}</span><span className="wr-count">{a.availableWhen.length + a.requires.length}</span></summary>
       {slotEditor(a, 'availableWhen')}
       {slotEditor(a, 'requires')}
+      {effectEditor(a)}
     </details>)}
   </div>;
 }

@@ -42,7 +42,9 @@ export const terrainLayerSchema = z.object({
 });
 /** Faction layer (M3): factions + sparse cell→faction id (authored baseline; session overlays come later). */
 export const factionLayerSchema = z.object({
-  factions: z.array(z.object({ id, name: z.string().min(1).max(80), color, description: z.string().max(1000).optional() })).max(32),
+  factions: z.array(z.object({ id, name: z.string().min(1).max(80), color, description: z.string().max(1000).optional(),
+    /** Faction stats are ordinary world resources (shared numeric substrate): label → resource id. */
+    stats: z.array(z.object({ label: z.string().min(1).max(40), resourceId: id })).max(12).optional() })).max(32),
   cells: z.record(cellKeySchema, id),
 });
 

@@ -1,11 +1,20 @@
 import {type WorldContent, type WorldCondition, type WorldEffect} from '@novel-game/contracts';
-import {exploreLocation, locationMap, locationSpatial, matchesWorldConditions, mergeTakenTags, worldbookBlockReason, worldbookIncrementCap, worldbookSpendsForChoice} from '@novel-game/rules';
+import {applySetFactionRelation, applySetTerritory, applyTerritoryOverlay, exploreLocation, findMap, locationMap, mapIdOf, locationSpatial, matchesWorldConditions, mergeTakenTags, worldbookBlockReason, worldbookIncrementCap, worldbookSpendsForChoice} from '@novel-game/rules';
 import type { AdventureState } from './adventure-state.js';
 
 /** Pure WorldCondition match — authority lives in @novel-game/rules (world-opening). */
 export function matches(conditions: WorldCondition[], state: AdventureState, world?: WorldContent): boolean {
-  const map = world ? locationMap(world, state.locationId) : undefined;
-  return matchesWorldConditions(conditions, map ? { ...state, map } : state);
+  const map = world ? effectiveLocationMap(world, state) : undefined;
+  return matchesWorldConditions(conditions, {
+    ...state, ...(map ? { map } : {}),
+    factionRelations: world?.factionRelations,
+    relationOverlay: state.factionRelations,
+  });
+}
+/** Map for the player's location with this session's territory overlay folded in (authored map untouched). */
+export function effectiveLocationMap(world: WorldContent, state: Pick<AdventureState, 'locationId' | 'territory'>) {
+  const map = locationMap(world, state.locationId);
+  return map ? applyTerritoryOverlay(map, state.territory?.[mapIdOf(map)]) : undefined;
 }
 function addOnce(items: string[], id: string): void { if (!items.includes(id)) items.push(id); }
 
@@ -28,6 +37,17 @@ export function applyEffects(effects: WorldEffect[], state: AdventureState, worl
         state.resources[effect.resourceId] = previous + delta;
         break;
       }
+      case 'set_territory': {
+        if (!world) break;
+        const map = effect.mapId ? findMap(world, effect.mapId) : locationMap(world, state.locationId);
+        if (!map) break;
+        const id = mapIdOf(map);
+        state.territory = { ...(state.territory ?? {}), [id]: applySetTerritory(state.territory?.[id], map, effect) };
+        break;
+      }
+      case 'set_faction_relation':
+        state.factionRelations = applySetFactionRelation(world ?? {}, state.factionRelations, effect);
+        break;
     }
   }
 }
@@ -47,7 +67,7 @@ export function blockedReason(action: WorldContent['actions'][number], world: Wo
     world.worldbook,
     state.takenTags ?? [],
     'location',
-    {regionIds: locationSpatial(locationMap(world, state.locationId), state.locationId).regionIds},
+    {regionIds: locationSpatial(effectiveLocationMap(world, state), state.locationId).regionIds},
   );
   if (wb) return wb;
   return undefined;
@@ -60,7 +80,7 @@ export function applyWorldbookSpends(
   state: AdventureState,
 ): void {
   if (!state.resources) state.resources = { ...(world.resources ?? {}) };
-  for (const spend of worldbookSpendsForChoice(action, state.locationId, world.worldbook, 'location', {regionIds: locationSpatial(locationMap(world, state.locationId), state.locationId).regionIds})) {
+  for (const spend of worldbookSpendsForChoice(action, state.locationId, world.worldbook, 'location', {regionIds: locationSpatial(effectiveLocationMap(world, state), state.locationId).regionIds})) {
     const previous = state.resources[spend.variable] ?? 0;
     state.resources[spend.variable] = previous - spend.amount;
   }

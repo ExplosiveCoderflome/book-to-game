@@ -9,6 +9,7 @@ import { WorldGraphCanvas } from './WorldGraphCanvas';
 import { WorldMapCanvas } from './WorldMapCanvas';
 import { withMap } from '../lib/world-map';
 import type { WorldMap } from '@novel-game/contracts';
+import { FactionRelationsEditor } from './FactionRelationsEditor';
 import { WorldOverview } from './WorldOverview';
 import { WorldActionRulesEditor } from './WorldActionRulesEditor';
 import { WorldbookEditor } from './WorldbookEditor';
@@ -45,7 +46,7 @@ export function WorldsPanel({
   const [conflict, setConflict] = useState(false);
   const [reload, setReload] = useState(0);
   const [inspectorOpen, setInspectorOpen] = useState(false);
-  const [inspectorTab, setInspectorTab] = useState<'location' | 'meta' | 'all' | 'worldbook'>('location');
+  const [inspectorTab, setInspectorTab] = useState<'location' | 'meta' | 'all' | 'worldbook' | 'factions'>('location');
   const [selectedLocationId, setSelectedLocationId] = useState<string | undefined>();
   const [metaOpen, setMetaOpen] = useState(false);
   const [canvasMode, setCanvasMode] = useState<'edit' | 'play'>('edit');
@@ -294,6 +295,7 @@ export function WorldsPanel({
                       <button type="button" className={inspectorTab === 'location' ? 'active' : ''} onClick={() => setInspectorTab('location')}>{t('地点')}</button>
                       <button type="button" className={inspectorTab === 'meta' ? 'active' : ''} onClick={() => setInspectorTab('meta')}>{t('信息')}</button>
                       <button type="button" className={inspectorTab === 'worldbook' ? 'active' : ''} data-testid="inspector-worldbook-tab" onClick={() => setInspectorTab('worldbook')}>{t('世界书')}</button>
+                      <button type="button" className={inspectorTab === 'factions' ? 'active' : ''} data-testid="inspector-factions-tab" onClick={() => setInspectorTab('factions')}>{t('势力')}</button>
                       <button type="button" className={inspectorTab === 'all' ? 'active' : ''} onClick={() => setInspectorTab('all')}>{t('全览')}</button>
                     </div>
                     <button type="button" className="quiet small" onClick={() => setInspectorOpen(false)} aria-label={t('关闭侧栏')}>{t('关闭')}</button>
@@ -326,6 +328,7 @@ export function WorldsPanel({
                       places={content.locations.map(l => ({ id: l.id, title: l.title }))}
                       placeScopeType="locations"
                       regions={content.map?.layers?.regions?.regions.map(r => ({ id: r.id, name: r.name, color: r.color }))} />}
+                    {inspectorTab === 'factions' && <FactionRelationsEditor content={content} onChange={change} />}
                     {inspectorTab === 'all' && <WorldOverview content={content} />}
                   </div>
                 </aside>

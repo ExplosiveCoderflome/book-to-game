@@ -6,6 +6,13 @@ export const SYSTEM_WAIT_ACTION_ID = '__wait__';
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/, '标识只允许字母、数字、短横线和下划线');
 const evidence = z.object({chapterId: z.string().min(1).max(80), paragraphId: z.string().min(1).max(80)});
 const provenance = {origin: z.enum(['source', 'adapted']), evidence: z.array(evidence).max(30)};
+export const FACTION_STANCES = ['ally', 'neutral', 'hostile'] as const;
+export const factionStanceSchema = z.enum(FACTION_STANCES);
+export type FactionStance = z.infer<typeof factionStanceSchema>;
+/** Authored faction relation (unordered pair). standing −100..100. */
+export const factionRelationSchema = z.object({a: id, b: id, stance: factionStanceSchema, standing: z.number().int().min(-100).max(100)});
+export type FactionRelation = z.infer<typeof factionRelationSchema>;
+const cell = z.string().regex(/^-?\d{1,3},-?\d{1,3}$/);
 export const worldConditionSchema = z.discriminatedUnion('kind', [
   z.object({kind: z.literal('fact'), factId: id, value: z.boolean()}),
   z.object({kind: z.literal('known'), factId: id}),
@@ -17,6 +24,11 @@ export const worldConditionSchema = z.discriminatedUnion('kind', [
   z.object({kind: z.literal('in_faction_territory'), factionIds: z.array(id).min(1).max(20)}),
   /** Map-aware: player's current location lies in one of the named regions/districts. */
   z.object({kind: z.literal('in_region'), regionIds: z.array(id).min(1).max(20)}),
+  /** Faction relation (effective = session override ?? authored). stances any-of; standing bounds inclusive. */
+  z.object({kind: z.literal('faction_relation'), a: id, b: id, stances: z.array(factionStanceSchema).min(1).max(3).optional(),
+    atLeast: z.number().int().min(-100).max(100).optional(), atMost: z.number().int().min(-100).max(100).optional()}),
+  /** NPC currently at a location (session state). */
+  z.object({kind: z.literal('npc_at_location'), npcId: id, locationId: id}),
 ]);
 export const worldEffectSchema = z.discriminatedUnion('kind', [
   z.object({kind: z.literal('set'), factId: id, value: z.boolean()}),
@@ -26,6 +38,12 @@ export const worldEffectSchema = z.discriminatedUnion('kind', [
   z.object({kind: z.literal('npc_move'), npcId: id, locationId: id}),
   /** Adjust open-world numeric resource (power/upgrade pools). Capped by worldbook. */
   z.object({kind: z.literal('resource'), resourceId: id, delta: z.number().finite()}),
+  /** Session territory change: cells and/or a whole region → faction (null = unclaimed). Authored map never mutates. */
+  z.object({kind: z.literal('set_territory'), factionId: id.nullable(), cells: z.array(cell).max(200).optional(), regionId: id.optional(), mapId: id.optional()})
+    .refine(e => (e.cells?.length ?? 0) > 0 || !!e.regionId, '须指定格或区域'),
+  /** Session faction relation change: set stance and/or standing, or shift standing by delta (clamped ±100). */
+  z.object({kind: z.literal('set_faction_relation'), a: id, b: id, stance: factionStanceSchema.optional(),
+    standing: z.number().int().min(-100).max(100).optional(), standingDelta: z.number().int().min(-200).max(200).optional()}),
 ]);
 export const worldContentSchema = z.object({
   schemaVersion: z.literal(1), mode: z.literal('open'), title: z.string().min(1).max(200),
@@ -58,6 +76,8 @@ export const worldContentSchema = z.object({
   map: worldMapSchema.optional(),
   /** Child maps (city/district/interior). Each must carry an `id` and a `parent` link. */
   subMaps: z.array(worldMapSchema).max(32).optional(),
+  /** Authored faction relation matrix (pairs; factions come from map faction layers). */
+  factionRelations: z.array(factionRelationSchema).max(200).optional(),
 });
 export type WorldContent = z.infer<typeof worldContentSchema>;
 export type WorldCondition = z.infer<typeof worldConditionSchema>;
@@ -89,4 +109,8 @@ export interface AdventureMapView {
   fog: boolean;
   /** Explored cells on this map (only when fog is on). */
   explored?: string[];
+  /** Session territory overlay for this map (cell → faction id, '' = unclaimed). Fold over the authored map to render. */
+  territory?: Record<string, string>;
+  /** Effective faction relation table (authored + session). */
+  relations?: FactionRelation[];
 }

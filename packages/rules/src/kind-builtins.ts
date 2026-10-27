@@ -8,6 +8,7 @@ import { KindRegistry, type KindMeta } from './kind-registry.js';
 import type { ReachCondition, ReachEffect, ReachVarValue } from './reachability.js';
 import type { WorldConditionState } from './world-opening.js';
 import { locationSpatial } from './map-geometry.js';
+import { effectiveRelation } from './factions.js';
 
 export type StoryConditionEvaluator = (
   condition: ReachCondition,
@@ -157,6 +158,31 @@ function registerBuiltins(): void {
         if (condition.kind !== 'in_region') return false;
         return locationSpatial(state.map, state.locationId).regionIds.some(r => condition.regionIds.includes(r));
       },
+    })
+    .register({
+      kind: 'faction_relation',
+      family: 'world.condition',
+      label: '势力关系',
+      description: '两势力当前关系（会话变化优先于作者设定）符合所列立场且好感在区间内',
+      evaluate: (condition, state) => {
+        if (condition.kind !== 'faction_relation') return false;
+        const r = effectiveRelation({ factionRelations: state.factionRelations }, state.relationOverlay, condition.a, condition.b);
+        if (condition.stances && !condition.stances.includes(r.stance)) return false;
+        if (condition.atLeast !== undefined && r.standing < condition.atLeast) return false;
+        if (condition.atMost !== undefined && r.standing > condition.atMost) return false;
+        return true;
+      },
+    })
+    .register({
+      kind: 'npc_at_location',
+      family: 'world.condition',
+      label: '人物在某地',
+      description: '指定 NPC 当前位于该地点',
+      evaluate: (condition, state) => {
+        if (condition.kind !== 'npc_at_location') return false;
+        const loc = state.npcLocations?.[condition.npcId] ?? (state.npcs[condition.npcId] as { locationId?: string } | undefined)?.locationId;
+        return loc === condition.locationId;
+      },
     });
 
   worldEffectKinds
@@ -195,6 +221,18 @@ function registerBuiltins(): void {
       family: 'world.effect',
       label: '资源增减',
       description: '调整开放世界数值资源（可受世界书上限约束）',
+    })
+    .register({
+      kind: 'set_territory',
+      family: 'world.effect',
+      label: '改变领土',
+      description: '本局中把指定格或整片区域划归某势力（或设为无主）；作者地图不变',
+    })
+    .register({
+      kind: 'set_faction_relation',
+      family: 'world.effect',
+      label: '改变势力关系',
+      description: '本局中设置两势力立场/好感，或按增量调整好感（±100 封顶）',
     });
 }
 

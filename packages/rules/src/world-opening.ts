@@ -13,6 +13,11 @@ export type WorldConditionState = {
   locationId?: string;
   /** Optional authored map; absent → map-aware kinds fail closed. */
   map?: WorldMap;
+  /** Authored relation matrix + session overrides (faction_relation kind). */
+  factionRelations?: WorldContent['factionRelations'];
+  relationOverlay?: Record<string, { stance: 'ally' | 'neutral' | 'hostile'; standing: number }>;
+  /** NPC locations (npc_at_location kind). */
+  npcLocations?: Record<string, string>;
 };
 
 export type OpeningEvalState = WorldConditionState & {
@@ -33,6 +38,7 @@ export function initialWorldState(world: WorldContent): OpeningEvalState {
     ])),
     elapsed: 0,
     ...(world.map ? { map: world.map } : {}),
+    ...(world.factionRelations ? { factionRelations: world.factionRelations } : {}),
   };
 }
 

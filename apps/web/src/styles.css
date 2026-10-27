@@ -2986,3 +2986,21 @@ summary:focus:not(:focus-visible) {
 .play-map-dests li { padding: 3px 8px; border-radius: 999px; background: #fff6d8; border: 1px solid #f0d58a; }
 .play-map-dests li.disabled { opacity: .55; background: #f1f1f1; border-color: #ddd; }
 @media (max-width: 1280px) { .play-layout.with-map { grid-template-columns: 260px minmax(0, 1fr); } .play-map-column { grid-column: 1 / -1; position: static; } }
+
+/* ---- Factions (P2) ---- */
+.faction-editor { display: flex; flex-direction: column; gap: 10px; }
+.faction-matrix-wrap { overflow-x: auto; }
+.faction-matrix { border-collapse: separate; border-spacing: 3px; font-size: 12px; }
+.faction-matrix th { font-weight: 600; text-align: left; padding: 4px 6px; white-space: nowrap; }
+.faction-matrix td { padding: 4px; border-radius: 6px; min-width: 104px; }
+.faction-matrix td select { width: 62px; font-size: 12px; padding: 2px; }
+.faction-matrix td input { width: 44px; font-size: 12px; padding: 2px 4px; margin-left: 3px; }
+.faction-matrix td.self { background: #f2f0ea; text-align: center; color: #aaa; }
+.st-ally { background: #e3f4e6; } .st-neutral { background: #f1efe9; } .st-hostile { background: #fbe4e2; }
+.faction-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.faction-stat-card { border: 1px solid var(--line, #e2ddd2); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 5px; }
+.faction-stat-row { display: grid; grid-template-columns: 1fr 64px auto auto; gap: 4px; align-items: center; font-size: 12px; }
+.faction-stat-row input { font-size: 12px; padding: 2px 4px; } .faction-stat-row code { font-size: 10px; color: #8a8478; }
+.faction-stat-add { display: flex; gap: 4px; flex-wrap: wrap; }
+.play-relations { display: flex; flex-wrap: wrap; gap: 5px; }
+.rel-pill { font-size: 12px; padding: 3px 8px; border-radius: 999px; border: 1px solid #0001; }

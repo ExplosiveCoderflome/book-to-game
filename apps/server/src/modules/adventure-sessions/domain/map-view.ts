@@ -1,12 +1,14 @@
 import type { AdventureMapView, WorldContent } from '@novel-game/contracts';
-import { locationMap, locationSpatial, mapIdOf } from '@novel-game/rules';
+import { applyTerritoryOverlay, locationMap, locationSpatial, mapIdOf, relationTable, worldFactions } from '@novel-game/rules';
 import type { AdventureState } from './adventure-state.js';
 
 type ActionView = { id: string; enabled: boolean };
 
 /** Read-only spatial status for the play map. Derived from session + authored map; mutates nothing. */
 export function projectAdventureMap(world: WorldContent, state: AdventureState, actions: ActionView[]): AdventureMapView | undefined {
-  const map = locationMap(world, state.locationId); if (!map) return undefined;
+  const authored = locationMap(world, state.locationId); if (!authored) return undefined;
+  const overlay = state.territory?.[mapIdOf(authored)];
+  const map = applyTerritoryOverlay(authored, overlay);
   const sp = locationSpatial(map, state.locationId); const layers = map.layers ?? {};
   const byId = new Map(world.actions.map(a => [a.id, a]));
   const reachable: AdventureMapView['reachable'] = [];
@@ -22,6 +24,8 @@ export function projectAdventureMap(world: WorldContent, state: AdventureState, 
     ...(terrain ? { terrain: { id: terrain.id, label: terrain.label } } : {}),
     ...(faction ? { faction: { id: faction.id, name: faction.name } } : {}),
     regions: sp.regionIds.flatMap(id => { const r = layers.regions?.regions.find(x => x.id === id); return r ? [{ id, name: r.name }] : []; }),
-    reachable, fog, ...(fog ? { explored: [...(state.explored?.[mapId] ?? [])] } : {}),
+    reachable, fog,
+    ...(overlay && Object.keys(overlay).length ? { territory: { ...overlay } } : {}),
+    relations: relationTable(world, state.factionRelations, worldFactions(world).map(f => f.id)), ...(fog ? { explored: [...(state.explored?.[mapId] ?? [])] } : {}),
   };
 }

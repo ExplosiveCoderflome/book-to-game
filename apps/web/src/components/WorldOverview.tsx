@@ -1,4 +1,5 @@
 import type { WorldContent, WorldCondition, WorldEffect } from '@novel-game/contracts';
+import { STANCE_LABEL } from '@novel-game/rules';
 import { useI18n } from '../lib/i18n';
 
 interface Props {
@@ -18,6 +19,8 @@ export function WorldOverview({ content: w, focusLocationId }: Props) {
   const condition = (c: WorldCondition): string => c.kind === 'at_terrain' ? t('所在地形为 {list}', { list: c.terrainIds.map(terrain).join('/') })
     : c.kind === 'in_faction_territory' ? t('位于 {list} 领土', { list: c.factionIds.map(faction).join('/') })
     : c.kind === 'in_region' ? t('位于区域 {list}', { list: c.regionIds.map(id => w.map?.layers?.regions?.regions.find(r => r.id === id)?.name ?? id).join('/') })
+    : c.kind === 'faction_relation' ? t('{a} 与 {b} 关系{stance}{range}', { a: faction(c.a), b: faction(c.b), stance: c.stances ? c.stances.map(x => t(STANCE_LABEL[x])).join('/') : '', range: c.atLeast !== undefined ? ` ≥${c.atLeast}` : c.atMost !== undefined ? ` ≤${c.atMost}` : '' })
+    : c.kind === 'npc_at_location' ? t('{npc}在{location}', { npc: npc(c.npcId), location: location(c.locationId) })
     : c.kind === 'time' ? t('耗时至少 {time}', { time: c.atLeast })
     : c.kind === 'npc_knows' ? t('{npc}知道「{fact}」', { npc: npc(c.npcId), fact: fact(c.factId) })
     : c.kind === 'known' ? t('玩家知道「{fact}」', { fact: fact(c.factId) }) : t('「{fact}」{value}', { fact: fact(c.factId), value: truth(c.value) });
@@ -25,6 +28,8 @@ export function WorldOverview({ content: w, focusLocationId }: Props) {
     : e.kind === 'npc_move' ? t('{npc}前往{location}', { npc: npc(e.npcId), location: location(e.locationId) })
     : e.kind === 'npc_learn' ? t('{npc}获知「{fact}」', { npc: npc(e.npcId), fact: fact(e.factId) })
     : e.kind === 'reveal' ? t('向玩家揭示「{fact}」', { fact: fact(e.factId) })
+    : e.kind === 'set_territory' ? t('{target}划归{faction}', { target: e.regionId ? (w.map?.layers?.regions?.regions.find(r => r.id === e.regionId)?.name ?? e.regionId) : (e.cells ?? []).join(' '), faction: e.factionId ? faction(e.factionId) : t('无主') })
+    : e.kind === 'set_faction_relation' ? t('{a} 与 {b} 关系变化 {detail}', { a: faction(e.a), b: faction(e.b), detail: [e.stance ? t(STANCE_LABEL[e.stance]) : '', e.standing !== undefined ? `=${e.standing}` : '', e.standingDelta ? (e.standingDelta > 0 ? `+${e.standingDelta}` : String(e.standingDelta)) : ''].filter(Boolean).join(' ') })
     : e.kind === 'resource' ? t('资源 {id} {delta}', { id: e.resourceId, delta: e.delta > 0 ? `+${e.delta}` : String(e.delta) })
     : t('「{fact}」变为{value}', { fact: fact(e.factId), value: truth(e.value) });
   const provenance = (v: { origin: 'source' | 'adapted'; evidence: { chapterId: string; paragraphId: string }[] }) => <div className="hint">{t(v.origin === 'source' ? '依据原作' : '改编新增')} · {t('{count} 处证据', { count: v.evidence.length })}{v.evidence.length > 0 && <details><summary>{t('证据标识')}</summary>{v.evidence.map((e, i) => <div key={i}><code>{e.chapterId} / {e.paragraphId}</code></div>)}</details>}</div>;

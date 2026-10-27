@@ -63,3 +63,7 @@ export {
 export {
   ROOT_MAP_ID, mapIdOf, worldMaps, findMap, locationMap, revealAround, exploreLocation,
 } from './map-session.js';
+export {
+  relationKey, applyTerritoryOverlay, territoryTargetCells, applySetTerritory, authoredRelation, effectiveRelation,
+  applySetFactionRelation, relationTable, worldFactions, STANCE_LABEL, type TerritoryOverlay, type RelationOverlay,
+} from './factions.js';
