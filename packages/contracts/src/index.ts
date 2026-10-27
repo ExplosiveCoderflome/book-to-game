@@ -177,6 +177,11 @@ export {
 } from './propose-act.js';
 
 export {
+  narrateModelOutputSchema, narrateInputSchema, narrateResultSchema,
+  type NarrateModelOutput, type NarrateInput, type NarrateResult,
+} from './narrate.js';
+
+export {
   assessOpeningActions, initialWorldState, matchesWorldConditions, isWaitLikeAction,
   type OpeningActionReport, type OpeningEvalState,
 } from './world-opening.js';

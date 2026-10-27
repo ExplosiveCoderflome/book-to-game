@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { gameContentSchema, type CanvasLayout, type Draft, type GameContent, type GameRevision, type GenerationJob, type RuntimeInfo, type ScanDepth, type ProposeActResult, type SessionView, type SourceDocument, type SourceSummary, type ValidationResult } from '@novel-game/contracts';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { gameContentSchema, type CanvasLayout, type Draft, type GameContent, type GameRevision, type GenerationJob, type RuntimeInfo, type ScanDepth, type NarrateResult, type ProposeActResult, type SessionView, type SourceDocument, type SourceSummary, type ValidationResult } from '@novel-game/contracts';
 import { errorMessage, request, RequestError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { relevantStoryJob } from '../lib/job-on-canvas';
@@ -14,6 +14,7 @@ import { BranchGraphCanvas } from './BranchGraphCanvas';
 import { SceneEditor } from './SceneEditor';
 import { StoryVariablesEditor } from './StoryVariablesEditor';
 import { WorldbookEditor } from './WorldbookEditor';
+import { NarrateBox } from './NarrateBox';
 import { ProposeActBox } from './ProposeActBox';
 
 const blankContent = (): GameContent => ({ title: '', mode: 'story', premise: '', adaptationNotes: '', startSceneId: '', scenes: [] });
@@ -459,6 +460,13 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
     } catch (e) { setError(errorMessage(e)); } finally { setPlayBusy(false); }
   }
 
+
+  const narrateOnCanvas = useCallback(async (force: boolean): Promise<NarrateResult> => {
+    if (!playSession) throw new Error('no session');
+    return request<NarrateResult>(token, `/sessions/${playSession.id}/narrate`, 'POST', {
+      expectedTurn: playSession.turn, force,
+    });
+  }, [playSession, token]);
   async function proposeOnCanvas(text: string): Promise<ProposeActResult> {
     if (!playSession) throw new Error('no session');
     setPlayBusy(true); setError(null);
@@ -623,6 +631,7 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
                     <h4>{playSession.scene.title}</h4>
                     {proposeNote && <Notice kind="success" text={proposeNote} />}
                     <div className="reader-text">{playSession.scene.text.split(/\n+/).map((text, i) => <p key={i}>{text}</p>)}</div>
+                    <NarrateBox visitKey={`${playSession.id}:${playSession.scene.id}:${playSession.turn}`} disabled={playBusy} onNarrate={narrateOnCanvas} />
                     {Object.keys(playSession.variables ?? {}).length > 0 && <details open><summary>{t('当前故事变量')}</summary><dl>{Object.entries(playSession.variables ?? {}).map(([name, value]) => <div className="field-row" key={name}><dt>{name}</dt><dd>{typeof value === 'boolean' ? t(value ? '真' : '假') : String(value)}</dd></div>)}</dl></details>}
                     {playSession.ended && <div className="ending"><p className="eyebrow">{t('故事抵达了一个结局')}</p><p>{playSession.scene.ending ?? t('旅程告一段落。')}</p></div>}
                     {!playSession.ended && <div className="reader-choices"><p className="eyebrow">{t('你将如何选择？')}</p>{playSession.scene.choices.map((choice, i) => <button key={choice.id} type="button" disabled={playBusy} onClick={() => void actOnCanvas(choice.id)}><span aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>{choice.label}<span aria-hidden="true">→</span></button>)}</div>}

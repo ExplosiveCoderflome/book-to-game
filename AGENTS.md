@@ -36,3 +36,8 @@ migrated only within the authorized task scope.
 - Prefer **density over stretch**: on wide viewports, use extra width to show more modules side-by-side (dual inspector panes, multi-column strips), not empty stretch.
 - Full rules: [docs/design-layout.md](docs/design-layout.md).
 
+## AI fusion layers
+
+- **L1 narrate (play-time, optional, default OFF):** flavor旁白 only via `POST /api/sessions/:id/narrate`. Must not mutate graph, variables, or invent choices.
+- **L2 propose-act (play-time):** free text mapped only onto currently visible/worldbook-filtered edges; rule engine still advances state.
+- **L3 author-time:** graph growth (generate / extend). Node/graph + variables remain the hard source of truth; worldbook constrains agency.

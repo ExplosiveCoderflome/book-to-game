@@ -1,9 +1,10 @@
 import { z } from 'zod';
-import { actSchema, extendDraftSceneInputSchema, gameContentSchema, proposeActInputSchema } from '@novel-game/contracts';
+import { actSchema, extendDraftSceneInputSchema, gameContentSchema, narrateInputSchema, proposeActInputSchema } from '@novel-game/contracts';
 import type { Workbench } from '../workbench.js';
 import { command, emptySchema, idSchema } from './definition.js';
 import { extendDraftScene } from '../../modules/generation/index.js';
 import { proposeActSession } from '../../modules/sessions/application/propose-act.js';
+import { narrateSession } from '../../modules/sessions/application/narrate.js';
 import { ChatCompletionsProvider } from '../../platform/model/chat-completions.js';
 import { AppError } from '../../shared/errors.js';
 
@@ -41,6 +42,16 @@ export function gameCommands(w: Workbench) {
         const endpoint = w.modelSettings.resolve();
         const provider = new ChatCompletionsProvider({...endpoint, maxAttempts: 2, repairAttempts: 2});
         return proposeActSession(w.sessions, id, input, provider);
+      }),
+    command('narrate_session', 'L1：为当前场景生成可选表演旁白（风味文案）。不改图、不改变量、不发明选项；失败时 soft-fail。默认由客户端关闭。',
+      narrateInputSchema.extend({id: z.string()}), false, async ({id, ...input}) => {
+        if (!w.providerConfigured) {
+          const view = w.sessions.get(id);
+          return { status: 'unavailable', text: null, sceneId: view.scene.id, turn: view.turn, reason: '尚未配置模型。请进入“模型设置”后再开启旁白。', cached: false };
+        }
+        const endpoint = w.modelSettings.resolve();
+        const provider = new ChatCompletionsProvider({...endpoint, maxAttempts: 2, repairAttempts: 2});
+        return narrateSession(w.sessions, w.games, id, input, provider);
       }),
   ];
 }

@@ -1606,6 +1606,14 @@ legend {
 .worldbook-entry { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--paper) 92%, #c9a227); }
 .worldbook-scene-scope { display: flex; flex-wrap: wrap; gap: 6px 12px; max-height: 140px; overflow: auto; }
 
+
+.narrate-box { margin: 10px 0 12px; padding: 10px 12px; border: 1px solid color-mix(in srgb, #8b6b3d 35%, var(--line)); border-radius: 10px; background: color-mix(in srgb, #fff6e8 70%, var(--paper)); }
+.narrate-toolbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.narrate-toggle { display: inline-flex; gap: 6px; align-items: center; font-weight: 600; cursor: pointer; }
+.narrate-text { margin-top: 8px; font-size: 14px; line-height: 1.55; color: color-mix(in srgb, #5a3d18 80%, var(--ink)); }
+.narrate-text .eyebrow { margin-bottom: 4px; }
+.narrate-unavailable { color: #8a3b1d; }
+
 .propose-act-box { margin-top: 12px; padding: 10px 12px; border: 1px dashed color-mix(in srgb, #4a7cff 45%, var(--line)); border-radius: 10px; background: color-mix(in srgb, #e8f0ff 55%, var(--paper)); }
 .propose-act-row { display: flex; gap: 8px; align-items: center; }
 .propose-act-row input { flex: 1; min-width: 0; }

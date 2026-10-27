@@ -42,5 +42,22 @@ export const storyTranslations: Record<string, string> = {
   '无条件与效果': 'No conditions or effects',
   '当前变量下未解锁': 'Locked under current variables',
 
+  'L1 表演旁白': 'L1 performance narration',
+  '可选；默认关闭。只生成风味文案，不改选项与变量。': 'Optional; off by default. Flavor text only — does not change choices or variables.',
+  '旁白生成中…': 'Generating narration…',
+  '刷新旁白': 'Refresh narration',
+  '旁白': 'Narration',
+  '旁白暂不可用，仍可阅读场景正文。': 'Narration unavailable; scene text still works.',
+  '旁白请求失败，仍可阅读场景正文。': 'Narration request failed; scene text still works.',
+  '自由输入（L2 映射）': 'Free text (L2 map)',
+  '模型只能点名当前可见选项；被世界书禁止的行动不会出现在候选中。': 'The model may only name currently visible options; worldbook-blocked actions are not candidates.',
+  '例如：我想和船夫聊聊': 'e.g. I want to chat with the ferryman',
+  '映射中…': 'Mapping…',
+  '映射并行动': 'Map and act',
+  '已映射并执行：{label}': 'Mapped and acted: {label}',
+  '映射到：{label}（未自动执行）': 'Mapped to: {label} (not auto-acted)',
+  '未能映射到可用选项。': 'Could not map to an available option.',
+  '可选行动': 'Available actions',
+
 };
 export const storyEnglish = storyTranslations;

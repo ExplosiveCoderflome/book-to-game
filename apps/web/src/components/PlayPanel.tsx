@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { actSchema, type GameRevision, type ProposeActResult, type SessionView } from '@novel-game/contracts';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { actSchema, type GameRevision, type NarrateResult, type ProposeActResult, type SessionView } from '@novel-game/contracts';
 import { errorMessage, request, RequestError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { PendingAction, type PendingActionValue } from '../lib/pending-action';
 import { playOverlayFromSession } from '../lib/play-overlay';
 import { BranchGraphCanvas } from './BranchGraphCanvas';
 import { Empty, Notice, dateLabel } from './Notice';
+import { NarrateBox } from './NarrateBox';
 import { ProposeActBox } from './ProposeActBox';
 
 const pendingKey = 'novel-game.pending-action';
@@ -61,6 +62,13 @@ export function PlayPanel({ token, revisions, sessions, revisionId, selectRevisi
       else setUncertain(!!pending.current.value);
     } finally { setBusy(false); }
   }
+
+  const narrate = useCallback(async (force: boolean): Promise<NarrateResult> => {
+    if (!session) throw new Error('no session');
+    return request<NarrateResult>(token, `/sessions/${session.id}/narrate`, 'POST', {
+      expectedTurn: session.turn, force,
+    });
+  }, [session, token]);
   async function propose(text: string): Promise<ProposeActResult> {
     if (!session) throw new Error('no session');
     setBusy(true); setError(null);
@@ -99,6 +107,7 @@ export function PlayPanel({ token, revisions, sessions, revisionId, selectRevisi
       {busy && !session ? <p role="status">{t('正在读取存档…')}</p> : !session ? <Empty>{t('选择一本已发布的故事，或者打开左侧存档。')}</Empty> : <>
         <div className="reader-meta"><span>{activeRevision?.content.title ?? t('文字冒险')} · v{activeRevision?.version ?? '—'}</span><span>{t('第 {turn} 幕', { turn: session.turn + 1 })}</span></div>
         <h3>{session.scene.title}</h3><div className="reader-text">{session.scene.text.split(/\n+/).map((text, i) => <p key={i}>{text}</p>)}</div>
+        <NarrateBox visitKey={`${session.id}:${session.scene.id}:${session.turn}`} disabled={busy || uncertain} onNarrate={narrate} />
         {Object.keys(session.variables ?? {}).length > 0 && <details><summary>{t('当前故事变量')}</summary><dl>{Object.entries(session.variables ?? {}).map(([name, value]) => <div className="field-row" key={name}><dt>{name}</dt><dd>{typeof value === 'boolean' ? t(value ? '真' : '假') : String(value)}</dd></div>)}</dl></details>}
         {session.ended && <div className="ending"><p className="eyebrow">{t('故事抵达了一个结局')}</p><p>{session.scene.ending ?? t('旅程告一段落。')}</p></div>}
         {proposeNote && <Notice kind="success" text={proposeNote} />}

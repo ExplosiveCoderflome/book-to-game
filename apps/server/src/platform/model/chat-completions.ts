@@ -1,4 +1,4 @@
-import { analysisSchema, branchSkeletonSchema, gameContentSchema, proposeActModelOutputSchema, proposeAdventureModelOutputSchema, sceneExtensionSchema, worldContentSchema, type Analysis, type AnalysisResult, type BranchSkeleton, type GameContent, type ProposeActModelOutput, type ProposeAdventureModelOutput, type ProposeCandidate, type ScanDepth, type SceneExtension, type WorldContent } from '@novel-game/contracts';
+import { analysisSchema, branchSkeletonSchema, gameContentSchema, narrateModelOutputSchema, proposeActModelOutputSchema, proposeAdventureModelOutputSchema, sceneExtensionSchema, worldContentSchema, type Analysis, type AnalysisResult, type BranchSkeleton, type GameContent, type NarrateModelOutput, type ProposeActModelOutput, type ProposeAdventureModelOutput, type ProposeCandidate, type ScanDepth, type SceneExtension, type WorldContent } from '@novel-game/contracts';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { ZodType } from 'zod';
 import type { GenerationProvider, ModelRepairIssue, SourceChunk, WorldGenerationOptions } from '../../modules/generation/index.js';
@@ -6,7 +6,7 @@ import { AppError } from '../../shared/errors.js';
 import type { Logger } from '../../shared/logger.js';
 import { schemaIssueMessage, schemaIssues } from '../../shared/schema-issues.js';
 import { extractJsonValue, JsonContentError } from './extract-json.js';
-import { ANALYSIS_SYSTEM, EXPAND_SYSTEM, EXTEND_SCENE_SYSTEM, GAME_SYSTEM, PROPOSE_ACT_SYSTEM, PROPOSE_ADVENTURE_SYSTEM, SKELETON_SYSTEM, compactForGame, skeletonUserPayload } from './prompts.js';
+import { ANALYSIS_SYSTEM, EXPAND_SYSTEM, EXTEND_SCENE_SYSTEM, GAME_SYSTEM, NARRATE_SYSTEM, PROPOSE_ACT_SYSTEM, PROPOSE_ADVENTURE_SYSTEM, SKELETON_SYSTEM, compactForGame, skeletonUserPayload } from './prompts.js';
 import { classifyStatus, parseRetryAfter, retryDelayMs } from './retry.js';
 import { sanitizeWorldCandidate } from './sanitize-world.js';
 import { WORLD_SYSTEM, compactWorldDossier } from './world-prompts.js';
@@ -66,6 +66,23 @@ export class ChatCompletionsProvider implements GenerationProvider {
       rule: 'choiceId 必须是 candidates 中的 id，或 none',
     }, signal, proposeActModelOutputSchema, []);
   }
+
+  async narrate(input: {
+    sceneTitle: string;
+    sceneText: string;
+    choices: { id: string; label: string }[];
+    variables: Record<string, string | number | boolean>;
+    worldbookSnippets: { title: string; content: string; kind: string }[];
+  }, signal: AbortSignal): Promise<NarrateModelOutput> {
+    return this.complete('narrate', NARRATE_SYSTEM, {
+      scene: { title: input.sceneTitle, text: input.sceneText.slice(0, 1200) },
+      choices: input.choices,
+      variables: input.variables,
+      worldbookSnippets: input.worldbookSnippets,
+      rule: '只输出旁白 narration；禁止新选项、新状态、新边',
+    }, signal, narrateModelOutputSchema, []);
+  }
+
   async proposeAdventureAct(input: { text: string; locationTitle: string; locationText: string; candidates: ProposeCandidate[] }, signal: AbortSignal): Promise<ProposeAdventureModelOutput> {
     return this.complete('propose_adventure_act', PROPOSE_ADVENTURE_SYSTEM, {
       text: input.text,

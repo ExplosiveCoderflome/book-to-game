@@ -28,6 +28,8 @@
 | GET | /api/sessions | SessionView[] |
 | GET | /api/sessions/:id | SessionView |
 | POST | /api/sessions/:id/actions | ActInput → SessionView |
+| POST | /api/sessions/:id/propose-act | ProposeActInput → ProposeActResult（L2；不发明边） |
+| POST | /api/sessions/:id/narrate | NarrateInput → NarrateResult（L1 旁白；不改状态；可 soft-fail） |
 | GET | /api/worlds/drafts | WorldDraft[] |
 | POST | /api/worlds/drafts | {sourceId,content:WorldContent} → WorldDraft |
 | GET | /api/worlds/drafts/:id | WorldDraft |
