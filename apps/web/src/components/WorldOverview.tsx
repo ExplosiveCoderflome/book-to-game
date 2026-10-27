@@ -13,7 +13,11 @@ export function WorldOverview({ content: w, focusLocationId }: Props) {
   const npc = (id: string) => w.npcs.find(n => n.id === id)?.name ?? id;
   const location = (id: string) => w.locations.find(l => l.id === id)?.title ?? id;
   const truth = (value: boolean) => t(value ? '成立' : '不成立');
-  const condition = (c: WorldCondition): string => c.kind === 'time' ? t('耗时至少 {time}', { time: c.atLeast })
+  const terrain = (id: string) => w.map?.layers?.terrain?.palette.find(p => p.id === id)?.label ?? id;
+  const faction = (id: string) => w.map?.layers?.factions?.factions.find(f => f.id === id)?.name ?? id;
+  const condition = (c: WorldCondition): string => c.kind === 'at_terrain' ? t('所在地形为 {list}', { list: c.terrainIds.map(terrain).join('/') })
+    : c.kind === 'in_faction_territory' ? t('位于 {list} 领土', { list: c.factionIds.map(faction).join('/') })
+    : c.kind === 'time' ? t('耗时至少 {time}', { time: c.atLeast })
     : c.kind === 'npc_knows' ? t('{npc}知道「{fact}」', { npc: npc(c.npcId), fact: fact(c.factId) })
     : c.kind === 'known' ? t('玩家知道「{fact}」', { fact: fact(c.factId) }) : t('「{fact}」{value}', { fact: fact(c.factId), value: truth(c.value) });
   const effect = (e: WorldEffect): string => e.kind === 'move' ? t('玩家前往{location}', { location: location(e.locationId) })

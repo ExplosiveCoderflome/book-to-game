@@ -11,6 +11,10 @@ export const worldConditionSchema = z.discriminatedUnion('kind', [
   z.object({kind: z.literal('known'), factId: id}),
   z.object({kind: z.literal('npc_knows'), npcId: id, factId: id}),
   z.object({kind: z.literal('time'), atLeast: z.number().int().min(0).max(100)}),
+  /** Map-aware (optional map layer): player's current location POI cell terrain ∈ terrainIds. No map/POI → false. */
+  z.object({kind: z.literal('at_terrain'), terrainIds: z.array(id).min(1).max(20)}),
+  /** Map-aware: player's current location POI cell is owned by one of factionIds (authored baseline). */
+  z.object({kind: z.literal('in_faction_territory'), factionIds: z.array(id).min(1).max(20)}),
 ]);
 export const worldEffectSchema = z.discriminatedUnion('kind', [
   z.object({kind: z.literal('set'), factId: id, value: z.boolean()}),

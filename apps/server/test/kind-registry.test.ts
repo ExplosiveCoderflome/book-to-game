@@ -23,12 +23,12 @@ test('builtin kind registries list story + world kinds without duplicates', () =
   const worldEff = worldEffectKinds.list().map(m => m.kind).sort();
   assert.deepEqual(storyCond, ['variable.equals', 'variable.gte']);
   assert.deepEqual(storyEff, ['variable.increment', 'variable.set']);
-  assert.deepEqual(worldCond, ['fact', 'known', 'npc_knows', 'time']);
+  assert.deepEqual(worldCond, ['at_terrain', 'fact', 'in_faction_territory', 'known', 'npc_knows', 'time']);
   assert.deepEqual(worldEff, ['move', 'npc_learn', 'npc_move', 'resource', 'reveal', 'set']);
 
   const all = listAllKindMeta();
-  assert.equal(all.length, 14);
-  assert.equal(new Set(all.map(m => `${m.family}:${m.kind}`)).size, 14);
+  assert.equal(all.length, 16);
+  assert.equal(new Set(all.map(m => `${m.family}:${m.kind}`)).size, 16);
   for (const meta of all) {
     assert.ok(meta.label.length > 0, `${meta.kind} missing label`);
     assert.ok(meta.description.length > 0, `${meta.kind} missing description`);
@@ -101,4 +101,30 @@ test('builtin story condition/effect semantics match prior hard-coded behavior',
   });
   assert.equal(applyStoryEffect({ type: 'variable.increment', variable: 'name', value: 1 }, vars), null);
   assert.equal(applyStoryEffect({ type: 'variable.set', variable: 'missing', value: 1 }, vars), null);
+});
+
+test('map-aware world conditions read POI cell terrain / faction purely', () => {
+  resetBuiltinKinds();
+  const map = {
+    mapSchemaVersion: 1 as const,
+    geometry: { kind: 'hex' as const, orientation: 'pointy' as const, cols: 4, rows: 4, size: 24 },
+    layers: {
+      terrain: { palette: [{ id: 'coast', label: '海岸', color: '#aabbcc' }, { id: 'plains', label: '平原', color: '#aacc88' }], cells: { '0,0': 'coast', '1,0': 'plains' } },
+      factions: { factions: [{ id: 'crown', name: '王冠', color: '#3355ff' }], cells: { '0,0': 'crown' } },
+    },
+    pois: [{ locationId: 'port', anchor: { cell: '0,0' } }, { locationId: 'farm', anchor: { cell: '1,0' } }],
+  };
+  const base = { facts: {}, knownFactIds: [], npcs: {}, elapsed: 0, map };
+  const atPort = { ...base, locationId: 'port' };
+  const atFarm = { ...base, locationId: 'farm' };
+  assert.equal(evalWorldCondition({ kind: 'at_terrain', terrainIds: ['coast'] }, atPort), true);
+  assert.equal(evalWorldCondition({ kind: 'at_terrain', terrainIds: ['coast'] }, atFarm), false);
+  assert.equal(evalWorldCondition({ kind: 'at_terrain', terrainIds: ['plains', 'coast'] }, atFarm), true);
+  assert.equal(evalWorldCondition({ kind: 'in_faction_territory', factionIds: ['crown'] }, atPort), true);
+  assert.equal(evalWorldCondition({ kind: 'in_faction_territory', factionIds: ['crown'] }, atFarm), false);
+  // fail closed: unplaced location, no map, no location
+  assert.equal(evalWorldCondition({ kind: 'at_terrain', terrainIds: ['coast'] }, { ...base, locationId: 'nowhere' }), false);
+  assert.equal(evalWorldCondition({ kind: 'at_terrain', terrainIds: ['coast'] }, { facts: {}, knownFactIds: [], npcs: {}, elapsed: 0, locationId: 'port' }), false);
+  assert.equal(evalWorldCondition({ kind: 'in_faction_territory', factionIds: ['crown'] }, base), false);
+  assert.equal(worldConditionKinds.get('at_terrain')?.label, '所在地形');
 });

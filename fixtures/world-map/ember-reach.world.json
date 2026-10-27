@@ -1,25 +1,25 @@
 {
   "schemaVersion": 1,
   "mode": "open",
-  "title": "The Ember Reach",
-  "premise": "Three realms share a fractured land between the western sea and the eastern desert.",
-  "playerRole": "A wandering cartographer",
-  "goal": "Chart the realm and reach Sunscar Oasis.",
+  "title": "余烬之地",
+  "premise": "三个国度瓜分着西海与东方沙漠之间这片破碎的土地。",
+  "playerRole": "游历四方的制图师",
+  "goal": "绘完全境地图并抵达日痕绿洲。",
   "worldRules": [
-    "Mountains can only be crossed at Ironspine Pass."
+    "山脉只能经铁脊隘口翻越。"
   ],
-  "adaptationNotes": "Test fixture for the world map layer (terrain + factions + POIs).",
+  "adaptationNotes": "世界地图图层测试数据（地形 + 势力 + 地点标记）。",
   "sourceChapterIds": [
     "fixture"
   ],
   "initialLocationId": "saltmere",
   "timeLimit": 30,
-  "timeoutEnding": "The season ends before your map is complete.",
+  "timeoutEnding": "季节已尽，你的地图仍未完成。",
   "locations": [
     {
       "id": "watch_cape",
-      "title": "Watchtower Cape",
-      "text": "A lonely lighthouse on the northern cliffs.",
+      "title": "望塔岬",
+      "text": "北方悬崖上孤零零的灯塔。",
       "origin": "adapted",
       "evidence": [
         {
@@ -30,8 +30,8 @@
     },
     {
       "id": "elderwood",
-      "title": "Elderwood Hollow",
-      "text": "A druid circle deep in the old forest.",
+      "title": "古木幽谷",
+      "text": "古老森林深处的德鲁伊石环。",
       "origin": "adapted",
       "evidence": [
         {
@@ -42,8 +42,8 @@
     },
     {
       "id": "ironspine",
-      "title": "Ironspine Pass",
-      "text": "The only road over the mountains.",
+      "title": "铁脊隘口",
+      "text": "翻越山脉的唯一道路。",
       "origin": "adapted",
       "evidence": [
         {
@@ -54,8 +54,8 @@
     },
     {
       "id": "saltmere",
-      "title": "Port Saltmere",
-      "text": "A busy harbour where the river meets the sea.",
+      "title": "盐沼港",
+      "text": "河流入海处繁忙的港口。",
       "origin": "adapted",
       "evidence": [
         {
@@ -66,8 +66,8 @@
     },
     {
       "id": "highcrown",
-      "title": "Highcrown",
-      "text": "Royal citadel of the Azure Crown.",
+      "title": "高冠城",
+      "text": "蔚蓝王冠的王城。",
       "origin": "adapted",
       "evidence": [
         {
@@ -78,8 +78,8 @@
     },
     {
       "id": "riverford",
-      "title": "Riverford",
-      "text": "A toll bridge town on the river.",
+      "title": "河渡镇",
+      "text": "河上收过桥费的小镇。",
       "origin": "adapted",
       "evidence": [
         {
@@ -90,8 +90,8 @@
     },
     {
       "id": "mirefen",
-      "title": "Mirefen",
-      "text": "Stilt village in the southern marsh.",
+      "title": "泥沼村",
+      "text": "南部沼泽中的高脚屋村落。",
       "origin": "adapted",
       "evidence": [
         {
@@ -102,8 +102,8 @@
     },
     {
       "id": "sunscar",
-      "title": "Sunscar Oasis",
-      "text": "Palm-ringed capital of the Ashen Sultanate.",
+      "title": "日痕绿洲",
+      "text": "灰烬苏丹国的棕榈都城。",
       "origin": "adapted",
       "evidence": [
         {
@@ -113,17 +113,173 @@
       ]
     }
   ],
-  "facts": [],
+  "facts": [
+    {
+      "id": "harbor_rumor",
+      "label": "港口传闻",
+      "description": "水手口中关于东方绿洲的消息。",
+      "kind": "clue",
+      "initialValue": false,
+      "playerKnown": false,
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "crown_pass",
+      "label": "王冠通行令",
+      "description": "蔚蓝王冠签发的通行文书。",
+      "kind": "item",
+      "initialValue": false,
+      "playerKnown": false,
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "charted",
+      "label": "全图绘成",
+      "description": "在绿洲完成了地图。",
+      "kind": "event",
+      "initialValue": false,
+      "playerKnown": false,
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    }
+  ],
   "npcs": [],
   "actions": [
     {
+      "id": "ask_harbor",
+      "label": "在码头打听消息",
+      "description": "只有身处海岸时才能和水手搭话。",
+      "locationId": "saltmere",
+      "availableWhen": [
+        {
+          "kind": "at_terrain",
+          "terrainIds": [
+            "coast"
+          ]
+        }
+      ],
+      "requires": [],
+      "blockedReason": "这里没有水手。",
+      "risk": "",
+      "timeCost": 1,
+      "once": true,
+      "effects": [
+        {
+          "kind": "set",
+          "factId": "harbor_rumor",
+          "value": true
+        },
+        {
+          "kind": "reveal",
+          "factId": "harbor_rumor"
+        }
+      ],
+      "text": "水手们说，东方的日痕绿洲在等一位制图师。",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "crown_permit",
+      "label": "向王冠驿站申领通行令",
+      "description": "须身处蔚蓝王冠领土。",
+      "locationId": "highcrown",
+      "availableWhen": [],
+      "requires": [
+        {
+          "kind": "in_faction_territory",
+          "factionIds": [
+            "azure_crown"
+          ]
+        }
+      ],
+      "blockedReason": "此地不归蔚蓝王冠管辖。",
+      "risk": "",
+      "timeCost": 1,
+      "once": true,
+      "effects": [
+        {
+          "kind": "set",
+          "factId": "crown_pass",
+          "value": true
+        },
+        {
+          "kind": "reveal",
+          "factId": "crown_pass"
+        }
+      ],
+      "text": "驿丞在通行令上盖下蓝色火漆。",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "finish_map",
+      "label": "在绿洲完成地图",
+      "description": "",
+      "locationId": "sunscar",
+      "availableWhen": [],
+      "requires": [
+        {
+          "kind": "in_faction_territory",
+          "factionIds": [
+            "ashen_sultanate"
+          ]
+        }
+      ],
+      "blockedReason": "还未抵达苏丹国领土。",
+      "risk": "",
+      "timeCost": 1,
+      "once": true,
+      "effects": [
+        {
+          "kind": "set",
+          "factId": "charted",
+          "value": true
+        }
+      ],
+      "text": "你在棕榈树下画完最后一笔。",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
       "id": "go_saltmere_highcrown",
-      "label": "Travel to Highcrown",
+      "label": "前往高冠城",
       "description": "",
       "locationId": "saltmere",
       "availableWhen": [],
       "requires": [],
-      "blockedReason": "The road is closed.",
+      "blockedReason": "道路不通。",
       "risk": "",
       "timeCost": 1,
       "once": false,
@@ -133,7 +289,7 @@
           "locationId": "highcrown"
         }
       ],
-      "text": "You travel to Highcrown.",
+      "text": "你动身前往高冠城。",
       "origin": "adapted",
       "evidence": [
         {
@@ -144,12 +300,12 @@
     },
     {
       "id": "go_highcrown_saltmere",
-      "label": "Travel to Port Saltmere",
+      "label": "前往盐沼港",
       "description": "",
       "locationId": "highcrown",
       "availableWhen": [],
       "requires": [],
-      "blockedReason": "The road is closed.",
+      "blockedReason": "道路不通。",
       "risk": "",
       "timeCost": 1,
       "once": false,
@@ -159,7 +315,7 @@
           "locationId": "saltmere"
         }
       ],
-      "text": "You travel to Port Saltmere.",
+      "text": "你动身前往盐沼港。",
       "origin": "adapted",
       "evidence": [
         {
@@ -170,12 +326,12 @@
     },
     {
       "id": "go_highcrown_riverford",
-      "label": "Travel to Riverford",
+      "label": "前往河渡镇",
       "description": "",
       "locationId": "highcrown",
       "availableWhen": [],
       "requires": [],
-      "blockedReason": "The road is closed.",
+      "blockedReason": "道路不通。",
       "risk": "",
       "timeCost": 1,
       "once": false,
@@ -185,7 +341,7 @@
           "locationId": "riverford"
         }
       ],
-      "text": "You travel to Riverford.",
+      "text": "你动身前往河渡镇。",
       "origin": "adapted",
       "evidence": [
         {
@@ -196,12 +352,12 @@
     },
     {
       "id": "go_riverford_highcrown",
-      "label": "Travel to Highcrown",
+      "label": "前往高冠城",
       "description": "",
       "locationId": "riverford",
       "availableWhen": [],
       "requires": [],
-      "blockedReason": "The road is closed.",
+      "blockedReason": "道路不通。",
       "risk": "",
       "timeCost": 1,
       "once": false,
@@ -211,7 +367,7 @@
           "locationId": "highcrown"
         }
       ],
-      "text": "You travel to Highcrown.",
+      "text": "你动身前往高冠城。",
       "origin": "adapted",
       "evidence": [
         {
@@ -222,12 +378,12 @@
     },
     {
       "id": "go_riverford_ironspine",
-      "label": "Travel to Ironspine Pass",
+      "label": "前往铁脊隘口",
       "description": "",
       "locationId": "riverford",
       "availableWhen": [],
       "requires": [],
-      "blockedReason": "The road is closed.",
+      "blockedReason": "道路不通。",
       "risk": "",
       "timeCost": 1,
       "once": false,
@@ -237,7 +393,7 @@
           "locationId": "ironspine"
         }
       ],
-      "text": "You travel to Ironspine Pass.",
+      "text": "你动身前往铁脊隘口。",
       "origin": "adapted",
       "evidence": [
         {
@@ -248,12 +404,12 @@
     },
     {
       "id": "go_ironspine_riverford",
-      "label": "Travel to Riverford",
+      "label": "前往河渡镇",
       "description": "",
       "locationId": "ironspine",
       "availableWhen": [],
       "requires": [],
-      "blockedReason": "The road is closed.",
+      "blockedReason": "道路不通。",
       "risk": "",
       "timeCost": 1,
       "once": false,
@@ -263,7 +419,7 @@
           "locationId": "riverford"
         }
       ],
-      "text": "You travel to Riverford.",
+      "text": "你动身前往河渡镇。",
       "origin": "adapted",
       "evidence": [
         {
@@ -274,12 +430,12 @@
     },
     {
       "id": "go_highcrown_elderwood",
-      "label": "Travel to Elderwood Hollow",
+      "label": "前往古木幽谷",
       "description": "",
       "locationId": "highcrown",
       "availableWhen": [],
       "requires": [],
-      "blockedReason": "The road is closed.",
+      "blockedReason": "道路不通。",
       "risk": "",
       "timeCost": 1,
       "once": false,
@@ -289,7 +445,7 @@
           "locationId": "elderwood"
         }
       ],
-      "text": "You travel to Elderwood Hollow.",
+      "text": "你动身前往古木幽谷。",
       "origin": "adapted",
       "evidence": [
         {
@@ -300,12 +456,12 @@
     },
     {
       "id": "go_elderwood_highcrown",
-      "label": "Travel to Highcrown",
+      "label": "前往高冠城",
       "description": "",
       "locationId": "elderwood",
       "availableWhen": [],
       "requires": [],
-      "blockedReason": "The road is closed.",
+      "blockedReason": "道路不通。",
       "risk": "",
       "timeCost": 1,
       "once": false,
@@ -315,7 +471,7 @@
           "locationId": "highcrown"
         }
       ],
-      "text": "You travel to Highcrown.",
+      "text": "你动身前往高冠城。",
       "origin": "adapted",
       "evidence": [
         {
@@ -326,12 +482,12 @@
     },
     {
       "id": "go_elderwood_watch_cape",
-      "label": "Travel to Watchtower Cape",
+      "label": "前往望塔岬",
       "description": "",
       "locationId": "elderwood",
       "availableWhen": [],
       "requires": [],
-      "blockedReason": "The road is closed.",
+      "blockedReason": "道路不通。",
       "risk": "",
       "timeCost": 1,
       "once": false,
@@ -341,7 +497,7 @@
           "locationId": "watch_cape"
         }
       ],
-      "text": "You travel to Watchtower Cape.",
+      "text": "你动身前往望塔岬。",
       "origin": "adapted",
       "evidence": [
         {
@@ -352,12 +508,12 @@
     },
     {
       "id": "go_watch_cape_elderwood",
-      "label": "Travel to Elderwood Hollow",
+      "label": "前往古木幽谷",
       "description": "",
       "locationId": "watch_cape",
       "availableWhen": [],
       "requires": [],
-      "blockedReason": "The road is closed.",
+      "blockedReason": "道路不通。",
       "risk": "",
       "timeCost": 1,
       "once": false,
@@ -367,7 +523,7 @@
           "locationId": "elderwood"
         }
       ],
-      "text": "You travel to Elderwood Hollow.",
+      "text": "你动身前往古木幽谷。",
       "origin": "adapted",
       "evidence": [
         {
@@ -378,12 +534,12 @@
     },
     {
       "id": "go_highcrown_mirefen",
-      "label": "Travel to Mirefen",
+      "label": "前往泥沼村",
       "description": "",
       "locationId": "highcrown",
       "availableWhen": [],
       "requires": [],
-      "blockedReason": "The road is closed.",
+      "blockedReason": "道路不通。",
       "risk": "",
       "timeCost": 1,
       "once": false,
@@ -393,7 +549,7 @@
           "locationId": "mirefen"
         }
       ],
-      "text": "You travel to Mirefen.",
+      "text": "你动身前往泥沼村。",
       "origin": "adapted",
       "evidence": [
         {
@@ -404,12 +560,12 @@
     },
     {
       "id": "go_mirefen_highcrown",
-      "label": "Travel to Highcrown",
+      "label": "前往高冠城",
       "description": "",
       "locationId": "mirefen",
       "availableWhen": [],
       "requires": [],
-      "blockedReason": "The road is closed.",
+      "blockedReason": "道路不通。",
       "risk": "",
       "timeCost": 1,
       "once": false,
@@ -419,7 +575,111 @@
           "locationId": "highcrown"
         }
       ],
-      "text": "You travel to Highcrown.",
+      "text": "你动身前往高冠城。",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "go_saltmere_watch_cape",
+      "label": "前往望塔岬",
+      "description": "",
+      "locationId": "saltmere",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "道路不通。",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {
+          "kind": "move",
+          "locationId": "watch_cape"
+        }
+      ],
+      "text": "你动身前往望塔岬。",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "go_watch_cape_saltmere",
+      "label": "前往盐沼港",
+      "description": "",
+      "locationId": "watch_cape",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "道路不通。",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {
+          "kind": "move",
+          "locationId": "saltmere"
+        }
+      ],
+      "text": "你动身前往盐沼港。",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "go_saltmere_mirefen",
+      "label": "前往泥沼村",
+      "description": "",
+      "locationId": "saltmere",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "道路不通。",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {
+          "kind": "move",
+          "locationId": "mirefen"
+        }
+      ],
+      "text": "你动身前往泥沼村。",
+      "origin": "adapted",
+      "evidence": [
+        {
+          "chapterId": "fixture",
+          "paragraphId": "p1"
+        }
+      ]
+    },
+    {
+      "id": "go_mirefen_saltmere",
+      "label": "前往盐沼港",
+      "description": "",
+      "locationId": "mirefen",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "道路不通。",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {
+          "kind": "move",
+          "locationId": "saltmere"
+        }
+      ],
+      "text": "你动身前往盐沼港。",
       "origin": "adapted",
       "evidence": [
         {
@@ -430,12 +690,12 @@
     },
     {
       "id": "go_ironspine_sunscar",
-      "label": "Travel to Sunscar Oasis",
+      "label": "前往日痕绿洲",
       "description": "",
       "locationId": "ironspine",
       "availableWhen": [],
       "requires": [],
-      "blockedReason": "The road is closed.",
+      "blockedReason": "道路不通。",
       "risk": "",
       "timeCost": 1,
       "once": false,
@@ -445,7 +705,7 @@
           "locationId": "sunscar"
         }
       ],
-      "text": "You travel to Sunscar Oasis.",
+      "text": "你动身前往日痕绿洲。",
       "origin": "adapted",
       "evidence": [
         {
@@ -456,12 +716,12 @@
     },
     {
       "id": "go_sunscar_ironspine",
-      "label": "Travel to Ironspine Pass",
+      "label": "前往铁脊隘口",
       "description": "",
       "locationId": "sunscar",
       "availableWhen": [],
       "requires": [],
-      "blockedReason": "The road is closed.",
+      "blockedReason": "道路不通。",
       "risk": "",
       "timeCost": 1,
       "once": false,
@@ -471,7 +731,7 @@
           "locationId": "ironspine"
         }
       ],
-      "text": "You travel to Ironspine Pass.",
+      "text": "你动身前往铁脊隘口。",
       "origin": "adapted",
       "evidence": [
         {
@@ -485,12 +745,13 @@
   "endings": [
     {
       "id": "arrive",
-      "title": "Map complete",
-      "text": "You reach Sunscar with a finished map.",
+      "title": "地图完成",
+      "text": "你带着完成的地图抵达日痕绿洲。",
       "when": [
         {
-          "kind": "time",
-          "atLeast": 1
+          "kind": "fact",
+          "factId": "charted",
+          "value": true
         }
       ]
     }
@@ -509,7 +770,7 @@
         "palette": [
           {
             "id": "sea",
-            "label": "Sea",
+            "label": "海洋",
             "color": "#6f9fc4",
             "tags": [
               "water"
@@ -517,22 +778,22 @@
           },
           {
             "id": "coast",
-            "label": "Coast",
+            "label": "海岸",
             "color": "#e4d6a0"
           },
           {
             "id": "plains",
-            "label": "Plains",
+            "label": "平原",
             "color": "#b9cf86"
           },
           {
             "id": "forest",
-            "label": "Forest",
+            "label": "森林",
             "color": "#4f8a4a"
           },
           {
             "id": "mountains",
-            "label": "Mountains",
+            "label": "山脉",
             "color": "#8c8178",
             "tags": [
               "impassable"
@@ -540,7 +801,7 @@
           },
           {
             "id": "river",
-            "label": "River",
+            "label": "河流",
             "color": "#5c9fd6",
             "tags": [
               "water"
@@ -548,19 +809,19 @@
           },
           {
             "id": "desert",
-            "label": "Desert",
+            "label": "沙漠",
             "color": "#e2bf72"
           },
           {
             "id": "marsh",
-            "label": "Marsh",
+            "label": "沼泽",
             "color": "#7d9b78"
           }
         ],
         "cells": {
           "0,0": "sea",
           "1,0": "sea",
-          "2,0": "plains",
+          "2,0": "coast",
           "3,0": "plains",
           "4,0": "forest",
           "5,0": "forest",
@@ -584,7 +845,7 @@
           "23,0": "plains",
           "0,1": "sea",
           "1,1": "sea",
-          "2,1": "plains",
+          "2,1": "coast",
           "3,1": "plains",
           "4,1": "forest",
           "5,1": "plains",
@@ -608,7 +869,7 @@
           "23,1": "forest",
           "-1,2": "sea",
           "0,2": "coast",
-          "1,2": "plains",
+          "1,2": "coast",
           "2,2": "plains",
           "3,2": "plains",
           "4,2": "forest",
@@ -634,7 +895,7 @@
           "0,3": "sea",
           "1,3": "coast",
           "2,3": "coast",
-          "3,3": "forest",
+          "3,3": "coast",
           "4,3": "plains",
           "5,3": "forest",
           "6,3": "forest",
@@ -657,7 +918,7 @@
           "-2,4": "sea",
           "-1,4": "sea",
           "0,4": "coast",
-          "1,4": "plains",
+          "1,4": "coast",
           "2,4": "forest",
           "3,4": "forest",
           "4,4": "plains",
@@ -705,8 +966,8 @@
           "-3,6": "sea",
           "-2,6": "sea",
           "-1,6": "coast",
-          "0,6": "plains",
-          "1,6": "plains",
+          "0,6": "coast",
+          "1,6": "coast",
           "2,6": "plains",
           "3,6": "plains",
           "4,6": "plains",
@@ -729,8 +990,8 @@
           "-3,7": "sea",
           "-2,7": "sea",
           "-1,7": "sea",
-          "0,7": "plains",
-          "1,7": "plains",
+          "0,7": "coast",
+          "1,7": "coast",
           "2,7": "plains",
           "3,7": "plains",
           "4,7": "plains",
@@ -753,7 +1014,7 @@
           "-4,8": "sea",
           "-3,8": "sea",
           "-2,8": "coast",
-          "-1,8": "plains",
+          "-1,8": "coast",
           "0,8": "plains",
           "1,8": "plains",
           "2,8": "plains",
@@ -777,7 +1038,7 @@
           "-4,9": "sea",
           "-3,9": "sea",
           "-2,9": "coast",
-          "-1,9": "plains",
+          "-1,9": "coast",
           "0,9": "plains",
           "1,9": "plains",
           "2,9": "plains",
@@ -803,8 +1064,8 @@
           "-3,10": "sea",
           "-2,10": "sea",
           "-1,10": "coast",
-          "0,10": "river",
-          "1,10": "river",
+          "0,10": "coast",
+          "1,10": "coast",
           "2,10": "river",
           "3,10": "plains",
           "4,10": "plains",
@@ -851,7 +1112,7 @@
           "-4,12": "sea",
           "-3,12": "sea",
           "-2,12": "coast",
-          "-1,12": "plains",
+          "-1,12": "coast",
           "0,12": "plains",
           "1,12": "marsh",
           "2,12": "marsh",
@@ -875,7 +1136,7 @@
           "-4,13": "sea",
           "-3,13": "sea",
           "-2,13": "coast",
-          "-1,13": "plains",
+          "-1,13": "coast",
           "0,13": "plains",
           "1,13": "marsh",
           "2,13": "marsh",
@@ -899,7 +1160,7 @@
           "-5,14": "sea",
           "-4,14": "sea",
           "-3,14": "sea",
-          "-2,14": "plains",
+          "-2,14": "coast",
           "-1,14": "plains",
           "0,14": "marsh",
           "1,14": "marsh",
@@ -948,21 +1209,21 @@
         "factions": [
           {
             "id": "azure_crown",
-            "name": "Azure Crown",
+            "name": "蔚蓝王冠",
             "color": "#2f5fbf",
-            "description": "Coastal kingdom."
+            "description": "沿海王国。"
           },
           {
             "id": "verdant_pact",
-            "name": "Verdant Pact",
+            "name": "翠绿盟约",
             "color": "#2e8b3e",
-            "description": "Forest druid league."
+            "description": "森林德鲁伊联盟。"
           },
           {
             "id": "ashen_sultanate",
-            "name": "Ashen Sultanate",
+            "name": "灰烬苏丹国",
             "color": "#c0392b",
-            "description": "Desert empire."
+            "description": "沙漠帝国。"
           }
         ],
         "cells": {
@@ -1172,7 +1433,7 @@
       {
         "locationId": "watch_cape",
         "anchor": {
-          "cell": "3,1"
+          "cell": "2,1"
         }
       },
       {
@@ -1190,7 +1451,7 @@
       {
         "locationId": "saltmere",
         "anchor": {
-          "cell": "0,8"
+          "cell": "-2,8"
         }
       },
       {

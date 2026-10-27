@@ -1,6 +1,6 @@
 /** Opening action density & initial-state condition matching for open worlds. */
 
-import { SYSTEM_WAIT_ACTION_ID, type WorldCondition, type WorldContent } from '@novel-game/contracts';
+import { SYSTEM_WAIT_ACTION_ID, type WorldCondition, type WorldContent, type WorldMap } from '@novel-game/contracts';
 import { evalWorldCondition } from './kind-builtins.js';
 
 /** Minimal snapshot for WorldCondition matching (opening eval + adventure runtime). */
@@ -9,6 +9,10 @@ export type WorldConditionState = {
   knownFactIds: readonly string[];
   npcs: Record<string, { knownFactIds: readonly string[] }>;
   elapsed: number;
+  /** Player location — required by map-aware kinds (at_terrain / in_faction_territory). */
+  locationId?: string;
+  /** Optional authored map; absent → map-aware kinds fail closed. */
+  map?: WorldMap;
 };
 
 export type OpeningEvalState = WorldConditionState & {
@@ -28,6 +32,7 @@ export function initialWorldState(world: WorldContent): OpeningEvalState {
       { locationId: npc.initialLocationId, knownFactIds: [...npc.knownFactIds] },
     ])),
     elapsed: 0,
+    ...(world.map ? { map: world.map } : {}),
   };
 }
 

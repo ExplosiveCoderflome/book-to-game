@@ -15,7 +15,7 @@ export function projectAdventure(state: AdventureState, revision: WorldRevision)
     facts: world.facts.filter(fact => state.knownFactIds.includes(fact.id)).map(fact => ({id: fact.id, label: fact.label, description: fact.description, kind: fact.kind, value: state.facts[fact.id]})),
     resources,
     npcs: world.npcs.filter(npc => state.npcs[npc.id]?.locationId === state.locationId).map(npc => ({id: npc.id, name: npc.name, description: npc.description})),
-    actions: state.ending ? [] : [...world.actions, systemWait(state.locationId)].filter(action => visible(action, state)).map(action => {
+    actions: state.ending ? [] : [...world.actions, systemWait(state.locationId)].filter(action => visible(action, state, world)).map(action => {
       const reason = blockedReason(action, world, state);
       return {id: action.id, label: action.label, description: action.description, timeCost: action.timeCost, risk: action.risk,
         enabled: reason === undefined, ...(reason === undefined ? {} : {blockedReason: reason})};

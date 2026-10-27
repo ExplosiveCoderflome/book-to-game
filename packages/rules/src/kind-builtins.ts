@@ -29,6 +29,12 @@ export const worldConditionKinds = new KindRegistry<WorldConditionEvaluator>();
 /** Metadata only in v1 — pure apply still lives in adventure-sessions (worldbook caps). */
 export const worldEffectKinds = new KindRegistry();
 
+/** POI cell of the player's current location (first POI wins). */
+export function locationCell(state: WorldConditionState): string | undefined {
+  if (!state.locationId || !state.map) return undefined;
+  return state.map.pois.find(p => p.locationId === state.locationId)?.anchor.cell;
+}
+
 function registerBuiltins(): void {
   storyConditionKinds
     .register({
@@ -119,6 +125,30 @@ function registerBuiltins(): void {
       description: '已消耗时间 ≥ 阈值',
       evaluate: (condition, state) =>
         condition.kind === 'time' && state.elapsed >= condition.atLeast,
+    })
+    .register({
+      kind: 'at_terrain',
+      family: 'world.condition',
+      label: '所在地形',
+      description: '玩家当前地点在地图上的格子地形属于所列地形之一（无地图/未放置 → 不成立）',
+      evaluate: (condition, state) => {
+        if (condition.kind !== 'at_terrain') return false;
+        const cell = locationCell(state);
+        const terrain = cell ? state.map?.layers?.terrain?.cells[cell] : undefined;
+        return terrain !== undefined && condition.terrainIds.includes(terrain);
+      },
+    })
+    .register({
+      kind: 'in_faction_territory',
+      family: 'world.condition',
+      label: '位于势力领土',
+      description: '玩家当前地点所在格子归属所列势力之一（作者基线领土）',
+      evaluate: (condition, state) => {
+        if (condition.kind !== 'in_faction_territory') return false;
+        const cell = locationCell(state);
+        const owner = cell ? state.map?.layers?.factions?.cells[cell] : undefined;
+        return owner !== undefined && condition.factionIds.includes(owner);
+      },
     });
 
   worldEffectKinds

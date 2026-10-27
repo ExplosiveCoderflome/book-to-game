@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { worldContentSchema, worldMapSchema } from '@novel-game/contracts';
-import { cellKey, hexDistance, listHexCells, offsetToAxial, axialToOffset, validateWorldMap } from '@novel-game/rules';
+import { cellKey, hexDistance, listHexCells, offsetToAxial, axialToOffset, validateWorldMap, assessOpeningActions } from '@novel-game/rules';
 
 const map = {
   mapSchemaVersion: 1, geometry: { kind: 'hex', orientation: 'pointy', cols: 6, rows: 4, size: 28 }, layers: {},
@@ -63,8 +63,27 @@ test('fixture world: valid, no map errors, prompt and schematic deterministic', 
   const refs = { title: world.title, locations: world.locations.map(l => ({ id: l.id, title: l.title })) };
   const prompt = describeMapForImagePrompt(m, refs);
   assert.ok(prompt.length <= 900);
-  for (const s of ['Azure Crown', 'Sunscar Oasis', 'Mountains', '#c0392b']) assert.ok(prompt.includes(s), s);
+  for (const s of ['蔚蓝王冠', '日痕绿洲', '山脉', '#c0392b']) assert.ok(prompt.includes(s), s);
   assert.equal(prompt, describeMapForImagePrompt(m, refs));
   const svg = renderMapSchematicSvg(m, { places: refs.locations });
-  assert.ok(svg.startsWith('<svg') && svg.includes('Highcrown'));
+  assert.ok(svg.startsWith('<svg') && svg.includes('高冠城'));
+  const cellOf = (id: string) => m.pois.find(p => p.locationId === id)!.anchor.cell;
+  for (const id of ['saltmere', 'watch_cape']) assert.equal(m.layers.terrain!.cells[cellOf(id)], 'coast', id);
+  const opening = assessOpeningActions(world);
+  assert.ok(opening.executableIds.length >= 3, `opening executable ${opening.executableIds.join(',')}`);
+  assert.ok(opening.executableIds.includes('ask_harbor'), 'at_terrain coast gate passes at the port');
+});
+
+test('adventure runtime passes world.map to map-aware conditions', async () => {
+  const { visible, blockedReason } = await import('../src/modules/adventure-sessions/domain/rules.js');
+  const { initialWorldState } = await import('@novel-game/rules');
+  const world = worldContentSchema.parse(JSON.parse(readFileSync('fixtures/world-map/ember-reach.world.json', 'utf8')));
+  const s0 = initialWorldState(world);
+  const state = { ...s0, map: undefined, turn: 0, performedActionIds: [], triggeredEventIds: [], resources: {}, takenTags: [] } as never;
+  const ask = world.actions.find(a => a.id === 'ask_harbor')!;
+  assert.equal(visible(ask, state, world), true);
+  assert.equal(visible(ask, state), false, 'without world map the condition fails closed');
+  const permit = world.actions.find(a => a.id === 'crown_permit')!;
+  const atHigh = { ...(state as object), locationId: 'highcrown' } as never;
+  assert.equal(blockedReason(permit, world, atHigh), undefined);
 });

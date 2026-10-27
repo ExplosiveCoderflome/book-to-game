@@ -21,6 +21,16 @@ export function validateWorld(world: WorldContent, source: SourceDocument): Vali
     for (const item of items) {
       if (item.kind === 'fact' || item.kind === 'known' || item.kind === 'npc_knows') reference(facts, item.factId, owner, '事实');
       if (item.kind === 'npc_knows') reference(npcs, item.npcId, owner, 'NPC');
+      if (item.kind === 'at_terrain') {
+        const known = new Set(world.map?.layers?.terrain?.palette.map(p => p.id) ?? []);
+        if (!world.map?.layers?.terrain) warnings.push(`${owner} 使用地形条件，但世界没有地形图层（条件恒不成立）`);
+        else for (const tid of item.terrainIds) if (!known.has(tid)) errors.push(`${owner} 的地形不存在：${tid}`);
+      }
+      if (item.kind === 'in_faction_territory') {
+        const known = new Set(world.map?.layers?.factions?.factions.map(f => f.id) ?? []);
+        if (!world.map?.layers?.factions) warnings.push(`${owner} 使用势力领土条件，但世界没有势力图层（条件恒不成立）`);
+        else for (const fid of item.factionIds) if (!known.has(fid)) errors.push(`${owner} 的势力不存在：${fid}`);
+      }
       if (item.kind === 'time' && item.atLeast > world.timeLimit) warnings.push(`${owner} 的时间条件超过时限`);
     }
   }

@@ -21,7 +21,7 @@ function terrainAt(c: number, r: number): string {
   const n = noise(c, r);
   const seaEdge = 2 + (r > 9 && r < 15 ? 2 : 0) + (n > 0.6 ? 1 : 0) - (r < 3 ? 1 : 0);
   if (c < seaEdge || r === ROWS - 1 && c < 7) return 'sea';
-  if (c <= seaEdge) return 'coast';
+  if (c <= seaEdge + 1) return 'coast';
   if (river.has(`${c},${r}`)) return 'river';
   if (Math.abs(c - (16 - r * 0.25)) <= 1.2 && r <= 9) return 'mountains';
   if (c >= 17 && r >= 8) return n > 0.85 ? 'plains' : 'desert';
@@ -43,52 +43,71 @@ for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
   const f = factionAt(c, r, t); if (f) fCells[key(c, r)] = f;
 }
 
+/** First coast cell scanning eastward on a row (ports / capes must sit on the shoreline). */
+function coastCol(r: number): number {
+  for (let c = 0; c < COLS; c++) if (tCells[key(c, r)] === 'coast') return c;
+  throw new Error(`no coast on row ${r}`);
+}
 const places: [string, string, number, number, string][] = [
-  ['watch_cape', 'Watchtower Cape', 3, 1, 'A lonely lighthouse on the northern cliffs.'],
-  ['elderwood', 'Elderwood Hollow', 8, 2, 'A druid circle deep in the old forest.'],
-  ['ironspine', 'Ironspine Pass', 15, 4, 'The only road over the mountains.'],
-  ['saltmere', 'Port Saltmere', 4, 8, 'A busy harbour where the river meets the sea.'],
-  ['highcrown', 'Highcrown', 8, 7, 'Royal citadel of the Azure Crown.'],
-  ['riverford', 'Riverford', 11, 8, 'A toll bridge town on the river.'],
-  ['mirefen', 'Mirefen', 9, 13, 'Stilt village in the southern marsh.'],
-  ['sunscar', 'Sunscar Oasis', 20, 12, 'Palm-ringed capital of the Ashen Sultanate.'],
+  ['watch_cape', '望塔岬', coastCol(1), 1, '北方悬崖上孤零零的灯塔。'],
+  ['elderwood', '古木幽谷', 8, 2, '古老森林深处的德鲁伊石环。'],
+  ['ironspine', '铁脊隘口', 15, 4, '翻越山脉的唯一道路。'],
+  ['saltmere', '盐沼港', coastCol(8), 8, '河流入海处繁忙的港口。'],
+  ['highcrown', '高冠城', 8, 7, '蔚蓝王冠的王城。'],
+  ['riverford', '河渡镇', 11, 8, '河上收过桥费的小镇。'],
+  ['mirefen', '泥沼村', 9, 13, '南部沼泽中的高脚屋村落。'],
+  ['sunscar', '日痕绿洲', 20, 12, '灰烬苏丹国的棕榈都城。'],
 ];
 const ev = [{ chapterId: 'fixture', paragraphId: 'p1' }];
 const map: WorldMap = {
   mapSchemaVersion: 1, geometry,
   layers: {
     terrain: { palette: [
-      { id: 'sea', label: 'Sea', color: '#6f9fc4', tags: ['water'] },
-      { id: 'coast', label: 'Coast', color: '#e4d6a0' },
-      { id: 'plains', label: 'Plains', color: '#b9cf86' },
-      { id: 'forest', label: 'Forest', color: '#4f8a4a' },
-      { id: 'mountains', label: 'Mountains', color: '#8c8178', tags: ['impassable'] },
-      { id: 'river', label: 'River', color: '#5c9fd6', tags: ['water'] },
-      { id: 'desert', label: 'Desert', color: '#e2bf72' },
-      { id: 'marsh', label: 'Marsh', color: '#7d9b78' },
+      { id: 'sea', label: '海洋', color: '#6f9fc4', tags: ['water'] },
+      { id: 'coast', label: '海岸', color: '#e4d6a0' },
+      { id: 'plains', label: '平原', color: '#b9cf86' },
+      { id: 'forest', label: '森林', color: '#4f8a4a' },
+      { id: 'mountains', label: '山脉', color: '#8c8178', tags: ['impassable'] },
+      { id: 'river', label: '河流', color: '#5c9fd6', tags: ['water'] },
+      { id: 'desert', label: '沙漠', color: '#e2bf72' },
+      { id: 'marsh', label: '沼泽', color: '#7d9b78' },
     ], cells: tCells },
     factions: { factions: [
-      { id: 'azure_crown', name: 'Azure Crown', color: '#2f5fbf', description: 'Coastal kingdom.' },
-      { id: 'verdant_pact', name: 'Verdant Pact', color: '#2e8b3e', description: 'Forest druid league.' },
-      { id: 'ashen_sultanate', name: 'Ashen Sultanate', color: '#c0392b', description: 'Desert empire.' },
+      { id: 'azure_crown', name: '蔚蓝王冠', color: '#2f5fbf', description: '沿海王国。' },
+      { id: 'verdant_pact', name: '翠绿盟约', color: '#2e8b3e', description: '森林德鲁伊联盟。' },
+      { id: 'ashen_sultanate', name: '灰烬苏丹国', color: '#c0392b', description: '沙漠帝国。' },
     ], cells: fCells },
   },
   pois: places.map(([id, , c, r]) => ({ locationId: id, anchor: { cell: key(c, r) } })),
 };
-const routes: [string, string][] = [['saltmere','highcrown'],['highcrown','riverford'],['riverford','ironspine'],['highcrown','elderwood'],['elderwood','watch_cape'],['highcrown','mirefen'],['ironspine','sunscar']];
+const routes: [string, string][] = [['saltmere','highcrown'],['highcrown','riverford'],['riverford','ironspine'],['highcrown','elderwood'],['elderwood','watch_cape'],['highcrown','mirefen'],['saltmere','watch_cape'],['saltmere','mirefen'],['ironspine','sunscar']];
 const title = (id: string) => places.find(p => p[0] === id)![1];
 const world: WorldContent = worldContentSchema.parse({
-  schemaVersion: 1, mode: 'open', title: 'The Ember Reach', premise: 'Three realms share a fractured land between the western sea and the eastern desert.',
-  playerRole: 'A wandering cartographer', goal: 'Chart the realm and reach Sunscar Oasis.', worldRules: ['Mountains can only be crossed at Ironspine Pass.'],
-  adaptationNotes: 'Test fixture for the world map layer (terrain + factions + POIs).', sourceChapterIds: ['fixture'],
-  initialLocationId: 'saltmere', timeLimit: 30, timeoutEnding: 'The season ends before your map is complete.',
+  schemaVersion: 1, mode: 'open', title: '余烬之地', premise: '三个国度瓜分着西海与东方沙漠之间这片破碎的土地。',
+  playerRole: '游历四方的制图师', goal: '绘完全境地图并抵达日痕绿洲。', worldRules: ['山脉只能经铁脊隘口翻越。'],
+  adaptationNotes: '世界地图图层测试数据（地形 + 势力 + 地点标记）。', sourceChapterIds: ['fixture'],
+  initialLocationId: 'saltmere', timeLimit: 30, timeoutEnding: '季节已尽，你的地图仍未完成。',
   locations: places.map(([id, t, , , text]) => ({ id, title: t, text, origin: 'adapted', evidence: ev })),
-  facts: [], npcs: [],
-  actions: routes.flatMap(([a, b]) => [[a, b], [b, a]]).map(([from, to]) => ({
-    id: `go_${from}_${to}`, label: `Travel to ${title(to)}`, description: '', locationId: from, availableWhen: [], requires: [],
-    blockedReason: 'The road is closed.', risk: '', timeCost: 1, once: false, effects: [{ kind: 'move', locationId: to }],
-    text: `You travel to ${title(to)}.`, origin: 'adapted', evidence: ev })),
-  events: [], endings: [{ id: 'arrive', title: 'Map complete', text: 'You reach Sunscar with a finished map.', when: [{ kind: 'time', atLeast: 1 }] }],
+  facts: [
+    { id: 'harbor_rumor', label: '港口传闻', description: '水手口中关于东方绿洲的消息。', kind: 'clue', initialValue: false, playerKnown: false, origin: 'adapted', evidence: ev },
+    { id: 'crown_pass', label: '王冠通行令', description: '蔚蓝王冠签发的通行文书。', kind: 'item', initialValue: false, playerKnown: false, origin: 'adapted', evidence: ev },
+    { id: 'charted', label: '全图绘成', description: '在绿洲完成了地图。', kind: 'event', initialValue: false, playerKnown: false, origin: 'adapted', evidence: ev },
+  ], npcs: [],
+  actions: [
+    { id: 'ask_harbor', label: '在码头打听消息', description: '只有身处海岸时才能和水手搭话。', locationId: 'saltmere', availableWhen: [{ kind: 'at_terrain', terrainIds: ['coast'] }], requires: [],
+      blockedReason: '这里没有水手。', risk: '', timeCost: 1, once: true, effects: [{ kind: 'set', factId: 'harbor_rumor', value: true }, { kind: 'reveal', factId: 'harbor_rumor' }],
+      text: '水手们说，东方的日痕绿洲在等一位制图师。', origin: 'adapted', evidence: ev },
+    { id: 'crown_permit', label: '向王冠驿站申领通行令', description: '须身处蔚蓝王冠领土。', locationId: 'highcrown', availableWhen: [], requires: [{ kind: 'in_faction_territory', factionIds: ['azure_crown'] }],
+      blockedReason: '此地不归蔚蓝王冠管辖。', risk: '', timeCost: 1, once: true, effects: [{ kind: 'set', factId: 'crown_pass', value: true }, { kind: 'reveal', factId: 'crown_pass' }],
+      text: '驿丞在通行令上盖下蓝色火漆。', origin: 'adapted', evidence: ev },
+    { id: 'finish_map', label: '在绿洲完成地图', description: '', locationId: 'sunscar', availableWhen: [], requires: [{ kind: 'in_faction_territory', factionIds: ['ashen_sultanate'] }],
+      blockedReason: '还未抵达苏丹国领土。', risk: '', timeCost: 1, once: true, effects: [{ kind: 'set', factId: 'charted', value: true }],
+      text: '你在棕榈树下画完最后一笔。', origin: 'adapted', evidence: ev },
+    ...routes.flatMap(([a, b]) => [[a, b], [b, a]]).map(([from, to]) => ({
+    id: `go_${from}_${to}`, label: `前往${title(to)}`, description: '', locationId: from, availableWhen: [], requires: [],
+    blockedReason: '道路不通。', risk: '', timeCost: 1, once: false, effects: [{ kind: 'move', locationId: to }],
+    text: `你动身前往${title(to)}。`, origin: 'adapted', evidence: ev }))],
+  events: [], endings: [{ id: 'arrive', title: '地图完成', text: '你带着完成的地图抵达日痕绿洲。', when: [{ kind: 'fact', factId: 'charted', value: true }] }],
   map,
 });
 

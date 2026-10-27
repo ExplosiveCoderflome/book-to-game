@@ -10,6 +10,7 @@ import { WorldMapCanvas } from './WorldMapCanvas';
 import { withMap } from '../lib/world-map';
 import type { WorldMap } from '@novel-game/contracts';
 import { WorldOverview } from './WorldOverview';
+import { WorldActionRulesEditor } from './WorldActionRulesEditor';
 import { WorldbookEditor } from './WorldbookEditor';
 import { WorldPlayInspector } from './play/WorldPlayInspector';
 
@@ -293,7 +294,7 @@ export function WorldsPanel({
                   <div className="draft-inspector-body">
                     {inspectorTab === 'location' && (
                       selectedLocationId
-                        ? <WorldOverview content={content} focusLocationId={selectedLocationId} />
+                        ? <><WorldActionRulesEditor content={content} locationId={selectedLocationId} onChange={change} /><WorldOverview content={content} focusLocationId={selectedLocationId} /></>
                         : <Empty>{t('在画布上点击一个地点节点。')}</Empty>
                     )}
                     {inspectorTab === 'meta' && (
