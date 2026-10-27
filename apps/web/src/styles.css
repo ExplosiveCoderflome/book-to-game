@@ -10,6 +10,10 @@
   --green:#344f42;
   --rust:#a6472e;
   --serif:"Noto Serif SC","Songti SC","SimSun",serif;
+  /* Layout: content-first / horizontal fill — see docs/design-layout.md */
+  --shell-gutter:16px;
+  --shell-gutter-lg:20px;
+  --prose-max:72ch;
   line-height:1.6
 }
 * {
@@ -148,9 +152,11 @@ a {
   display:none!important
 }
 .app-shell {
-  max-width:1600px;
-  margin:auto;
-  padding:0 44px
+  width:100%;
+  max-width:none;
+  margin:0;
+  padding:0 var(--shell-gutter-lg);
+  box-sizing:border-box
 }
 .site-header {
   display:flex;
@@ -377,7 +383,9 @@ a {
   color:var(--green)
 }
 .work-section {
-  padding:34px 0 50px
+  padding:20px 0 28px;
+  width:100%;
+  max-width:none
 }
 .section-heading {
   display:flex;
@@ -909,7 +917,7 @@ legend {
 }
 @media(max-width:1100px) {
   .app-shell {
-    padding:0 24px
+    padding:0 var(--shell-gutter)
   }
   .workspace-bar {
     display:block
@@ -940,7 +948,7 @@ legend {
 }
 @media(max-width:760px) {
   .app-shell {
-    padding:0 16px
+    padding:0 12px
   }
   .site-header {
     padding:20px 0;
@@ -1282,7 +1290,7 @@ legend {
 
 
 .draft-workspace .section-heading { margin-bottom: 14px; }
-.draft-editor-canvas { padding: 18px 20px 22px; }
+.draft-editor-canvas { padding: 12px 0 18px; }
 .draft-canvas-actions { align-items: center; }
 .draft-action-cluster { display: flex; flex-wrap: wrap; gap: 8px; }
 .draft-meta-strip {
@@ -1294,11 +1302,12 @@ legend {
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  min-height: min(72vh, 820px);
-  height: calc(100vh - 280px);
-  max-height: 900px;
+  width: 100%;
+  min-height: min(78vh, 920px);
+  height: calc(100vh - 220px);
+  max-height: none;
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: 14px;
   overflow: hidden;
   background: var(--paper);
 }
@@ -1578,3 +1587,22 @@ legend {
 .propose-act-result.propose-acted { color: #1f6b3a; }
 .propose-act-result.propose-none, .propose-act-result.propose-rejected { color: #8a3b1d; }
 .propose-fallback { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; align-items: center; }
+
+
+/* Full-bleed primary surfaces (canvas / main work) — docs/design-layout.md */
+.layout-fullbleed,
+.draft-workspace .draft-canvas-stage,
+.world-workspace .draft-canvas-stage {
+  width: 100%;
+  max-width: none;
+}
+.draft-workspace .section-heading,
+.world-workspace .section-heading {
+  padding-left: 0;
+  padding-right: 0;
+}
+@media (min-width: 1200px) {
+  .app-shell {
+    padding: 0 var(--shell-gutter-lg);
+  }
+}

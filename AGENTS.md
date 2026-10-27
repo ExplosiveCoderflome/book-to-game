@@ -29,3 +29,9 @@ migrated only within the authorized task scope.
 - Existing novel project D:/code/ai is an integration source; do not modify it here.
 - For the open-adventure slice on 2026-10-10, the user explicitly approved two gpt-6.1-sol subagents for frontend and runtime work. That assignment is complete; it is not standing approval for future delegations. Follow the latest user delegation instructions for each new assignment.
 - Never commit secrets, local novels, SQLite files or generated runtime data.
+
+## UI layout
+
+- Prefer **content-first horizontal fill**: App shell and primary work surfaces (especially the infinite canvas) use nearly full viewport width with small consistent gutters (`--shell-gutter*`). Avoid large bilateral whitespace from `max-width` + `margin: auto` shells.
+- Full rules: [docs/design-layout.md](docs/design-layout.md).
+
