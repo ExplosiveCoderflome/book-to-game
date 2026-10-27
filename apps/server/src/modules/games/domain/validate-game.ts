@@ -1,4 +1,5 @@
 import type { GameContent, Scene, SourceDocument, ValidationResult } from '@novel-game/contracts';
+import { validateWorldbookContent } from '@novel-game/contracts';
 import { assessPlayability } from './playability.js';
 import { analyzeReachability } from './reachability.js';
 
@@ -85,6 +86,22 @@ export function validateGame(content: GameContent, source: SourceDocument): Vali
     if (reach.truncated) {
       warnings.push(`变量可达分析因状态空间过大被截断（已探索 ${reach.stateCount} 个状态），结果可能不完整`);
     }
+  }
+  {
+    const choiceTags = new Set<string>();
+    for (const scene of content.scenes) {
+      for (const choice of scene.choices) {
+        for (const tag of choice.tags ?? []) choiceTags.add(tag);
+      }
+    }
+    const wb = validateWorldbookContent({
+      worldbook: content.worldbook,
+      sceneIds: new Set(content.scenes.map(scene => scene.id)),
+      variables,
+      choiceTags,
+    });
+    errors.push(...wb.errors);
+    for (const warning of wb.warnings) if (!warnings.includes(warning)) warnings.push(warning);
   }
   if (errors.length === 0) {
     const play = assessPlayability(content, 'publish');

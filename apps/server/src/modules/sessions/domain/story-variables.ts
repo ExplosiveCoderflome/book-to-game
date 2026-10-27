@@ -1,4 +1,5 @@
-import type { Choice, VariableValue } from '@novel-game/contracts';
+import type { Choice, VariableValue, Worldbook } from '@novel-game/contracts';
+import { worldbookBlockReason, worldbookIncrementCap } from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
 
 export function choiceAvailable(choice: Choice, variables: Record<string, VariableValue>): boolean {
@@ -10,7 +11,26 @@ export function choiceAvailable(choice: Choice, variables: Record<string, Variab
   });
 }
 
-export function applyChoiceEffects(choice: Choice, current: Record<string, VariableValue>): Record<string, VariableValue> {
+/** Variable conditions + worldbook hard rules. */
+export function choiceAllowed(
+  choice: Choice,
+  variables: Record<string, VariableValue>,
+  sceneId: string,
+  worldbook: Worldbook | undefined,
+): { ok: true } | { ok: false; reason: string } {
+  if (!choiceAvailable(choice, variables)) {
+    return { ok: false, reason: '当前变量条件未满足，此选项不可用' };
+  }
+  const blocked = worldbookBlockReason(choice, sceneId, variables, worldbook);
+  if (blocked) return { ok: false, reason: blocked };
+  return { ok: true };
+}
+
+export function applyChoiceEffects(
+  choice: Choice,
+  current: Record<string, VariableValue>,
+  worldbook?: Worldbook,
+): Record<string, VariableValue> {
   const variables = {...current};
   for (const effect of choice.effects ?? []) {
     const previous = variables[effect.variable];
@@ -18,11 +38,21 @@ export function applyChoiceEffects(choice: Choice, current: Record<string, Varia
       (effect.type === 'variable.increment' && typeof previous !== 'number')) {
       throw new AppError('INVALID_VARIABLE_STATE', '存档变量与游戏规则不一致，无法执行此选项', 409);
     }
-    const value = effect.type === 'variable.increment' ? (previous as number) + effect.value : effect.value;
-    if (typeof value === 'number' && !Number.isFinite(value)) {
+    let nextValue: VariableValue;
+    if (effect.type === 'variable.increment') {
+      let delta = effect.value;
+      const cap = worldbookIncrementCap(effect.variable, worldbook);
+      if (cap !== undefined && Math.abs(delta) > cap) {
+        delta = delta > 0 ? cap : -cap;
+      }
+      nextValue = (previous as number) + delta;
+    } else {
+      nextValue = effect.value;
+    }
+    if (typeof nextValue === 'number' && !Number.isFinite(nextValue)) {
       throw new AppError('INVALID_VARIABLE_STATE', '变量运算超出有限数字范围，无法执行此选项', 409);
     }
-    variables[effect.variable] = value;
+    variables[effect.variable] = nextValue;
   }
   return variables;
 }

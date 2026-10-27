@@ -1567,3 +1567,6 @@ legend {
 .empty-scan-scope { display: grid; gap: 6px; }
 .empty-scan-chapters { display: grid; gap: 4px; max-height: 140px; overflow: auto; padding: 6px 8px; border: 1px solid #d5deed; border-radius: 8px; background: #fff; }
 .empty-scan-chapters .check-label { font-size: 12px; }
+
+.worldbook-entry { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--paper) 92%, #c9a227); }
+.worldbook-scene-scope { display: flex; flex-wrap: wrap; gap: 6px 12px; max-height: 140px; overflow: auto; }

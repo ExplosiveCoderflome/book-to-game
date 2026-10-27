@@ -13,6 +13,7 @@ import { Empty, Notice } from './Notice';
 import { BranchGraphCanvas } from './BranchGraphCanvas';
 import { SceneEditor } from './SceneEditor';
 import { StoryVariablesEditor } from './StoryVariablesEditor';
+import { WorldbookEditor } from './WorldbookEditor';
 
 const blankContent = (): GameContent => ({ title: '', mode: 'story', premise: '', adaptationNotes: '', startSceneId: '', scenes: [] });
 interface Props {
@@ -34,7 +35,7 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
   const [sourceId, setSourceId] = useState(sources[0]?.id ?? '');
   const [sceneIndex, setSceneIndex] = useState(0);
   const [inspectorOpen, setInspectorOpen] = useState(false);
-  const [inspectorTab, setInspectorTab] = useState<'scene' | 'meta' | 'variables'>('scene');
+  const [inspectorTab, setInspectorTab] = useState<'scene' | 'meta' | 'variables' | 'worldbook'>('scene');
   const [metaOpen, setMetaOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -485,6 +486,7 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
           )}
           <button type="button" className="small" disabled={busy || canvasMode === 'play'} onClick={() => setMetaOpen(v => !v)}>{t(metaOpen ? '收起故事信息' : '故事信息')}</button>
           <button type="button" className="small" disabled={busy || canvasMode === 'play'} onClick={() => { setInspectorTab('variables'); setInspectorOpen(true); }}>{t('变量')}</button>
+          <button type="button" className="small" data-testid="open-worldbook" disabled={busy || canvasMode === 'play'} onClick={() => { setInspectorTab('worldbook'); setInspectorOpen(true); }}>{t('世界书')}</button>
           <button type="button" className="small" disabled={busy || canvasMode === 'play'} onClick={() => { if (jsonMode) applyJson(); else { setJsonText(JSON.stringify(content, null, 2)); setJsonMode(true); } }}>{t(jsonMode ? '应用 JSON 到编辑器' : '高级 JSON')}</button>
         </div>
       </div>
@@ -605,6 +607,7 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
               <div className="draft-inspector-tabs">
                 <button type="button" className={inspectorTab === 'scene' ? 'active' : ''} onClick={() => setInspectorTab('scene')}>{t('场景')}</button>
                 <button type="button" className={inspectorTab === 'variables' ? 'active' : ''} onClick={() => setInspectorTab('variables')}>{t('变量')}</button>
+                <button type="button" className={inspectorTab === 'worldbook' ? 'active' : ''} data-testid="inspector-worldbook-tab" onClick={() => setInspectorTab('worldbook')}>{t('世界书')}</button>
                 <button type="button" className={inspectorTab === 'meta' ? 'active' : ''} onClick={() => setInspectorTab('meta')}>{t('信息')}</button>
               </div>
               <button type="button" className="quiet small" onClick={() => setInspectorOpen(false)} aria-label={t('关闭侧栏')}>{t('关闭')}</button>
@@ -614,6 +617,7 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
                 ? <SceneEditor key={scene.id} scene={scene} scenes={content.scenes} variables={content.variables} update={value => change({ ...content, scenes: content.scenes.map((s, i) => i === sceneIndex ? value : s) })} remove={() => { change({ ...content, scenes: content.scenes.filter((_, i) => i !== sceneIndex) }); setSceneIndex(Math.max(0, sceneIndex - 1)); setInspectorOpen(false); }} />
                 : <Empty>{t('在画布上点击一个节点，或添加场景。')}</Empty>)}
               {inspectorTab === 'variables' && <StoryVariablesEditor key={draft?.id ?? 'new'} content={content} update={change} />}
+              {inspectorTab === 'worldbook' && <WorldbookEditor key={draft?.id ?? 'new-wb'} content={content} update={change} />}
               {inspectorTab === 'meta' && <div className="stack draft-inspector-meta">
                 <label>{t('游戏标题')}<input value={content.title} maxLength={200} onChange={e => change({ ...content, title: e.target.value })} /></label>
                 <label>{t('起始场景')}<select value={content.startSceneId} onChange={e => change({ ...content, startSceneId: e.target.value })}><option value="">{t('选择故事入口')}</option>{content.scenes.map((s, i) => <option key={i} value={s.id}>{s.title || s.id}</option>)}</select></label>

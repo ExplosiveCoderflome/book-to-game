@@ -1,5 +1,12 @@
 import { z } from 'zod';
 export * from './world.js';
+export {
+  worldbookSchema, worldbookEntrySchema, worldbookConstraintSchema, worldbookEntryKindSchema,
+  worldbookScopeSchema, emptyWorldbook, entryAppliesToScene, entriesForScene,
+  worldbookBlockReason, worldbookIncrementCap, validateWorldbookContent,
+  type Worldbook, type WorldbookEntry, type WorldbookConstraint, type WorldbookEntryKind, type WorldbookScope,
+} from './worldbook.js';
+import { worldbookSchema } from './worldbook.js';
 export { modelListInputSchema, modelSettingsInputSchema, type ModelListInput, type ModelListResult, type ModelSettingsInput, type ModelSettingsView, type ModelConnectionResult } from './model-settings.js';
 
 export const evidenceSchema = z.object({ chapterId: z.string().min(1).max(80), paragraphId: z.string().min(1).max(80) });
@@ -29,6 +36,8 @@ export type StoryEffect = z.infer<typeof storyEffectSchema>;
 export const choiceSchema = z.object({
   id: z.string().min(1).max(80), label: z.string().min(1).max(300), targetSceneId: z.string().min(1).max(80),
   conditions: z.array(storyConditionSchema).max(20).optional(), effects: z.array(storyEffectSchema).max(20).optional(),
+  /** Optional tags for worldbook hard rules (forbid / gate). Does not invent graph edges. */
+  tags: z.array(z.string().min(1).max(40)).max(10).optional(),
 });
 export type Choice = z.infer<typeof choiceSchema>;
 export const sceneSchema = z.object({
@@ -48,6 +57,8 @@ export const gameContentSchema = z.object({
   variables: z.record(variableNameSchema, variableValueSchema).optional(),
   /** Optional infinite-canvas node positions; authoring metadata, ignored by play runtime. */
   canvasLayout: canvasLayoutSchema.optional(),
+  /** Lore + hard rules (power/upgrade/agency caps). Constraints are engine-enforced. */
+  worldbook: worldbookSchema.optional(),
   startSceneId: z.string().min(1).max(80), scenes: z.array(sceneSchema).min(3).max(100),
 });
 export type GameContent = z.infer<typeof gameContentSchema>;
@@ -120,6 +131,7 @@ export const branchSkeletonSchema = z.object({
   premise: z.string().min(1).max(4000), adaptationNotes: z.string().max(4000),
   variables: z.record(variableNameSchema, variableValueSchema).optional(),
   canvasLayout: canvasLayoutSchema.optional(),
+  worldbook: worldbookSchema.optional(),
   startSceneId: z.string().min(1).max(80), scenes: z.array(skeletonSceneSchema).min(3).max(100),
 });
 export type SkeletonScene = z.infer<typeof skeletonSceneSchema>;

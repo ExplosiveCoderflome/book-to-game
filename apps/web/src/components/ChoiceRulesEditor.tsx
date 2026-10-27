@@ -13,7 +13,16 @@ export function ChoiceRulesEditor({ choice, variables, update }: { choice: Choic
     if (removedIndex !== undefined) rowIds.current[kind].splice(removedIndex, 1);
     update(kind === 'conditions' ? { ...choice, conditions: rules as StoryCondition[] } : { ...choice, effects: rules as StoryEffect[] });
   }
-  return <>{(['conditions', 'effects'] as const).map(kind => {
+  const tagsText = (choice.tags ?? []).join(', ');
+  return <>
+    <fieldset data-testid="choice-tags-editor"><legend>{t('选项标签（世界书）')}</legend>
+      <p className="hint">{t('逗号分隔。世界书可用标签禁止或门控选项，不会改图上的边。')}</p>
+      <label>{t('标签')}<input value={tagsText} maxLength={200} placeholder={t('例如 combat, upgrade')} onChange={e => {
+        const tags = e.target.value.split(',').flatMap(part => part.split('，')).map(s => s.trim()).filter(Boolean).slice(0, 10);
+        update({ ...choice, tags: tags.length ? tags : undefined });
+      }} /></label>
+    </fieldset>
+    {(['conditions', 'effects'] as const).map(kind => {
     const rules: Rule[] = choice[kind] ?? [];
     const defaultType = kind === 'conditions' ? 'variable.equals' : 'variable.set';
     const numericType = kind === 'conditions' ? 'variable.gte' : 'variable.increment';
