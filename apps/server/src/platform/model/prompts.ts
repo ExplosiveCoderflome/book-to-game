@@ -19,7 +19,8 @@ export const SKELETON_SYSTEM = `你是文字分支冒险的关卡设计师。提
 反同质与开局打散（软约束，不锁死拓扑）：
 - 开局选项应落在不同冲突焦点或角色立场上（例如物资/人情/情报/逃亡），避免五局生成都变成「先去仓库再谈商队」同套路。
 - 非结局场景平均出度建议 ≥1.5；走廊式单链请主动加真分叉，但不要发明隐含必连关系。
-- 优先做出「可玩的图」，贴合原著细节留给正文扩展步。
+- 结局文案须在语气、代价、世界状态上可感不同（一好一坏或一代价一平安），禁止只改标点/同义换词的近重复结局；勿用两三字空洞标签凑数。
+- 优先做出「可玩的图」，贴合原著细节留给正文扩展步；作者会在画布上改边与结局节点，不要发明刚性隐含耦合。
 输出下面结构的 JSON，不要 Markdown：
 ${JSON.stringify(z.toJSONSchema(branchSkeletonSchema))}`;
 
@@ -29,6 +30,7 @@ export const EXPAND_SYSTEM = `你是文字分支冒险的叙事作者。提供�
 可以润色 choices[].label 的措辞，但不得改变其冲突含义或指向。
 原作重现场景标 origin=source 并给出资料中的真实 evidence；改编补充标 adapted。
 adaptationNotes 可微调说明，但不要推翻骨架已定的冲突边界。mode 只能 story。文字使用简体中文。
+场景正文 text 应强化通向不同结局的路径体感（语气、代价、世界状态），使玩家能复述差异；ending 字段已锁定不可改。不要发明新的必经连线或隐含耦合。
 输出完整 GameContent JSON（含已锁定拓扑与填充后的正文），不要 Markdown：
 ${JSON.stringify(z.toJSONSchema(gameContentSchema))}`;
 

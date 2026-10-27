@@ -163,3 +163,65 @@ test('publish soft-gates low average out-degree and low effects coverage', () =>
   assert.ok(ann.issues.some(i => i.code === 'LOW_EFFECTS'));
   assert.ok(ann.flaggedSceneIds.includes('b') || ann.flaggedSceneIds.includes('c'));
 });
+
+
+test('publish soft-gates near-duplicate and thin ending texts', () => {
+  const near = {
+    title: '近重复结局', mode: 'story' as const, premise: '测', adaptationNotes: '',
+    startSceneId: 'a',
+    scenes: [
+      {id: 'a', title: 'A', text: '入口。', origin: 'adapted' as const, evidence: [], choices: [
+        {id: 'b', label: '去左岸求情换船', targetSceneId: 'b'},
+        {id: 'c', label: '去右岸强行夺船', targetSceneId: 'c'},
+      ]},
+      {id: 'b', title: 'B', text: '左。', origin: 'adapted' as const, evidence: [], choices: [
+        {id: 'e1', label: '付钱回家', targetSceneId: 'e1'},
+        {id: 'mid', label: '再绕一程', targetSceneId: 'd'},
+      ]},
+      {id: 'c', title: 'C', text: '右。', origin: 'adapted' as const, evidence: [], choices: [
+        {id: 'e2', label: '硬闯逃走', targetSceneId: 'e2'},
+        {id: 'mid2', label: '退回中继', targetSceneId: 'd'},
+      ]},
+      {id: 'd', title: 'D', text: '中。', origin: 'adapted' as const, evidence: [], choices: [
+        {id: 'e1b', label: '仍付钱回家', targetSceneId: 'e1'},
+        {id: 'e2b', label: '仍硬闯逃走', targetSceneId: 'e2'},
+      ]},
+      {id: 'e1', title: 'E1', text: '到。', origin: 'adapted' as const, evidence: [], choices: [], ending: '你终于平安回到了渡口旁的小村庄。'},
+      {id: 'e2', title: 'E2', text: '逃。', origin: 'adapted' as const, evidence: [], choices: [], ending: '你终于平安回到了渡口旁的小村镇。'},
+    ],
+  };
+  const pub = assessPlayability(near, 'publish');
+  assert.equal(pub.valid, true);
+  assert.ok(pub.warnings.some(w => /过于相近|相似度/.test(w)), pub.warnings.join(';'));
+  const ann = annotatePlayability(near, 'publish');
+  assert.ok(ann.issues.some(i => i.code === 'NEAR_DUPLICATE_ENDINGS'));
+  assert.ok(ann.flaggedSceneIds.includes('e1') && ann.flaggedSceneIds.includes('e2'));
+
+  const thin = structuredClone(near);
+  thin.scenes.find(s => s.id === 'e1')!.ending = '好';
+  thin.scenes.find(s => s.id === 'e2')!.ending = '坏';
+  const thinAnn = annotatePlayability(thin, 'publish');
+  assert.ok(thinAnn.issues.some(i => i.code === 'THIN_ENDING_TEXT'), thinAnn.issues.map(i => i.code).join(','));
+  assert.equal(thinAnn.result.valid, true);
+});
+
+test('normalized punctuation-only ending differences count as SAME_ENDING_TEXT', () => {
+  const same = {
+    title: '标点同结局', mode: 'story' as const, premise: '测', adaptationNotes: '',
+    startSceneId: 'a',
+    scenes: [
+      {id: 'a', title: 'A', text: 'x', origin: 'adapted' as const, evidence: [], choices: [
+        {id: 'b', label: '走左岸求情', targetSceneId: 'e1'},
+        {id: 'c', label: '走右岸冒险', targetSceneId: 'e2'},
+      ]},
+      {id: 'e1', title: 'E1', text: 'a', origin: 'adapted' as const, evidence: [], choices: [], ending: '平安归来。'},
+      {id: 'e2', title: 'E2', text: 'b', origin: 'adapted' as const, evidence: [], choices: [], ending: '平安归来'},
+    ],
+  };
+  const skel = assessPlayability(same, 'skeleton');
+  assert.equal(skel.valid, false);
+  assert.ok(skel.errors.some(e => /不同文本|结局文案/.test(e)), skel.errors.join(';'));
+  const pub = assessPlayability(same, 'publish');
+  assert.equal(pub.valid, true);
+  assert.ok(pub.warnings.some(w => /不同文本|结局文案/.test(w)), pub.warnings.join(';'));
+});

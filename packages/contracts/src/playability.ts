@@ -49,8 +49,8 @@ export function annotatePlayability(content: PlayabilityGraph, mode: Playability
   const issues = collectPlayabilityIssues(content, mode);
   const errors = issues.filter(i => i.severity === 'error').map(i => i.message);
   const warnings = issues.filter(i => i.severity === 'warning').map(i => i.message);
-  const flaggedSceneIds = [...new Set(issues.filter(i => i.severity === 'error' || i.code === 'CORRIDOR' || i.code === 'CHURN' || i.code === 'OPENING_FANOUT' || i.code === 'OPENING_DENSITY' || i.code === 'FAKE_BRANCH' || i.code === 'TOO_SHALLOW' || i.code === 'EMPTY_LABELS' || i.code === 'CONDITION_BLOCKED_ENDING' || i.code === 'FEW_STATE_ENDINGS' || i.code === 'DEAD_CONDITIONAL_EDGE' || i.code === 'LOW_OUT_DEGREE' || i.code === 'LOW_EFFECTS').flatMap(i => i.sceneIds ?? []))];
-  const flaggedEdgeKeys = [...new Set(issues.filter(i => i.severity === 'error' || i.code === 'CORRIDOR' || i.code === 'CHURN' || i.code === 'FAKE_BRANCH' || i.code === 'EMPTY_LABELS' || i.code === 'OPENING_FANOUT' || i.code === 'CONDITION_BLOCKED_ENDING' || i.code === 'DEAD_CONDITIONAL_EDGE' || i.code === 'FEW_STATE_ENDINGS' || i.code === 'LOW_OUT_DEGREE' || i.code === 'LOW_EFFECTS').flatMap(i => i.edgeKeys ?? []))];
+  const flaggedSceneIds = [...new Set(issues.filter(i => i.severity === 'error' || i.code === 'CORRIDOR' || i.code === 'CHURN' || i.code === 'OPENING_FANOUT' || i.code === 'OPENING_DENSITY' || i.code === 'FAKE_BRANCH' || i.code === 'TOO_SHALLOW' || i.code === 'EMPTY_LABELS' || i.code === 'CONDITION_BLOCKED_ENDING' || i.code === 'FEW_STATE_ENDINGS' || i.code === 'DEAD_CONDITIONAL_EDGE' || i.code === 'LOW_OUT_DEGREE' || i.code === 'LOW_EFFECTS' || i.code === 'SAME_ENDING_TEXT' || i.code === 'NEAR_DUPLICATE_ENDINGS' || i.code === 'THIN_ENDING_TEXT').flatMap(i => i.sceneIds ?? []))];
+  const flaggedEdgeKeys = [...new Set(issues.filter(i => i.severity === 'error' || i.code === 'CORRIDOR' || i.code === 'CHURN' || i.code === 'FAKE_BRANCH' || i.code === 'EMPTY_LABELS' || i.code === 'OPENING_FANOUT' || i.code === 'CONDITION_BLOCKED_ENDING' || i.code === 'DEAD_CONDITIONAL_EDGE' || i.code === 'FEW_STATE_ENDINGS' || i.code === 'LOW_OUT_DEGREE' || i.code === 'LOW_EFFECTS' || i.code === 'SAME_ENDING_TEXT' || i.code === 'NEAR_DUPLICATE_ENDINGS' || i.code === 'THIN_ENDING_TEXT').flatMap(i => i.edgeKeys ?? []))];
   return { result: { valid: errors.length === 0, errors, warnings }, issues, flaggedSceneIds, flaggedEdgeKeys };
 }
 
@@ -286,8 +286,8 @@ export function collectPlayabilityIssues(content: PlayabilityGraph, mode: Playab
     if (!reach.truncated && reach.stateEndingTexts.length < 2) {
       issues.push({
         code: 'FEW_STATE_ENDINGS',
-        message: `变量可达结局不足：当前 ${reach.stateEndingTexts.length} 个，至少需要 2 个不同结局（在合法选择序列下）`,
-        severity: 'error',
+        message: `变量可达结局不足：当前 ${reach.stateEndingTexts.length} 个，至少需要 2 个不同结局（在合法选择序列下）。结局体感会变成假双结局`,
+        severity: mode === 'publish' ? 'warning' : 'error',
         sceneIds: reach.conditionBlockedEndingIds.length
           ? [...reach.stateEndingIds, ...reach.conditionBlockedEndingIds]
           : endings.map(s => s.id),
@@ -315,18 +315,97 @@ export function collectPlayabilityIssues(content: PlayabilityGraph, mode: Playab
   }
 
   if (endings.length >= 2) {
-    const distinct = new Set(endings.map(scene => scene.ending!.trim()));
-    if (distinct.size < 2) {
+    const trimmed = endings.map(scene => ({ id: scene.id, text: scene.ending!.trim() }));
+    const distinctTrim = new Set(trimmed.map(item => item.text));
+    const distinctNorm = new Set(trimmed.map(item => normalizeEndingText(item.text)));
+    if (distinctTrim.size < 2 || distinctNorm.size < 2) {
       issues.push({
         code: 'SAME_ENDING_TEXT',
-        message: '结局文案需要至少两个不同文本',
+        message: '结局文案需要至少两个不同文本（忽略空白/标点后仍需可区分）',
         severity: mode === 'publish' ? 'warning' : 'error',
         sceneIds: endings.map(s => s.id),
       });
+    } else {
+      const nearPairs: string[] = [];
+      const nearIds = new Set<string>();
+      for (let i = 0; i < trimmed.length; i++) {
+        for (let j = i + 1; j < trimmed.length; j++) {
+          const a = trimmed[i]!;
+          const b = trimmed[j]!;
+          const sim = endingTextSimilarity(a.text, b.text);
+          if (sim >= 0.82) {
+            nearPairs.push(`${a.id}↔${b.id}（相似度 ${sim.toFixed(2)}）`);
+            nearIds.add(a.id);
+            nearIds.add(b.id);
+          }
+        }
+      }
+      if (nearPairs.length) {
+        issues.push({
+          code: 'NEAR_DUPLICATE_ENDINGS',
+          message: `结局文案过于相近，体感差异弱：${nearPairs.slice(0, 3).join('；')}。请拉开语气、代价或世界状态，可在画布上改结局节点文案`,
+          severity: 'warning',
+          sceneIds: [...nearIds],
+        });
+      }
+
+      const thin = trimmed.filter(item => normalizeEndingText(item.text).length < 4);
+      const lengths = trimmed.map(item => item.text.length);
+      const minLen = Math.min(...lengths);
+      const maxLen = Math.max(...lengths);
+      const lengthRatio = maxLen > 0 ? minLen / maxLen : 1;
+      if (thin.length >= 2 || (minLen <= 6 && lengthRatio >= 0.85 && !nearPairs.length && distinctNorm.size >= 2)) {
+        // short-and-similar-length endings often feel interchangeable even when wording differs slightly
+        const ids = thin.length >= 2 ? thin.map(item => item.id) : endings.map(s => s.id);
+        issues.push({
+          code: 'THIN_ENDING_TEXT',
+          message: thin.length >= 2
+            ? `有 ${thin.length} 个结局文案过短（有效字数 <4），难以体现语气/代价差异`
+            : `结局文案都偏短且长度接近（最短 ${minLen} / 最长 ${maxLen}），体感差异可能不足；建议写出不同代价或世界状态`,
+          severity: 'warning',
+          sceneIds: ids,
+        });
+      }
     }
   }
 
   return issues;
+}
+
+/** Collapse whitespace/punctuation so 「平安。」与「平安」计为同一结局。 */
+export function normalizeEndingText(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/[\s\u3000]+/g, '')
+    .replace(/[，。！？、；：""''“”‘’…—\-·~～,.!?;:'"]/g, '');
+}
+
+/** Dice coefficient on character bigrams; 1 = identical after normalize. */
+export function endingTextSimilarity(a: string, b: string): number {
+  const na = normalizeEndingText(a);
+  const nb = normalizeEndingText(b);
+  if (!na && !nb) return 1;
+  if (!na || !nb) return 0;
+  if (na === nb) return 1;
+  if (na.length < 2 || nb.length < 2) return 0;
+  const grams = (s: string) => {
+    const map = new Map<string, number>();
+    for (let i = 0; i < s.length - 1; i++) {
+      const g = s.slice(i, i + 2);
+      map.set(g, (map.get(g) ?? 0) + 1);
+    }
+    return map;
+  };
+  const A = grams(na);
+  const B = grams(nb);
+  let inter = 0;
+  let sizeA = 0;
+  let sizeB = 0;
+  for (const count of A.values()) sizeA += count;
+  for (const count of B.values()) sizeB += count;
+  for (const [g, count] of A) inter += Math.min(count, B.get(g) ?? 0);
+  return (2 * inter) / (sizeA + sizeB);
 }
 
 function graphMetrics(startId: string, byId: Map<string, GraphScene>) {

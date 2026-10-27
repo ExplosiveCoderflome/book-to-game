@@ -74,7 +74,7 @@ export function validateGame(content: GameContent, source: SourceDocument): Vali
   if (content.scenes.some(scene => scene.choices.some(choice => choice.conditions?.length))) {
     const reach = analyzeReachability(content);
     if (!reach.truncated && reach.stateEndingTexts.length < 2) {
-      errors.push(`变量条件下可达结局不足：仅 ${reach.stateEndingTexts.length} 个，至少需要 2 个不同结局`);
+      warnings.push(`变量条件下可达结局不足：仅 ${reach.stateEndingTexts.length} 个，至少需要 2 个不同结局（假双结局风险，发布前请在画布上核对）`);
     }
     for (const id of reach.conditionBlockedEndingIds) {
       warnings.push(`结局场景 ${id} 仅拓扑可达，变量条件实际不可达`);

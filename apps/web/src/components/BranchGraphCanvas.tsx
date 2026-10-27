@@ -67,7 +67,7 @@ export function BranchGraphCanvas({
   );
   const flaggedScenes = useMemo(() => new Set(annotation.flaggedSceneIds), [annotation]);
   const flaggedEdges = useMemo(() => new Set(annotation.flaggedEdgeKeys), [annotation]);
-  const bannerIssues = annotation.issues.filter(i => i.severity === 'error' || i.code === 'CORRIDOR' || i.code === 'CHURN' || i.code === 'OPENING_FANOUT' || i.code === 'OPENING_DENSITY' || i.code === 'TOO_SHALLOW' || i.code === 'CONDITION_BLOCKED_ENDING' || i.code === 'FEW_STATE_ENDINGS' || i.code === 'DEAD_CONDITIONAL_EDGE' || i.code === 'REACHABILITY_TRUNCATED' || i.code === 'LOW_OUT_DEGREE' || i.code === 'LOW_EFFECTS' || i.code === 'NO_STATE');
+  const bannerIssues = annotation.issues.filter(i => i.severity === 'error' || i.code === 'CORRIDOR' || i.code === 'CHURN' || i.code === 'OPENING_FANOUT' || i.code === 'OPENING_DENSITY' || i.code === 'TOO_SHALLOW' || i.code === 'CONDITION_BLOCKED_ENDING' || i.code === 'FEW_STATE_ENDINGS' || i.code === 'DEAD_CONDITIONAL_EDGE' || i.code === 'REACHABILITY_TRUNCATED' || i.code === 'LOW_OUT_DEGREE' || i.code === 'LOW_EFFECTS' || i.code === 'NO_STATE' || i.code === 'SAME_ENDING_TEXT' || i.code === 'NEAR_DUPLICATE_ENDINGS' || i.code === 'THIN_ENDING_TEXT');
 
   const trailEdges = useMemo(() => new Set(playOverlay?.trailEdgeKeys ?? []), [playOverlay]);
   const blockedEdges = useMemo(() => new Set(playOverlay?.blockedEdgeKeys ?? []), [playOverlay]);
@@ -307,7 +307,7 @@ export function BranchGraphCanvas({
             <li key={`${issue.code}-${index}`}>{issue.message}</li>
           ))}
         </ul>
-        <p className="branch-canvas-banner-hint">{t('对照评分表：开局密度、分支代价、结局差异、反走廊、出度与效果覆盖；流程改动请在画布上改边')}</p>
+        <p className="branch-canvas-banner-hint">{t('对照评分表：开局密度、分支代价、结局差异、反走廊、出度与效果覆盖；流程改动请在画布上改边与结局文案')}</p>
       </div>
     )}
     <div

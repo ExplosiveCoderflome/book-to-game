@@ -118,7 +118,7 @@ export type SkeletonScene = z.infer<typeof skeletonSceneSchema>;
 export type BranchSkeleton = z.infer<typeof branchSkeletonSchema>;
 
 export {
-  assessPlayability, annotatePlayability, collectPlayabilityIssues,
+  assessPlayability, annotatePlayability, collectPlayabilityIssues, normalizeEndingText, endingTextSimilarity,
   type PlayabilityMode, type PlayabilityIssue, type PlayabilityAnnotation, type PlayabilityGraph, type PlayabilityResult,
 } from './playability.js';
 

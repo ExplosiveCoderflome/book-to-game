@@ -117,7 +117,7 @@ test('trust-branch: both endings reachable under legal sequences', () => {
   assert.ok(!play.errors.some(e => e.includes('变量可达结局不足')));
 });
 
-test('condition-blocked ending flagged; only one state-reachable ending fails gate', () => {
+test('condition-blocked ending flagged; few state endings soft-gate on publish', () => {
   const story = lockedGoodEnding();
   const reach = analyzeReachability(story);
   assert.deepEqual(reach.conditionBlockedEndingIds.sort(), ['good']);
@@ -127,14 +127,19 @@ test('condition-blocked ending flagged; only one state-reachable ending fails ga
 
   const ann = annotatePlayability(story, 'publish');
   assert.ok(ann.issues.some(i => i.code === 'CONDITION_BLOCKED_ENDING'));
-  assert.ok(ann.issues.some(i => i.code === 'FEW_STATE_ENDINGS'));
+  assert.ok(ann.issues.some(i => i.code === 'FEW_STATE_ENDINGS' && i.severity === 'warning'));
   assert.ok(ann.flaggedSceneIds.includes('good'));
   assert.ok(ann.flaggedEdgeKeys.includes('camp:gate'));
-  assert.equal(ann.result.valid, false);
+  // D3 soft-gate: publish warns instead of hard-rejecting on playability alone
+  assert.equal(ann.result.valid, true);
+
+  const skel = annotatePlayability(story, 'skeleton');
+  assert.ok(skel.issues.some(i => i.code === 'FEW_STATE_ENDINGS' && i.severity === 'error'));
+  assert.equal(skel.result.valid, false);
 
   const validated = validateGame(story, source);
-  assert.equal(validated.valid, false);
-  assert.ok(validated.errors.some(e => /变量条件.*结局不足|可达结局不足/.test(e)), validated.errors.join(';'));
+  assert.equal(validated.valid, true);
+  assert.ok(validated.warnings.some(w => /变量条件.*结局不足|可达结局不足/.test(w)), validated.warnings.join(';'));
   assert.ok(validated.warnings.some(w => w.includes('good') && w.includes('拓扑可达')));
 });
 
