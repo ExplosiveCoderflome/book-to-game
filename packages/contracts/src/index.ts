@@ -92,3 +92,19 @@ export const generationInputSchema = z.object({
 export type GenerationInput = z.infer<typeof generationInputSchema>;
 export interface RuntimeInfo { providerConfigured: boolean; supportedModes: ('story' | 'open')[]; version: string }
 export interface ApiError { error: {code: string; message: string; details?: unknown; requestId?: string} }
+
+/** Topology-first story graph: prose may be empty/short until expand. */
+export const skeletonSceneSchema = z.object({
+  id: z.string().min(1).max(80), title: z.string().min(1).max(200),
+  text: z.string().max(12000).default(''), origin: z.enum(['source', 'adapted']),
+  evidence: z.array(evidenceSchema).max(30).default([]), choices: z.array(choiceSchema).max(8),
+  ending: z.string().max(1000).optional(),
+});
+export const branchSkeletonSchema = z.object({
+  title: z.string().min(1).max(200), mode: z.literal('story'),
+  premise: z.string().min(1).max(4000), adaptationNotes: z.string().max(4000),
+  variables: z.record(variableNameSchema, variableValueSchema).optional(),
+  startSceneId: z.string().min(1).max(80), scenes: z.array(skeletonSceneSchema).min(3).max(100),
+});
+export type SkeletonScene = z.infer<typeof skeletonSceneSchema>;
+export type BranchSkeleton = z.infer<typeof branchSkeletonSchema>;

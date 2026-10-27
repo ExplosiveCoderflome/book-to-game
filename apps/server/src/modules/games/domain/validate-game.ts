@@ -1,4 +1,5 @@
 import type { GameContent, Scene, SourceDocument, ValidationResult } from '@novel-game/contracts';
+import { assessPlayability } from './playability.js';
 
 export function validateGame(content: GameContent, source: SourceDocument): ValidationResult {
   const errors: string[] = [];
@@ -71,6 +72,11 @@ export function validateGame(content: GameContent, source: SourceDocument): Vali
   if (!content.scenes.some(scene => reachable.has(scene.id) && new Set(scene.choices.map(choice => choice.targetSceneId)).size >= 2)) errors.push('至少需要一个具有不同去向的可达分支场景');
   if (content.scenes.some(scene => scene.choices.some(choice => choice.conditions?.length))) {
     warnings.push('场景连通性检查忽略变量条件，不能证明所有选项可解锁或所有策略可到达结局，请试玩验证。');
+  }
+  if (errors.length === 0) {
+    const play = assessPlayability(content, 'publish');
+    errors.push(...play.errors);
+    for (const warning of play.warnings) if (!warnings.includes(warning)) warnings.push(warning);
   }
   return { valid: errors.length === 0, errors, warnings };
 }

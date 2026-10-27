@@ -1,4 +1,4 @@
-import type { Analysis, AnalysisResult, GameContent, GenerationInput, GenerationJob, JobFailure, SourceDocument, WorldContent } from '@novel-game/contracts';
+import type { Analysis, AnalysisResult, BranchSkeleton, GameContent, GenerationInput, GenerationJob, JobFailure, SourceDocument, WorldContent } from '@novel-game/contracts';
 
 export interface SourceReader { get(id: string): SourceDocument }
 export interface SourceChunk {
@@ -25,7 +25,10 @@ export interface ModelRepairIssue {code: string; message: string; path?: string}
 export interface ModelRepairFeedback {errors: ModelRepairIssue[]}
 export interface GenerationProvider {
   analyze(chunk: SourceChunk, signal: AbortSignal, feedback?: ModelRepairFeedback): Promise<Analysis>;
-  generate(analysis: AnalysisResult, direction: string, signal: AbortSignal, feedback?: ModelRepairFeedback): Promise<GameContent>;
+  /** Legacy one-shot path; used when skeleton/expand are absent. */
+  generate?(analysis: AnalysisResult, direction: string, signal: AbortSignal, feedback?: ModelRepairFeedback): Promise<GameContent>;
+  generateSkeleton?(analysis: AnalysisResult, direction: string, signal: AbortSignal, feedback?: ModelRepairFeedback): Promise<BranchSkeleton>;
+  expandScenes?(analysis: AnalysisResult, direction: string, skeleton: BranchSkeleton, signal: AbortSignal, feedback?: ModelRepairFeedback): Promise<GameContent>;
   generateWorld?(analysis: AnalysisResult, options: WorldGenerationOptions, signal: AbortSignal, feedback?: ModelRepairFeedback): Promise<WorldContent>;
 }
 export type DraftWriter = (input: {sourceId: string; content: GameContent}) => {id: string};

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { ZodError } from 'zod';
 import { AppError } from '../../../shared/errors.js';
 import type { Logger } from '../../../shared/logger.js';
+import { assertExpandedHonorsSkeleton, assertPlayableSkeleton } from '../../games/index.js';
 import { chunkSource, mergeAnalyses, validateAnalysis } from '../domain/chunks.js';
 import { annotateFailure, failureCode, failurePath, feedbackFrom, toJobFailure } from '../domain/failure.js';
 import type { DraftWriter, GenerationProvider, JobRepository, ModelRepairFeedback, SourceReader, WorldDraftWriter } from '../domain/ports.js';
@@ -55,10 +56,11 @@ export class GenerationRunner {
       this.logger?.info('generation.analysis.completed', {jobId: job.id, requestId: job.requestId, completedChunks: completed.length,
         totalChunks: chunks.length, durationMs: Math.round(performance.now() - startedAt)});
       signal.throwIfAborted();
-      step = job.mode === 'open' ? 'generate_world' : 'generate';
-      this.logger?.info('generation.output.started', {jobId: job.id, requestId: job.requestId, mode: job.mode || 'story', step});
-      const committed = await this.withRepair(step, signal, context, async feedback => {
-        if (job.mode === 'open') {
+
+      if (job.mode === 'open') {
+        step = 'generate_world';
+        this.logger?.info('generation.output.started', {jobId: job.id, requestId: job.requestId, mode: 'open', step});
+        const committed = await this.withRepair(step, signal, context, async feedback => {
           if (!this.provider.generateWorld || !this.createWorld) throw new AppError('OPEN_PROVIDER_UNAVAILABLE', '当前生成器不支持开放世界');
           const chapterIds = source.chapters.map(c => c.id);
           const content = await this.provider.generateWorld(analysis, {direction: job.direction, chapterIds,
@@ -71,12 +73,37 @@ export class GenerationRunner {
           }
           signal.throwIfAborted();
           return this.repository.completeWith(job.id, owner, () => this.createWorld!({sourceId: job.sourceId, content}).id);
+        });
+        if (!committed) return true;
+      } else {
+        const twoStep = typeof this.provider.generateSkeleton === 'function' && typeof this.provider.expandScenes === 'function';
+        let content;
+        if (twoStep) {
+          step = 'generate_skeleton';
+          this.logger?.info('generation.output.started', {jobId: job.id, requestId: job.requestId, mode: 'story', step});
+          const skeleton = await this.withRepair(step, signal, context, async feedback => {
+            const draft = await this.provider.generateSkeleton!(analysis, job.direction, signal, feedback);
+            assertPlayableSkeleton(draft);
+            return draft;
+          });
+          step = 'expand_scenes';
+          this.logger?.info('generation.output.started', {jobId: job.id, requestId: job.requestId, mode: 'story', step});
+          content = await this.withRepair(step, signal, context, async feedback => {
+            const expanded = await this.provider.expandScenes!(analysis, job.direction, skeleton, signal, feedback);
+            assertExpandedHonorsSkeleton(skeleton, expanded);
+            return expanded;
+          });
+        } else {
+          step = 'generate';
+          this.logger?.info('generation.output.started', {jobId: job.id, requestId: job.requestId, mode: 'story', step});
+          content = await this.withRepair(step, signal, context, async feedback => {
+            if (!this.provider.generate) throw new AppError('OPEN_PROVIDER_UNAVAILABLE', '当前生成器不支持分支故事');
+            return this.provider.generate(analysis, job.direction, signal, feedback);
+          });
         }
-        const content = await this.provider.generate(analysis, job.direction, signal, feedback);
         signal.throwIfAborted();
-        return this.repository.completeWith(job.id, owner, () => this.createDraft({sourceId: job.sourceId, content}).id);
-      });
-      if (!committed) return true;
+        if (!this.repository.completeWith(job.id, owner, () => this.createDraft({sourceId: job.sourceId, content}).id)) return true;
+      }
       this.logger?.info('generation.succeeded', {jobId: job.id, requestId: job.requestId, mode: job.mode || 'story', durationMs: Math.round(performance.now() - startedAt)});
     } catch (error) {
       // On shutdown leave the lease recoverable. Cancellation already revoked ownership.

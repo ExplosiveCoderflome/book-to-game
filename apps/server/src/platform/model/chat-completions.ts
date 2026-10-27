@@ -1,4 +1,4 @@
-import { analysisSchema, gameContentSchema, worldContentSchema, type Analysis, type AnalysisResult, type GameContent, type WorldContent } from '@novel-game/contracts';
+import { analysisSchema, branchSkeletonSchema, gameContentSchema, worldContentSchema, type Analysis, type AnalysisResult, type BranchSkeleton, type GameContent, type WorldContent } from '@novel-game/contracts';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { ZodType } from 'zod';
 import type { GenerationProvider, ModelRepairIssue, SourceChunk, WorldGenerationOptions } from '../../modules/generation/index.js';
@@ -6,7 +6,7 @@ import { AppError } from '../../shared/errors.js';
 import type { Logger } from '../../shared/logger.js';
 import { schemaIssueMessage, schemaIssues } from '../../shared/schema-issues.js';
 import { extractJsonValue, JsonContentError } from './extract-json.js';
-import { ANALYSIS_SYSTEM, GAME_SYSTEM, compactForGame } from './prompts.js';
+import { ANALYSIS_SYSTEM, EXPAND_SYSTEM, GAME_SYSTEM, SKELETON_SYSTEM, compactForGame } from './prompts.js';
 import { classifyStatus, parseRetryAfter, retryDelayMs } from './retry.js';
 import { sanitizeWorldCandidate } from './sanitize-world.js';
 import { WORLD_SYSTEM, compactWorldDossier } from './world-prompts.js';
@@ -30,8 +30,15 @@ export class ChatCompletionsProvider implements GenerationProvider {
   async analyze(chunk: SourceChunk, signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}): Promise<Analysis> {
     return this.complete('analyze', ANALYSIS_SYSTEM, chunk, signal, analysisSchema, feedback?.errors ?? []);
   }
+  async generateSkeleton(analysis: AnalysisResult, direction: string, signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}): Promise<BranchSkeleton> {
+    return this.complete('generate_skeleton', SKELETON_SYSTEM, {direction, dossier: compactForGame(analysis)}, signal, branchSkeletonSchema, feedback?.errors ?? []);
+  }
+  async expandScenes(analysis: AnalysisResult, direction: string, skeleton: BranchSkeleton, signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}): Promise<GameContent> {
+    return this.complete('expand_scenes', EXPAND_SYSTEM, {direction, dossier: compactForGame(analysis), skeleton}, signal, gameContentSchema, feedback?.errors ?? []);
+  }
   async generate(analysis: AnalysisResult, direction: string, signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}): Promise<GameContent> {
-    return this.complete('generate', GAME_SYSTEM, {direction, dossier: compactForGame(analysis)}, signal, gameContentSchema, feedback?.errors ?? []);
+    const skeleton = await this.generateSkeleton(analysis, direction, signal, feedback);
+    return this.expandScenes(analysis, direction, skeleton, signal, feedback);
   }
   async generateWorld(analysis: AnalysisResult, options: WorldGenerationOptions, signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}): Promise<WorldContent> {
     return this.complete('generate_world', WORLD_SYSTEM, {plan: options, dossier: compactWorldDossier(analysis)}, signal, worldContentSchema, feedback?.errors ?? [], sanitizeWorldCandidate);
