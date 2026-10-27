@@ -1535,3 +1535,10 @@ legend {
 .world-opening-banner { border-left: 3px solid #c48a1a; }
 .world-opening-banner.is-error { border-left-color: #c44; background: color-mix(in srgb, #c44 12%, transparent); }
 .world-overview.focused details { margin-top: 10px; }
+
+.scan-depth-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.scan-depth-option { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid #c9d4ea; border-radius: 999px; background: #f7f9fc; cursor: pointer; font-size: 13px; }
+.scan-depth-option.active { border-color: #1f4fbf; background: #e8efff; color: #1f4fbf; }
+.scan-depth-option input { margin: 0; }
+.branch-canvas-empty-scan { margin: 0 0 10px; padding: 12px 14px; border: 1px dashed #9eb6e8; border-radius: 12px; background: #f5f8ff; display: grid; gap: 8px; }
+.branch-canvas-empty-scan strong { color: #1f4fbf; font-size: 13px; }

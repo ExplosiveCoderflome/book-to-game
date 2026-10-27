@@ -26,6 +26,9 @@ interface Props {
   onWatchGeneration?: () => void;
   /** Mid-job locked skeleton shown as read-only placeholder graph. */
   skeletonPlaceholder?: boolean;
+  /** Progressive growth: extend neighbors from the selected scene. */
+  onExtendScene?: (sceneId: string) => void;
+  extendBusy?: boolean;
 }
 
 interface LayoutNode {
@@ -39,6 +42,7 @@ export function BranchGraphCanvas({
   content, selectedSceneId, onSelectScene, onAddScene, onLayoutChange, onConnectScenes, onDisconnectEdge,
   primary = false, playabilityMode = 'publish', playOverlay = null, readOnly = false,
   generationJob = null, onOpenGenerationDraft, onWatchGeneration, skeletonPlaceholder = false,
+  onExtendScene, extendBusy = false,
 }: Props) {
   const { t } = useI18n();
   const markerPrefix = useId().replace(/:/g, '');
@@ -274,6 +278,17 @@ export function BranchGraphCanvas({
         <button type="button" className="small" onClick={() => setZoom(z => Math.min(2.2, z * 1.12))} aria-label={t('放大')}>＋</button>
         <button type="button" className="small" onClick={() => setZoom(z => Math.max(0.45, z * 0.88))} aria-label={t('缩小')}>－</button>
         <button type="button" className="small" onClick={fitView}>{t('适应画布')}</button>
+        {!readOnly && !skeletonPlaceholder && onExtendScene && selectedSceneId && (
+          <button
+            type="button"
+            className="small primary"
+            data-testid="canvas-extend-scene"
+            disabled={extendBusy}
+            onClick={() => onExtendScene(selectedSceneId)}
+          >
+            {t(extendBusy ? '延申中…' : '延申节点')}
+          </button>
+        )}
       </div>
     </div>
     {generationJob && (

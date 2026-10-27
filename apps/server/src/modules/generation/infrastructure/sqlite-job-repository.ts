@@ -27,7 +27,8 @@ export class SqliteJobRepository implements JobRepository {
     return this.db.transaction(() => {
       const fingerprint = JSON.stringify({sourceId: input.sourceId, direction: input.direction,
         ...(input.mode !== undefined ? {mode: input.mode} : {}), ...(input.chapterIds ? {chapterIds: input.chapterIds} : {}),
-        ...(input.playerRole !== undefined ? {playerRole: input.playerRole} : {}), ...(input.canonPolicy ? {canonPolicy: input.canonPolicy} : {})});
+        ...(input.playerRole !== undefined ? {playerRole: input.playerRole} : {}), ...(input.canonPolicy ? {canonPolicy: input.canonPolicy} : {}),
+        ...(input.scanDepth ? {scanDepth: input.scanDepth} : {})});
       const existing = this.db.prepare('SELECT payload,fingerprint FROM generation_jobs WHERE request_id=?').get(input.requestId) as {payload: string; fingerprint: string} | undefined;
       if (existing) {
         if (existing.fingerprint !== fingerprint) throw new AppError('IDEMPOTENCY_CONFLICT', '请求 ID 重复且输入冲突', 409);

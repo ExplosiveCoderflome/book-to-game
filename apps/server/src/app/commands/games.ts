@@ -1,7 +1,10 @@
 import { z } from 'zod';
-import { actSchema, gameContentSchema } from '@novel-game/contracts';
+import { actSchema, extendDraftSceneInputSchema, gameContentSchema } from '@novel-game/contracts';
 import type { Workbench } from '../workbench.js';
 import { command, emptySchema, idSchema } from './definition.js';
+import { extendDraftScene } from '../../modules/generation/index.js';
+import { ChatCompletionsProvider } from '../../platform/model/chat-completions.js';
+import { AppError } from '../../shared/errors.js';
 
 export function gameCommands(w: Workbench) {
   return [
@@ -17,6 +20,13 @@ export function gameCommands(w: Workbench) {
     command('validate_draft', '校验入口、分支、结局、图可达性与原文证据，不自动发布。', idSchema, true, ({id}) => w.games.validate(id)),
     command('publish_draft', '将通过校验的草稿版本发布为不可变游戏包；同一草稿版本重复发布返回原记录。',
       z.object({id: z.string(), version: z.number().int().positive()}), false, ({id, version}) => w.games.publish(id, {version})),
+    command('extend_draft_scene', '从选中场景延申邻近节点与显式边，合并进草稿且不抹掉无关节点。需要模型配置。',
+      extendDraftSceneInputSchema, false, async (input) => {
+        if (!w.providerConfigured) throw new AppError('MODEL_NOT_CONFIGURED', '尚未配置模型。请进入“模型设置”后再延申节点。', 503);
+        const endpoint = w.modelSettings.resolve();
+        const provider = new ChatCompletionsProvider({...endpoint, maxAttempts: 2, repairAttempts: 2});
+        return extendDraftScene(w.games, provider, input, {providerConfigured: true});
+      }),
     command('list_games', '列出发布版本（作者视图，含所有分支）。', emptySchema, true, () => w.games.listRevisions()),
     command('start_session', '创建试玩存档，固定使用指定游戏发布版本；只返回当前场景。',
       z.object({gameRevisionId: z.string().min(1)}), false, input => w.sessions.start(input)),

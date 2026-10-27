@@ -42,6 +42,8 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
   const [canvasMode, setCanvasMode] = useState<'edit' | 'play'>('edit');
   const [playSession, setPlaySession] = useState<SessionView | null>(null);
   const [playBusy, setPlayBusy] = useState(false);
+  const [extendBusy, setExtendBusy] = useState(false);
+  const [scanDepth, setScanDepth] = useState<'coarse' | 'medium' | 'fine'>('medium');
   useEffect(() => {
     let active = true;
     setDraft(null); setDirty(false); setConflict(false); setValidation(null); setError(null); setMessage(null); setJsonMode(false); setSceneIndex(0); setInspectorOpen(false); setInspectorTab('scene'); setCanvasMode('edit'); setPlaySession(null);
@@ -99,6 +101,25 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
       return { ...scene, choices: scene.choices.filter(choice => choice.id !== choiceId) };
     });
     change({ ...content, scenes });
+  }
+
+  async function extendSelectedScene(sceneId: string) {
+    if (!draft || dirty || jsonMode) {
+      setError(t('请先保存当前编辑，再延申节点。'));
+      return;
+    }
+    setExtendBusy(true); setError(null); setMessage(null);
+    try {
+      const updated = await request<Draft>(token, `/drafts/${draft.id}/extend-scene`, 'POST', {
+        version: draft.version, sceneId, direction: content.premise,
+      });
+      setDraft(updated); setContent(updated.content); setDirty(false);
+      const index = updated.content.scenes.findIndex(s => s.id === sceneId);
+      if (index >= 0) { setSceneIndex(index); setInspectorOpen(true); setInspectorTab('scene'); }
+      setMessage(t('已延申节点（草稿 v{version}）', { version: updated.version }));
+      await refresh();
+    } catch (e) { setError(errorMessage(e)); if (e instanceof RequestError && e.status === 409) setConflict(true); }
+    finally { setExtendBusy(false); }
   }
   function applyJson() {
     try {
@@ -234,6 +255,18 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
           <label>{t('改编说明')}<textarea rows={2} maxLength={4000} value={content.adaptationNotes} onChange={e => change({ ...content, adaptationNotes: e.target.value })} /></label>
         </div>}
         <div className={`draft-canvas-stage${(inspectorOpen || canvasMode === 'play') ? ' with-inspector' : ''}${canvasMode === 'play' ? ' play-mode' : ''}`}>
+        {content.scenes.length === 0 && !skeletonPlaceholder && (
+          <div className="branch-canvas-empty-scan" data-testid="empty-scan-depth" data-canvas-ui>
+            <strong>{t('空图画布 · 选择扫描粒度')}</strong>
+            <div className="scan-depth-row" role="group" aria-label={t('扫描粒度')}>
+              {([['coarse', '粗 · 章弧'], ['medium', '中 · 默认'], ['fine', '细 · 拍点']] as const).map(([value, label]) => (
+                <button key={value} type="button" className={`small${scanDepth === value ? ' active' : ''}`} onClick={() => setScanDepth(value)}>{t(label)}</button>
+              ))}
+            </div>
+            <p className="hint">{t('请到「改编生成」按此粒度扫描原作；生成后骨架会落到画布。当前选择：{depth}', { depth: scanDepth === 'coarse' ? t('粗') : scanDepth === 'fine' ? t('细') : t('中') })}</p>
+            {onOpenGeneration && <button type="button" className="small primary" onClick={onOpenGeneration}>{t('去改编生成 →')}</button>}
+          </div>
+        )}
           <BranchGraphCanvas
             primary
             content={canvasGraphContent}
@@ -247,6 +280,8 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
             playOverlay={canvasMode === 'play' ? playOverlay : null}
             readOnly={skeletonPlaceholder || canvasMode === 'play'}
             skeletonPlaceholder={skeletonPlaceholder}
+            onExtendScene={skeletonPlaceholder || canvasMode === 'play' || !draft || dirty ? undefined : extendSelectedScene}
+            extendBusy={extendBusy}
             generationJob={canvasMode === 'edit' ? generationJob : null}
             onOpenGenerationDraft={generationJob?.draftId ? (() => select(generationJob.draftId!)) : undefined}
             onWatchGeneration={onOpenGeneration}

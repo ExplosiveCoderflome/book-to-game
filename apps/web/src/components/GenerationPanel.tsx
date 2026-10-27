@@ -1,6 +1,6 @@
 import { useI18n } from '../lib/i18n';
 import { useEffect, useRef, useState } from 'react';
-import { generationInputSchema, type GenerationInput, type GenerationJob, type RuntimeInfo, type SourceSummary, type SourceDocument } from '@novel-game/contracts';
+import { generationInputSchema, type GenerationInput, type GenerationJob, type RuntimeInfo, type ScanDepth, type SourceSummary, type SourceDocument } from '@novel-game/contracts';
 import { selectedChapters } from '../lib/generation-scope';
 import { errorMessage, request, RequestError } from '../lib/api';
 import { Empty, Notice, dateLabel } from './Notice';
@@ -27,6 +27,7 @@ export function GenerationPanel({ token, runtime, sources, selectedId, select, j
   const [canonPolicy, setCanonPolicy] = useState<'faithful' | 'divergent'>('faithful');
   const [document, setDocument] = useState<SourceDocument | null>(null);
   const [chapterIds, setChapterIds] = useState<string[]>([]);
+  const [scanDepth, setScanDepth] = useState<ScanDepth>('medium');
   useEffect(() => {
     let active = true; setDocument(null); setChapterIds([]);
     if (selectedId) request<SourceDocument>(token, `/sources/${selectedId}`).then(value => {
@@ -39,7 +40,7 @@ export function GenerationPanel({ token, runtime, sources, selectedId, select, j
     let input: GenerationInput;
     try {
       if (!pending.current && !document) throw new Error('请等待原文章节载入。');
-      input = pending.current ?? {sourceId: selectedId, direction, mode, chapterIds: selectedChapters(document!.chapters, chapterIds), ...(mode === 'open' ? {playerRole, canonPolicy} : {}), requestId: crypto.randomUUID()};
+      input = pending.current ?? {sourceId: selectedId, direction, mode, chapterIds: selectedChapters(document!.chapters, chapterIds), ...(mode === 'open' ? {playerRole, canonPolicy} : {scanDepth}), requestId: crypto.randomUUID()};
       if (input.mode === 'open' && !input.playerRole?.trim()) throw new Error('请填写玩家身份。');
     } catch (e) {setError(errorMessage(e)); return;}
     setBusy('new');
@@ -71,6 +72,24 @@ export function GenerationPanel({ token, runtime, sources, selectedId, select, j
         </details>
         <p className="hint">{uncertain ? t("重试保持原请求的章节范围、身份与策略。") : document ? t('本次范围：{chapters}。只分析和发送这些章节。', {chapters: document.chapters.filter(c => chapterIds.includes(c.id)).map(c => c.title).join(locale === 'zh-CN' ? '、' : ', ') || t('尚未选择')}) : t("正在载入章节…")}</p>
       </fieldset>
+      {(uncertain ? pending.current?.mode : mode) !== 'open' && (
+        <fieldset disabled={uncertain || busy !== null} data-testid="scan-depth-fieldset">
+          <legend>{t('扫描粒度')}</legend>
+          <div className="scan-depth-row" role="group" aria-label={t('扫描粒度')}>
+            {([
+              ['coarse', '粗 · 章弧'],
+              ['medium', '中 · 默认'],
+              ['fine', '细 · 拍点'],
+            ] as const).map(([value, label]) => (
+              <label key={value} className={`scan-depth-option${(uncertain ? pending.current?.scanDepth ?? 'medium' : scanDepth) === value ? ' active' : ''}`}>
+                <input type="radio" name="scanDepth" value={value} checked={(uncertain ? pending.current?.scanDepth ?? 'medium' : scanDepth) === value} onChange={() => setScanDepth(value)} disabled={uncertain || busy !== null} />
+                {t(label)}
+              </label>
+            ))}
+          </div>
+          <p className="hint">{t('空图首次扫描按粒度生成节点；之后可在画布对任一节点「延申节点」。')}</p>
+        </fieldset>
+      )}
       <p className="hint">{t("开放冒险以建议行动推进，支持不同策略、时间压力与持续后果。")}</p>
       <p className="hint">{t("生成时会把分块正文发送至你配置的模型服务。")}</p>
       <button className="primary" disabled={!(uncertain ? pending.current?.sourceId : selectedId) || (!uncertain && (!document || !chapterIds.length)) || !runtime.providerConfigured || busy !== null}>{busy === 'new' ? t("正在提交…") : uncertain ? t("确认并重试同一生成请求") : t("开始分析与生成")}</button>

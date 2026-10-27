@@ -79,6 +79,8 @@ export const analysisSchema = z.object({
 });
 export type Analysis = z.infer<typeof analysisSchema>;
 export interface AnalysisResult extends Analysis { coverage: {chapterIds: string[]; totalChapters: number} }
+export const scanDepthSchema = z.enum(['coarse', 'medium', 'fine']);
+export type ScanDepth = z.infer<typeof scanDepthSchema>;
 export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 export interface JobFailure {
   code: string; message: string; path?: string; step: string; attempt: number; requestId: string;
@@ -91,6 +93,7 @@ export interface GenerationJob {
   skeleton?: BranchSkeleton | null;
   createdAt: string; updatedAt: string;
   mode?: 'story' | 'open'; chapterIds?: string[]; playerRole?: string; canonPolicy?: 'faithful' | 'divergent'; direction?: string;
+  scanDepth?: ScanDepth;
   failure?: JobFailure | null;
 }
 export const generationInputSchema = z.object({
@@ -98,6 +101,8 @@ export const generationInputSchema = z.object({
   direction: z.string().max(2000).default('尊重原作世界规则，设计一次有明确选择后果的短篇冒险'),
   mode: z.enum(['story', 'open']).optional(), chapterIds: z.array(z.string().min(1).max(80)).min(1).max(1000).optional(),
   playerRole: z.string().trim().max(500).optional(), canonPolicy: z.enum(['faithful', 'divergent']).optional(),
+  /** Story first-scan node granularity: coarse=章弧, medium=默认, fine=细拍. Ignored for open. */
+  scanDepth: scanDepthSchema.optional(),
 });
 export type GenerationInput = z.infer<typeof generationInputSchema>;
 export interface RuntimeInfo { providerConfigured: boolean; supportedModes: ('story' | 'open')[]; version: string }
@@ -119,6 +124,21 @@ export const branchSkeletonSchema = z.object({
 });
 export type SkeletonScene = z.infer<typeof skeletonSceneSchema>;
 export type BranchSkeleton = z.infer<typeof branchSkeletonSchema>;
+
+/** Model proposal to grow the graph from one anchor scene without wiping others. */
+export const sceneExtensionSchema = z.object({
+  scenes: z.array(sceneSchema).min(1).max(8),
+  /** New choices attached to the anchor scene; targets must be in scenes[] (new) or existing graph. */
+  anchorChoices: z.array(choiceSchema).min(1).max(4),
+});
+export type SceneExtension = z.infer<typeof sceneExtensionSchema>;
+export const extendDraftSceneInputSchema = z.object({
+  id: z.string().min(1),
+  version: z.number().int().positive(),
+  sceneId: z.string().min(1).max(80),
+  direction: z.string().max(2000).optional(),
+});
+export type ExtendDraftSceneInput = z.infer<typeof extendDraftSceneInputSchema>;
 
 export {
   assessPlayability, annotatePlayability, collectPlayabilityIssues, normalizeEndingText, endingTextSimilarity,

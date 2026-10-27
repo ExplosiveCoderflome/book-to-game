@@ -82,7 +82,7 @@ export class GenerationRunner {
           step = 'generate_skeleton';
           this.logger?.info('generation.output.started', {jobId: job.id, requestId: job.requestId, mode: 'story', step});
           const skeleton = await this.withRepair(step, signal, context, async feedback => {
-            const draft = await this.provider.generateSkeleton!(analysis, job.direction, signal, feedback);
+            const draft = await this.provider.generateSkeleton!(analysis, job.direction, signal, feedback, job.scanDepth ?? 'medium');
             assertPlayableSkeleton(draft);
             return draft;
           });
