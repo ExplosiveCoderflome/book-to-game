@@ -8,6 +8,7 @@ import { schemaIssueMessage, schemaIssues } from '../../shared/schema-issues.js'
 import { extractJsonValue, JsonContentError } from './extract-json.js';
 import { ANALYSIS_SYSTEM, GAME_SYSTEM, compactForGame } from './prompts.js';
 import { classifyStatus, parseRetryAfter, retryDelayMs } from './retry.js';
+import { sanitizeWorldCandidate } from './sanitize-world.js';
 import { WORLD_SYSTEM, compactWorldDossier } from './world-prompts.js';
 
 export const DEFAULT_MAX_ATTEMPTS = 3;
@@ -33,17 +34,17 @@ export class ChatCompletionsProvider implements GenerationProvider {
     return this.complete('generate', GAME_SYSTEM, {direction, dossier: compactForGame(analysis)}, signal, gameContentSchema, feedback?.errors ?? []);
   }
   async generateWorld(analysis: AnalysisResult, options: WorldGenerationOptions, signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}): Promise<WorldContent> {
-    return this.complete('generate_world', WORLD_SYSTEM, {plan: options, dossier: compactWorldDossier(analysis)}, signal, worldContentSchema, feedback?.errors ?? []);
+    return this.complete('generate_world', WORLD_SYSTEM, {plan: options, dossier: compactWorldDossier(analysis)}, signal, worldContentSchema, feedback?.errors ?? [], sanitizeWorldCandidate);
   }
 
-  private async complete<T>(operation: string, system: string, data: unknown, signal: AbortSignal, schema: ZodType<T>, issues: ModelRepairIssue[]): Promise<T> {
+  private async complete<T>(operation: string, system: string, data: unknown, signal: AbortSignal, schema: ZodType<T>, issues: ModelRepairIssue[], preprocess?: (value: unknown) => unknown): Promise<T> {
     const repairs = bound(this.config.repairAttempts, DEFAULT_REPAIR_ATTEMPTS, 1, 6);
     let feedback = issues.slice(0, 8);
     let last: AppError | undefined;
     for (let attempt = 1; attempt <= repairs; attempt++) {
       signal.throwIfAborted();
       const content = await this.requestText(operation, system, data, signal, feedback);
-      const accepted = acceptOutput(content.text, content.finishReason, schema, attempt);
+      const accepted = acceptOutput(content.text, content.finishReason, schema, attempt, preprocess);
       if (accepted.ok) {
         this.logger?.info('model.request.completed', {operation, model: this.config.model, attempt, durationMs: content.durationMs, responseBytes: content.responseBytes});
         return accepted.value;
@@ -116,9 +117,10 @@ export class ChatCompletionsProvider implements GenerationProvider {
   }
 }
 
-function acceptOutput<T>(text: string, finishReason: string | undefined, schema: ZodType<T>, attempt: number): {ok: true; value: T} | {ok: false; error: AppError} {
+function acceptOutput<T>(text: string, finishReason: string | undefined, schema: ZodType<T>, attempt: number, preprocess?: (value: unknown) => unknown): {ok: true; value: T} | {ok: false; error: AppError} {
   try {
-    const value = extractJsonValue(text);
+    const extracted = extractJsonValue(text);
+    const value = preprocess ? preprocess(extracted) : extracted;
     const parsed = schema.safeParse(value);
     if (!parsed.success) {
       const issues = schemaIssues(parsed.error);

@@ -203,3 +203,44 @@ test('authentication failures are not retried and do not echo credentials', asyn
     assert.equal(calls, 1);
   } finally {await stub.close();}
 });
+
+test('generateWorld sanitizes null npcId and empty blockedReason before schema validation', async () => {
+  const world = {
+    schemaVersion: 1, mode: 'open', title: '渡口', premise: '封港前过河', playerRole: '抄写员', goal: '过河',
+    worldRules: ['时间有限'], adaptationNotes: '测试', sourceChapterIds: ['c1'],
+    initialLocationId: 'dock', timeLimit: 12, timeoutEnding: '封港。',
+    locations: [
+      {id: 'dock', title: '渡口', text: '木栈桥', origin: 'adapted', evidence: []},
+      {id: 'warehouse', title: '仓库', text: '木板', origin: 'adapted', evidence: []},
+      {id: 'gate', title: '关卡', text: '哨所', origin: 'adapted', evidence: []},
+    ],
+    facts: [],
+    npcs: [{id: 'boatman', name: '船夫', description: '修船', goal: '修船', initialLocationId: 'dock', knownFactIds: [], origin: 'adapted', evidence: []}],
+    actions: [
+      {id: 'talk', label: '交谈', description: '', locationId: 'dock', npcId: null, availableWhen: [], requires: [],
+        blockedReason: '', risk: '', timeCost: 1, once: true, effects: [{kind: 'move', locationId: 'dock'}],
+        text: '你开口。', origin: 'adapted', evidence: []},
+      {id: 'look', label: '环顾', description: '', locationId: 'dock', availableWhen: [], requires: [],
+        blockedReason: '还不行', risk: '', timeCost: 1, once: false, effects: [{kind: 'move', locationId: 'dock'}],
+        text: '你环顾。', origin: 'adapted', evidence: []},
+      {id: 'rest', label: '休息', description: '', locationId: 'dock', availableWhen: [], requires: [],
+        blockedReason: '还不行', risk: '', timeCost: 1, once: false, effects: [{kind: 'move', locationId: 'dock'}],
+        text: '你休息。', origin: 'adapted', evidence: []},
+    ],
+    events: [], endings: [{id: 'ok', title: '过河', text: '抵达对岸。', when: [{kind: 'time', atLeast: 1}]}],
+  };
+  const stub = await listen(async (req, res) => {
+    await read(req);
+    res.end(envelope(JSON.stringify(world)));
+  });
+  try {
+    const model = provider(stub.port, {repairAttempts: 1, maxAttempts: 1});
+    const result = await model.generateWorld(
+      {summary: '渡口', characters: [], locations: [], worldRules: [], uncertainties: [], coverage: {chapterIds: ['c1'], totalChapters: 1}},
+      {direction: '忠实', chapterIds: ['c1'], playerRole: '抄写员', canonPolicy: 'faithful'},
+      new AbortController().signal,
+    );
+    assert.equal(result.actions[0].npcId, undefined);
+    assert.equal(result.actions[0].blockedReason, '尚未满足执行条件。');
+  } finally {await stub.close();}
+});
