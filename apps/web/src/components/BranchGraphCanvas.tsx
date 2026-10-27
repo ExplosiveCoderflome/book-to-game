@@ -37,6 +37,13 @@ interface Props {
   extendAgainTargetId?: string | null;
   /** Subtle strip chip: last successful extend summary. */
   lastExtendSummary?: { addedCount: number; anchorTitle: string; neighborCount: 1 | 2 } | null;
+  /** Batch extend all current leaf nodes (+1 each). */
+  onBatchExtendLeaves?: () => void;
+  batchExtendProgress?: { done: number; total: number } | null;
+  leafCount?: number;
+  /** Post-generation progressive loop hint. */
+  showExtendGuide?: boolean;
+  onDismissExtendGuide?: () => void;
   /** After extend: pan/zoom to these scene ids (falls back to full fit). */
   focusSceneIds?: string[];
   /** Bump to re-trigger focus even when ids are unchanged. */
@@ -56,6 +63,8 @@ export function BranchGraphCanvas({
   generationJob = null, onOpenGenerationDraft, onWatchGeneration, skeletonPlaceholder = false,
   onExtendScene, extendBusy = false, extendNeighborCount = 1, onExtendNeighborCountChange,
   onExtendAgain, extendAgainTargetId = null, lastExtendSummary = null,
+  onBatchExtendLeaves, batchExtendProgress = null, leafCount = 0,
+  showExtendGuide = false, onDismissExtendGuide,
   focusSceneIds, focusNonce = 0,
 }: Props) {
   const { t } = useI18n();
@@ -303,7 +312,7 @@ export function BranchGraphCanvas({
         <button type="button" className="small" onClick={() => setZoom(z => Math.min(2.2, z * 1.12))} aria-label={t('放大')}>＋</button>
         <button type="button" className="small" onClick={() => setZoom(z => Math.max(0.45, z * 0.88))} aria-label={t('缩小')}>－</button>
         <button type="button" className="small" onClick={() => fitView()}>{t('适应画布')}</button>
-        {!readOnly && !skeletonPlaceholder && onExtendScene && selectedSceneId && (
+        {!readOnly && !skeletonPlaceholder && onExtendScene && (
           <>
             <div className="extend-breadth-row" role="group" aria-label={t('延申规模')} data-testid="extend-breadth">
               {([1, 2] as const).map(n => (
@@ -316,15 +325,17 @@ export function BranchGraphCanvas({
                 >{t(n === 1 ? '+1 叶' : '+2 邻')}</button>
               ))}
             </div>
-            <button
-              type="button"
-              className="small primary"
-              data-testid="canvas-extend-scene"
-              disabled={extendBusy}
-              onClick={() => { if (!extendBusy) onExtendScene(selectedSceneId); }}
-            >
-              {t(extendBusy ? '延申中…' : '延申节点')}
-            </button>
+            {selectedSceneId && (
+              <button
+                type="button"
+                className="small primary"
+                data-testid="canvas-extend-scene"
+                disabled={extendBusy}
+                onClick={() => { if (!extendBusy) onExtendScene(selectedSceneId); }}
+              >
+                {t(extendBusy ? '延申中…' : '延申节点')}
+              </button>
+            )}
             {onExtendAgain && extendAgainTargetId && (
               <button
                 type="button"
@@ -337,9 +348,33 @@ export function BranchGraphCanvas({
                 {t(extendBusy ? '延申中…' : '沿此节点再延申一轮')}
               </button>
             )}
+            {onBatchExtendLeaves && (
+              <button
+                type="button"
+                className="small"
+                data-testid="canvas-batch-extend-leaves"
+                disabled={extendBusy || leafCount < 1}
+                title={t('对当前所有无出边的叶节点各延申 +1')}
+                onClick={() => { if (!extendBusy) onBatchExtendLeaves(); }}
+              >
+                {t(
+                  batchExtendProgress
+                    ? '批量延申 {done}/{total}…'
+                    : '叶节点各 +1（{count}）',
+                  batchExtendProgress
+                    ? { done: batchExtendProgress.done, total: batchExtendProgress.total }
+                    : { count: leafCount },
+                )}
+              </button>
+            )}
           </>
         )}
-        {lastExtendSummary && (
+        {batchExtendProgress && (
+          <span className="extend-history-chip" data-testid="batch-extend-progress" role="status">
+            {t('批量延申进度 {done}/{total}', { done: batchExtendProgress.done, total: batchExtendProgress.total })}
+          </span>
+        )}
+        {lastExtendSummary && !batchExtendProgress && (
           <span className="extend-history-chip" data-testid="extend-history-chip" role="status">
             {t('上次延申 +{count}（{breadth}）· 自「{anchor}」', {
               count: lastExtendSummary.addedCount,
@@ -379,6 +414,16 @@ export function BranchGraphCanvas({
             <button type="button" className="small" onClick={onWatchGeneration}>{t('前往重试')}</button>
           )}
         </div>
+      </div>
+    )}
+
+    {showExtendGuide && (
+      <div className="branch-canvas-extend-guide" data-testid="extend-guide" data-canvas-ui role="status">
+        <strong>{t('渐进生长')}</strong>
+        <span>{t('点选节点 → 延申；也可对叶节点批量 +1。')}</span>
+        {onDismissExtendGuide && (
+          <button type="button" className="quiet small" data-testid="extend-guide-dismiss" onClick={onDismissExtendGuide}>{t('知道了')}</button>
+        )}
       </div>
     )}
 

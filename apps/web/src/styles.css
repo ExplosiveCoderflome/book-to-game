@@ -1552,6 +1552,15 @@ legend {
 
 .extend-breadth-row { display: inline-flex; gap: 4px; align-items: center; }
 .extend-history-chip { font-size: 12px; color: #5a6a8a; background: #eef3ff; border: 1px solid #c9d4ea; border-radius: 999px; padding: 4px 10px; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.branch-canvas-extend-guide {
+  display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid color-mix(in srgb, #c9a227 40%, var(--line));
+  background: color-mix(in srgb, #f5e6b0 35%, var(--paper));
+  font-size: 13px; color: #5a4a28;
+}
+.branch-canvas-extend-guide strong { color: #8a6a18; }
+
 .empty-scan-scope { display: grid; gap: 6px; }
 .empty-scan-chapters { display: grid; gap: 4px; max-height: 140px; overflow: auto; padding: 6px 8px; border: 1px solid #d5deed; border-radius: 8px; background: #fff; }
 .empty-scan-chapters .check-label { font-size: 12px; }

@@ -6,6 +6,8 @@ import { relevantStoryJob } from '../lib/job-on-canvas';
 import { shouldShowSkeletonPlaceholder, skeletonToCanvasContent } from '../lib/skeleton-placeholder';
 import { playOverlayFromSession } from '../lib/play-overlay';
 import { selectedChapters } from '../lib/generation-scope';
+import { findLeafSceneIds } from '../lib/leaf-scenes';
+import { dismissExtendGuide, isExtendGuideDismissed } from '../lib/extend-guide';
 import { Empty, Notice } from './Notice';
 import { BranchGraphCanvas } from './BranchGraphCanvas';
 import { SceneEditor } from './SceneEditor';
@@ -54,17 +56,22 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
   const [focusNonce, setFocusNonce] = useState(0);
   const [extendNeighborCount, setExtendNeighborCount] = useState<1 | 2>(1);
   const [lastExtendSummary, setLastExtendSummary] = useState<{ addedCount: number; anchorTitle: string; neighborCount: 1 | 2; leafId: string | null } | null>(null);
+  const [batchExtendProgress, setBatchExtendProgress] = useState<{ done: number; total: number } | null>(null);
+  const [showExtendGuide, setShowExtendGuide] = useState(false);
   const extendInFlight = useRef(false);
   const [scanDocument, setScanDocument] = useState<SourceDocument | null>(null);
   const [chapterScope, setChapterScope] = useState<'all' | 'pick'>('all');
   const [scanChapterIds, setScanChapterIds] = useState<string[]>([]);
   useEffect(() => {
     let active = true;
-    setDraft(null); setDirty(false); setConflict(false); setValidation(null); setError(null); setMessage(null); setJsonMode(false); setSceneIndex(0); setInspectorOpen(false); setInspectorTab('scene'); setCanvasMode('edit'); setPlaySession(null); setExtendFailedSceneId(null); setFocusSceneIds([]); setLastExtendSummary(null);
+    setDraft(null); setDirty(false); setConflict(false); setValidation(null); setError(null); setMessage(null); setJsonMode(false); setSceneIndex(0); setInspectorOpen(false); setInspectorTab('scene'); setCanvasMode('edit'); setPlaySession(null); setExtendFailedSceneId(null); setFocusSceneIds([]); setLastExtendSummary(null); setBatchExtendProgress(null); setShowExtendGuide(false);
     if (!selectedId) { setContent(blankContent()); return; }
     setBusy(true);
     request<Draft>(token, `/drafts/${selectedId}`).then(value => {
-      if (active) { setDraft(value); setContent(value.content); setSourceId(value.sourceId); }
+      if (active) {
+        setDraft(value); setContent(value.content); setSourceId(value.sourceId);
+        setShowExtendGuide(value.content.scenes.length > 0 && !isExtendGuideDismissed(value.id));
+      }
     }).catch(e => { if (active) setError(errorMessage(e)); }).finally(() => { if (active) setBusy(false); });
     return () => { active = false; };
   }, [selectedId, token, reload]);
@@ -129,23 +136,36 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
     change({ ...content, scenes });
   }
 
+  async function extendOneScene(
+    current: Draft,
+    currentContent: GameContent,
+    sceneId: string,
+    neighborCount: 1 | 2,
+  ): Promise<{ draft: Draft; added: string[] }> {
+    const beforeIds = new Set(currentContent.scenes.map(s => s.id));
+    const updated = await request<Draft>(token, `/drafts/${current.id}/extend-scene`, 'POST', {
+      version: current.version,
+      sceneId,
+      direction: currentContent.premise || scanDirection,
+      neighborCount,
+    });
+    const added = updated.content.scenes.map(s => s.id).filter(id => !beforeIds.has(id));
+    return { draft: updated, added };
+  }
+
   async function extendSelectedScene(sceneId: string) {
     if (!draft || dirty || jsonMode) {
       setError(t('请先保存当前编辑，再延申节点。'));
       return;
     }
-    if (extendInFlight.current || extendBusy) return; // ignore double-clicks / queue
+    if (extendInFlight.current || extendBusy) return; // ignore double-clicks / spam
     extendInFlight.current = true;
-    setExtendBusy(true); setError(null); setMessage(null); setExtendFailedSceneId(null);
-    const beforeIds = new Set(content.scenes.map(s => s.id));
+    setExtendBusy(true); setError(null); setMessage(null); setExtendFailedSceneId(null); setBatchExtendProgress(null);
     const anchorTitle = content.scenes.find(s => s.id === sceneId)?.title || sceneId;
     const breadth = extendNeighborCount;
     try {
-      const updated = await request<Draft>(token, `/drafts/${draft.id}/extend-scene`, 'POST', {
-        version: draft.version, sceneId, direction: content.premise || scanDirection, neighborCount: breadth,
-      });
+      const { draft: updated, added } = await extendOneScene(draft, content, sceneId, breadth);
       setDraft(updated); setContent(updated.content); setDirty(false);
-      const added = updated.content.scenes.map(s => s.id).filter(id => !beforeIds.has(id));
       const focus = added.length > 0 ? added : [sceneId];
       setFocusSceneIds(focus);
       setFocusNonce(n => n + 1);
@@ -168,6 +188,79 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
     const leaf = lastExtendSummary?.leafId;
     if (!leaf || extendInFlight.current) return;
     void extendSelectedScene(leaf);
+  }
+
+  async function extendAllLeavesBatch() {
+    if (!draft || dirty || jsonMode) {
+      setError(t('请先保存当前编辑，再延申节点。'));
+      return;
+    }
+    if (extendInFlight.current || extendBusy) return;
+    const leaves = findLeafSceneIds(content);
+    if (!leaves.length) {
+      setError(t('当前没有可延申的叶节点（每个场景都已有出边）。'));
+      return;
+    }
+    extendInFlight.current = true;
+    setExtendBusy(true); setError(null); setMessage(null); setExtendFailedSceneId(null);
+    setBatchExtendProgress({ done: 0, total: leaves.length });
+    let current = draft;
+    let currentContent = content;
+    const allAdded: string[] = [];
+    let failedAt: string | null = null;
+    try {
+      for (let i = 0; i < leaves.length; i++) {
+        const sceneId = leaves[i]!;
+        const stillLeaf = currentContent.scenes.find(s => s.id === sceneId)?.choices.length === 0;
+        if (!stillLeaf) {
+          setBatchExtendProgress({ done: i + 1, total: leaves.length });
+          continue;
+        }
+        try {
+          const { draft: updated, added } = await extendOneScene(current, currentContent, sceneId, 1);
+          current = updated;
+          currentContent = updated.content;
+          allAdded.push(...added);
+          setDraft(updated); setContent(updated.content); setDirty(false);
+          setBatchExtendProgress({ done: i + 1, total: leaves.length });
+        } catch (e) {
+          failedAt = sceneId;
+          setError(t('批量延申中断：{detail}', { detail: errorMessage(e) }));
+          setExtendFailedSceneId(sceneId);
+          if (e instanceof RequestError && e.status === 409) setConflict(true);
+          break;
+        }
+      }
+      if (allAdded.length > 0) {
+        setFocusSceneIds(allAdded);
+        setFocusNonce(n => n + 1);
+        const leafId = allAdded[allAdded.length - 1] ?? null;
+        setLastExtendSummary({
+          addedCount: allAdded.length,
+          anchorTitle: t('全部叶节点'),
+          neighborCount: 1,
+          leafId,
+        });
+        setMessage(t('已批量延申叶节点（草稿 v{version}）· 新增 {count} 个场景', {
+          version: current.version,
+          count: allAdded.length,
+        }));
+        await refresh();
+      } else if (!failedAt) {
+        setMessage(t('没有可延申的叶节点。'));
+      }
+    } finally {
+      extendInFlight.current = false;
+      setExtendBusy(false);
+      setBatchExtendProgress(null);
+    }
+  }
+
+  const leafCount = useMemo(() => findLeafSceneIds(content).length, [content]);
+
+  function onDismissExtendGuide() {
+    if (draft) dismissExtendGuide(draft.id);
+    setShowExtendGuide(false);
   }
 
   async function startCanvasScan() {
@@ -411,6 +504,11 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
             onExtendAgain={skeletonPlaceholder || canvasMode === 'play' || !draft || dirty || !lastExtendSummary?.leafId ? undefined : extendAgainFromLeaf}
             extendAgainTargetId={lastExtendSummary?.leafId ?? null}
             lastExtendSummary={lastExtendSummary}
+            onBatchExtendLeaves={skeletonPlaceholder || canvasMode === 'play' || !draft || dirty ? undefined : () => void extendAllLeavesBatch()}
+            batchExtendProgress={batchExtendProgress}
+            leafCount={leafCount}
+            showExtendGuide={showExtendGuide && !skeletonPlaceholder && canvasMode === 'edit' && !!draft && content.scenes.length > 0}
+            onDismissExtendGuide={onDismissExtendGuide}
             focusSceneIds={focusSceneIds}
             focusNonce={focusNonce}
             generationJob={canvasMode === 'edit' ? generationJob : null}
