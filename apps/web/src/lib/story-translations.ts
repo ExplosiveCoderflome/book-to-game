@@ -39,6 +39,8 @@ export const storyTranslations: Record<string, string> = {
   '在画布打开草稿 →': 'Open draft on canvas →', '前往重试': 'Go retry',
   '生成完成，已刷新画布上的草稿。': 'Generation finished; canvas draft refreshed.',
   '生成完成，已在画布打开新草稿。': 'Generation finished; opened the new draft on the canvas.',
+  '无条件与效果': 'No conditions or effects',
+  '当前变量下未解锁': 'Locked under current variables',
 
 };
 export const storyEnglish = storyTranslations;

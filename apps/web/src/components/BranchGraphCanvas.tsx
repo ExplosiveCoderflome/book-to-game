@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react';
 import { annotatePlayability, type CanvasLayout, type GameContent, type GenerationJob, type PlayabilityAnnotation } from '@novel-game/contracts';
 import { useI18n } from '../lib/i18n';
+import { summarizeChoice } from '../lib/edge-summary';
 import { jobProgressLabel, jobStageChips } from '../lib/job-on-canvas';
 import type { PlayOverlayState } from '../lib/play-overlay';
 
@@ -44,6 +45,8 @@ export function BranchGraphCanvas({
   const panDrag = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
   const nodeDrag = useRef<{ id: string; startX: number; startY: number; origX: number; origY: number; moved: boolean } | null>(null);
   const [dragPos, setDragPos] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [hoveredEdgeKey, setHoveredEdgeKey] = useState<string | null>(null);
+  const [hoverScreen, setHoverScreen] = useState<{ x: number; y: number } | null>(null);
 
   const autoLayout = useMemo(() => layoutNodes(content), [content]);
   const nodes = useMemo(() => {
@@ -70,27 +73,60 @@ export function BranchGraphCanvas({
 
   const edges = useMemo(() => {
     const byId = new Map(nodes.map(node => [node.id, node]));
-    const list: { key: string; x1: number; y1: number; x2: number; y2: number; label: string; flagged: boolean; trail: boolean; blocked: boolean }[] = [];
+    type EdgeView = {
+      key: string; x1: number; y1: number; x2: number; y2: number;
+      shortLabel: string; fullLabel: string; summaryLines: string[];
+      siblingIndex: number; siblingCount: number;
+      flagged: boolean; trail: boolean; blocked: boolean;
+    };
+    const raw: EdgeView[] = [];
     for (const scene of content.scenes) {
       const from = byId.get(scene.id);
       if (!from) continue;
-      for (const choice of scene.choices) {
-        const to = byId.get(choice.targetSceneId);
-        if (!to) continue;
+      const visible = scene.choices.filter(choice => byId.has(choice.targetSceneId));
+      visible.forEach((choice, siblingIndex) => {
+        const to = byId.get(choice.targetSceneId)!;
         const key = `${scene.id}:${choice.id}`;
-        list.push({
+        const summary = summarizeChoice(choice);
+        raw.push({
           key,
           x1: from.x + NODE_W / 2, y1: from.y + NODE_H,
           x2: to.x + NODE_W / 2, y2: to.y,
-          label: choice.label.slice(0, 16),
+          shortLabel: summary.shortLabel,
+          fullLabel: summary.fullLabel,
+          summaryLines: summary.lines,
+          siblingIndex,
+          siblingCount: visible.length,
           flagged: flaggedEdges.has(key),
           trail: trailEdges.has(key),
           blocked: blockedEdges.has(key),
         });
-      }
+      });
+    }
+    const buckets = new Map<string, EdgeView[]>();
+    for (const edge of raw) {
+      const bucketKey = `${Math.round(edge.x1 / 24)}:${Math.round(edge.y1 / 24)}:${Math.round(edge.x2 / 24)}:${Math.round(edge.y2 / 24)}`;
+      const list = buckets.get(bucketKey) ?? [];
+      list.push(edge);
+      buckets.set(bucketKey, list);
+    }
+    const list: EdgeView[] = [];
+    for (const group of buckets.values()) {
+      group.forEach((edge, index) => {
+        list.push({
+          ...edge,
+          siblingIndex: group.length > 1 ? index : edge.siblingIndex,
+          siblingCount: Math.max(edge.siblingCount, group.length),
+        });
+      });
     }
     return list;
   }, [content, nodes, flaggedEdges, trailEdges, blockedEdges]);
+
+  const hoveredEdge = useMemo(
+    () => edges.find(edge => edge.key === hoveredEdgeKey) ?? null,
+    [edges, hoveredEdgeKey],
+  );
 
   function fitView() {
     const el = viewportRef.current;
@@ -283,11 +319,34 @@ export function BranchGraphCanvas({
               : edge.trail
                 ? `url(#${markerPrefix}-arrow-trail)`
                 : `url(#${markerPrefix}-arrow)`;
-            const curve = edgeCurve(edge.x1, edge.y1, edge.x2, edge.y2);
+            const curve = edgeCurve(edge.x1, edge.y1, edge.x2, edge.y2, edge.siblingIndex, edge.siblingCount);
+            const active = hoveredEdgeKey === edge.key;
             return (
-              <g key={edge.key} className={`branch-edge${edge.flagged ? ' flagged' : ''}${edge.trail ? ' trail' : ''}${edge.blocked ? ' blocked' : ''}`} data-edge-key={edge.key}>
-                <path d={curve.d} fill="none" markerEnd={marker} />
-                <text x={curve.labelX} y={curve.labelY} textAnchor="middle">{edge.label}{edge.blocked ? ` · ${t('未解锁')}` : ''}</text>
+              <g
+                key={edge.key}
+                className={`branch-edge${edge.flagged ? ' flagged' : ''}${edge.trail ? ' trail' : ''}${edge.blocked ? ' blocked' : ''}${active ? ' hovered' : ''}`}
+                data-edge-key={edge.key}
+                data-testid={active ? 'edge-hover-active' : undefined}
+              >
+                <path
+                  className="branch-edge-hit"
+                  d={curve.d}
+                  fill="none"
+                  onPointerEnter={event => {
+                    setHoveredEdgeKey(edge.key);
+                    const rect = viewportRef.current?.getBoundingClientRect();
+                    if (rect) setHoverScreen({ x: event.clientX - rect.left, y: event.clientY - rect.top });
+                  }}
+                  onPointerMove={event => {
+                    const rect = viewportRef.current?.getBoundingClientRect();
+                    if (rect) setHoverScreen({ x: event.clientX - rect.left, y: event.clientY - rect.top });
+                  }}
+                  onPointerLeave={() => { setHoveredEdgeKey(null); setHoverScreen(null); }}
+                />
+                <path className="branch-edge-stroke" d={curve.d} fill="none" markerEnd={marker} />
+                <text x={curve.labelX} y={curve.labelY} textAnchor="middle" className="branch-edge-label">
+                  {edge.shortLabel}{edge.blocked ? ` · ${t('未解锁')}` : ''}
+                </text>
               </g>
             );
           })}
@@ -316,6 +375,21 @@ export function BranchGraphCanvas({
           })}
         </g>
       </svg>
+      {hoveredEdge && hoverScreen && (
+        <div
+          className="branch-edge-tooltip"
+          data-canvas-ui
+          data-testid="edge-hover-tooltip"
+          style={{ left: Math.min((viewportRef.current?.clientWidth ?? 400) - 16, Math.max(16, hoverScreen.x + 14)), top: Math.min((viewportRef.current?.clientHeight ?? 300) - 16, Math.max(16, hoverScreen.y + 14)) }}
+          role="tooltip"
+        >
+          <strong>{hoveredEdge.fullLabel}</strong>
+          {hoveredEdge.summaryLines.length === 0
+            ? <p className="hint">{t('无条件与效果')}</p>
+            : hoveredEdge.summaryLines.map(line => <p key={line}>{line}</p>)}
+          {hoveredEdge.blocked && <p className="edge-tooltip-blocked">{t('当前变量下未解锁')}</p>}
+        </div>
+      )}
       {!content.scenes.length && (
         <div className="branch-canvas-empty">
           <div className="branch-canvas-empty-card">
@@ -367,23 +441,32 @@ function layoutNodes(content: GameContent): LayoutNode[] {
 }
 
 
-/** Smooth cubic Bezier from node bottom-center to target top-center. */
-function edgeCurve(x1: number, y1: number, x2: number, y2: number): { d: string; labelX: number; labelY: number } {
-  const dy = Math.max(40, Math.abs(y2 - y1) * 0.45);
-  const dx = (x2 - x1) * 0.15;
-  const c1x = x1 + dx;
-  const c1y = y1 + dy;
-  const c2x = x2 - dx;
-  const c2y = y2 - dy;
-  // Approximate mid-curve for label (cubic Bezier at t=0.5)
+/** Smooth cubic Bezier; siblingIndex fans parallel edges and offsets labels. */
+function edgeCurve(
+  x1: number, y1: number, x2: number, y2: number,
+  siblingIndex = 0, siblingCount = 1,
+): { d: string; labelX: number; labelY: number } {
+  const spread = siblingCount <= 1 ? 0 : (siblingIndex - (siblingCount - 1) / 2) * 28;
+  const vx = x2 - x1;
+  const vy = y2 - y1;
+  const len = Math.max(1, Math.hypot(vx, vy));
+  const nx = -vy / len;
+  const ny = vx / len;
+  const dy = Math.max(36, Math.abs(y2 - y1) * 0.42);
+  const dx = (x2 - x1) * 0.12;
+  const c1x = x1 + dx + nx * spread * 0.55;
+  const c1y = y1 + dy + ny * spread * 0.55;
+  const c2x = x2 - dx + nx * spread * 0.55;
+  const c2y = y2 - dy + ny * spread * 0.55;
   const t = 0.5;
   const mt = 1 - t;
-  const labelX = mt * mt * mt * x1 + 3 * mt * mt * t * c1x + 3 * mt * t * t * c2x + t * t * t * x2;
-  const labelY = mt * mt * mt * y1 + 3 * mt * mt * t * c1y + 3 * mt * t * t * c2y + t * t * t * y2;
+  const labelX = mt * mt * mt * x1 + 3 * mt * mt * t * c1x + 3 * mt * t * t * c2x + t * t * t * x2 + nx * (spread * 0.35);
+  const labelY = mt * mt * mt * y1 + 3 * mt * mt * t * c1y + 3 * mt * t * t * c2y + t * t * t * y2 + ny * (spread * 0.35) - 6
+    + (siblingCount > 1 ? (siblingIndex % 2 === 0 ? -6 : 8) : 0);
   return {
     d: `M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`,
     labelX,
-    labelY: labelY - 4,
+    labelY,
   };
 }
 
