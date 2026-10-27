@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { worldContentSchema, type CanvasLayout, type SourceSummary, type WorldContent, type WorldDraft, type WorldRevision, type ValidationResult } from '@novel-game/contracts';
+import { SYSTEM_WAIT_ACTION_ID, worldContentSchema, type AdventureView, type CanvasLayout, type SourceSummary, type WorldContent, type WorldDraft, type WorldRevision, type ValidationResult } from '@novel-game/contracts';
 import { request, RequestError, errorMessage } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { openingActionDensity } from '../lib/world-graph';
+import { worldPlayOverlayFromAdventure } from '../lib/world-play-overlay';
 import { Notice, Empty } from './Notice';
 import { WorldGraphCanvas } from './WorldGraphCanvas';
 import { WorldOverview } from './WorldOverview';
@@ -14,12 +15,17 @@ const blank = (): WorldContent => ({
 });
 
 interface Props {
-  token: string; drafts: WorldDraft[]; sources: SourceSummary[]; selectedId: string;
+  token: string; drafts: WorldDraft[]; sources: SourceSummary[];
+  revisions: WorldRevision[]; adventures: AdventureView[];
+  selectedId: string;
   select: (id: string) => void; refresh: () => Promise<void>;
   onPublished: (r: WorldRevision) => void; onDirtyChange: (dirty: boolean) => void;
+  onOpenAdventure?: (revisionId: string) => void;
 }
 
-export function WorldsPanel({ token, drafts, sources, selectedId, select, refresh, onPublished, onDirtyChange }: Props) {
+export function WorldsPanel({
+  token, drafts, sources, revisions, adventures, selectedId, select, refresh, onPublished, onDirtyChange, onOpenAdventure,
+}: Props) {
   const { t } = useI18n();
   const [draft, setDraft] = useState<WorldDraft | null>(null);
   const [content, setContent] = useState<WorldContent>(blank);
@@ -36,6 +42,9 @@ export function WorldsPanel({ token, drafts, sources, selectedId, select, refres
   const [inspectorTab, setInspectorTab] = useState<'location' | 'meta' | 'all'>('location');
   const [selectedLocationId, setSelectedLocationId] = useState<string | undefined>();
   const [metaOpen, setMetaOpen] = useState(false);
+  const [canvasMode, setCanvasMode] = useState<'edit' | 'play'>('edit');
+  const [playSession, setPlaySession] = useState<AdventureView | null>(null);
+  const [playBusy, setPlayBusy] = useState(false);
 
   useEffect(() => { onDirtyChange(dirty || json !== null); }, [dirty, json, onDirtyChange]);
   useEffect(() => {
@@ -43,6 +52,7 @@ export function WorldsPanel({ token, drafts, sources, selectedId, select, refres
     setDraft(null); setContent(blank()); setDirty(false); setJson(null); setValidation(null);
     setError(null); setMessage(null); setConflict(false); setInspectorOpen(false);
     setSelectedLocationId(undefined); setInspectorTab('location'); setMetaOpen(false);
+    setCanvasMode('edit'); setPlaySession(null);
     if (!selectedId) return;
     setBusy(true);
     request<WorldDraft>(token, `/worlds/drafts/${selectedId}`).then(d => {
@@ -65,6 +75,51 @@ export function WorldsPanel({ token, drafts, sources, selectedId, select, refres
     if (density.warning && !fromValidation.includes(density.warning)) return [density.warning, ...fromValidation];
     return fromValidation;
   }, [validation, density.warning]);
+
+  const linkedRevisions = useMemo(
+    () => (draft ? revisions.filter(r => r.draftId === draft.id).sort((a, b) => b.version - a.version) : []),
+    [draft, revisions],
+  );
+  const latestRevision = linkedRevisions[0] ?? null;
+  const linkedAdventures = useMemo(() => {
+    if (!latestRevision) return [] as AdventureView[];
+    return adventures.filter(a => a.worldRevisionId === latestRevision.id).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }, [adventures, latestRevision]);
+  const playOverlay = useMemo(() => {
+    if (!playSession || !latestRevision) return null;
+    return worldPlayOverlayFromAdventure(latestRevision.content, playSession);
+  }, [playSession, latestRevision]);
+  const canPlayOnCanvas = !!latestRevision && !dirty && json === null;
+
+  useEffect(() => {
+    if (canvasMode !== 'play' || !latestRevision) return;
+    const preferred = linkedAdventures[0];
+    if (preferred && playSession?.id === preferred.id) return;
+    if (preferred) { setPlaySession(preferred); return; }
+    let active = true;
+    setPlayBusy(true);
+    request<AdventureView>(token, '/adventures', 'POST', { worldRevisionId: latestRevision.id })
+      .then(async started => {
+        if (!active) return;
+        setPlaySession(started);
+        await refresh();
+      })
+      .catch(e => { if (active) setError(errorMessage(e)); })
+      .finally(() => { if (active) setPlayBusy(false); });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canvasMode, latestRevision?.id]);
+
+  async function actOnCanvas(actionId: string) {
+    if (!playSession) return;
+    setPlayBusy(true); setError(null);
+    try {
+      const input = { actionId, expectedTurn: playSession.turn, requestId: crypto.randomUUID() };
+      const result = await request<AdventureView>(token, `/adventures/${playSession.id}/actions`, 'POST', input);
+      setPlaySession(result);
+      await refresh();
+    } catch (e) { setError(errorMessage(e)); } finally { setPlayBusy(false); }
+  }
 
   function change(next: WorldContent) { setContent(next); setDirty(true); setValidation(null); setMessage(null); }
   function selectLocation(id: string) {
@@ -110,7 +165,7 @@ export function WorldsPanel({ token, drafts, sources, selectedId, select, refres
       <div>
         <p className="eyebrow">{t('世界校样')}</p>
         <h2>{t('开放世界画布')}</h2>
-        <p>{t('地点拓扑是主操作面：曲边表示移动行动，点选地点打开侧栏审阅。')}</p>
+        <p>{t('地点拓扑是主操作面：编辑与试玩可在同一画布切换；曲边是移动行动，试玩时高亮足迹。')}</p>
       </div>
       <span className="edition">WORLD CANVAS</span>
     </div>
@@ -144,11 +199,17 @@ export function WorldsPanel({ token, drafts, sources, selectedId, select, refres
             </label>
           )}
           <div className="panel-heading draft-canvas-actions">
-            <h3>{t(draft ? '画布编辑' : '建立手动世界')}</h3>
+            <h3>{t(draft ? (canvasMode === 'play' ? '画布试玩' : '画布编辑') : '建立手动世界')}</h3>
             <div className="draft-action-cluster">
-              <button type="button" className="small" disabled={busy || json !== null} onClick={() => setMetaOpen(v => !v)}>{t(metaOpen ? '收起世界信息' : '世界信息')}</button>
-              <button type="button" className="small" disabled={busy || json !== null || !content.locations.length} onClick={() => { setInspectorTab('all'); setInspectorOpen(true); }}>{t('全览')}</button>
-              <button type="button" className="small" disabled={busy} onClick={() => json === null ? setJson(JSON.stringify(content, null, 2)) : apply()}>{json === null ? t('高级 JSON') : t('应用 JSON 到编辑器')}</button>
+              {draft && (
+                <div className="canvas-mode-toggle" role="group" aria-label={t('画布模式')}>
+                  <button type="button" className={`small${canvasMode === 'edit' ? ' active' : ''}`} disabled={busy || playBusy} onClick={() => setCanvasMode('edit')}>{t('编辑')}</button>
+                  <button type="button" className={`small${canvasMode === 'play' ? ' active' : ''}`} disabled={busy || playBusy || !canPlayOnCanvas} title={!canPlayOnCanvas ? t('需已发布版本，且无未保存编辑') : undefined} onClick={() => setCanvasMode('play')}>{t('试玩')}</button>
+                </div>
+              )}
+              <button type="button" className="small" disabled={busy || json !== null || canvasMode === 'play'} onClick={() => setMetaOpen(v => !v)}>{t(metaOpen ? '收起世界信息' : '世界信息')}</button>
+              <button type="button" className="small" disabled={busy || json !== null || canvasMode === 'play' || !content.locations.length} onClick={() => { setInspectorTab('all'); setInspectorOpen(true); }}>{t('全览')}</button>
+              <button type="button" className="small" disabled={busy || canvasMode === 'play'} onClick={() => json === null ? setJson(JSON.stringify(content, null, 2)) : apply()}>{json === null ? t('高级 JSON') : t('应用 JSON 到编辑器')}</button>
             </div>
           </div>
           {json !== null ? (
@@ -177,16 +238,56 @@ export function WorldsPanel({ token, drafts, sources, selectedId, select, refres
                 <label>{t('超时结局')}<textarea rows={2} maxLength={3000} value={content.timeoutEnding} onChange={e => change({ ...content, timeoutEnding: e.target.value })} /></label>
               </div>
             )}
-            <div className={`draft-canvas-stage${inspectorOpen ? ' with-inspector' : ''}`} data-testid="world-canvas-stage">
+            <div className={`draft-canvas-stage${(inspectorOpen || canvasMode === 'play') ? ' with-inspector' : ''}${canvasMode === 'play' ? ' play-mode' : ''}`} data-testid="world-canvas-stage">
               <WorldGraphCanvas
                 primary
-                content={content}
-                selectedLocationId={inspectorOpen ? selectedLocationId : undefined}
-                onSelectLocation={selectLocation}
-                onLayoutChange={updateLayout}
-                warnings={canvasWarnings}
+                content={canvasMode === 'play' && latestRevision ? latestRevision.content : content}
+                selectedLocationId={canvasMode === 'play' ? playSession?.location.id : (inspectorOpen ? selectedLocationId : undefined)}
+                onSelectLocation={canvasMode === 'play' ? (() => {}) : selectLocation}
+                onLayoutChange={canvasMode === 'play' ? undefined : updateLayout}
+                warnings={canvasMode === 'play' ? [] : canvasWarnings}
+                playOverlay={canvasMode === 'play' ? playOverlay : null}
+                readOnly={canvasMode === 'play'}
               />
-              {inspectorOpen && (
+              {canvasMode === 'play' ? (
+                <aside className="draft-inspector play-inspector" aria-label={t('试玩面板')} data-testid="world-play-inspector">
+                  <div className="draft-inspector-header">
+                    <strong>{t('试玩')}</strong>
+                    <button type="button" className="quiet small" onClick={() => setCanvasMode('edit')}>{t('返回编辑')}</button>
+                  </div>
+                  <div className="draft-inspector-body stack">
+                    {!latestRevision ? <Empty>{t('请先发布一个世界版本，再在画布上试玩。')}</Empty>
+                      : playBusy && !playSession ? <p role="status">{t('正在准备试玩…')}</p>
+                      : !playSession ? <Empty>{t('尚未打开存档。')}</Empty>
+                      : <>
+                        <p className="hint">{t('发布版本 v{version} · 行动 {turn}', { version: latestRevision.version, turn: playSession.turn })}</p>
+                        <div className="adventure-goal">
+                          <strong>{playSession.playerRole}</strong>
+                          <p>{t('目标：')}{playSession.goal}</p>
+                          <label>{t('时间 · 已用 {elapsed} / {limit}', { elapsed: playSession.elapsed, limit: playSession.timeLimit })}
+                            <progress max={playSession.timeLimit} value={playSession.elapsed} />
+                          </label>
+                        </div>
+                        <h4>{playSession.location.title}</h4>
+                        <div className="reader-text">{playSession.location.text.split(/\n+/).map((text, i) => <p key={i}>{text}</p>)}</div>
+                        {playSession.ending && <div className="ending"><p className="eyebrow">{t('冒险结局')}</p><h4>{playSession.ending.title}</h4><p>{playSession.ending.text}</p></div>}
+                        {!playSession.ended && <div className="adventure-actions">
+                          <p className="eyebrow">{t('可以采取的行动')}</p>
+                          {playSession.actions.map(a => (
+                            <div className="adventure-action" key={a.id}>
+                              <button type="button" disabled={playBusy || !a.enabled} onClick={() => void actOnCanvas(a.id)}>
+                                <strong>{a.id === SYSTEM_WAIT_ACTION_ID ? t(a.label) : a.label}</strong>
+                                <span>{t('耗时 {time} →', { time: a.timeCost })}</span>
+                              </button>
+                              {!a.enabled && <p className="blocked-reason">{a.blockedReason ?? t('当前条件不满足')}</p>}
+                            </div>
+                          ))}
+                        </div>}
+                        {onOpenAdventure && latestRevision && <button type="button" className="quiet small" onClick={() => onOpenAdventure(latestRevision.id)}>{t('在开放冒险打开 →')}</button>}
+                      </>}
+                  </div>
+                </aside>
+              ) : inspectorOpen && (
                 <aside className="draft-inspector" aria-label={t('地点检视器')} data-testid="world-inspector">
                   <div className="draft-inspector-header">
                     <div className="draft-inspector-tabs">
@@ -224,9 +325,9 @@ export function WorldsPanel({ token, drafts, sources, selectedId, select, refres
             </div>
           </>}
           <div className="editor-footer">
-            <button className="primary" disabled={busy || conflict || json !== null || (!!draft && !dirty)} onClick={() => operate('save')}>{t('保存世界草稿')}</button>
-            <button disabled={busy || dirty || conflict || json !== null || !draft} onClick={() => operate('validate')}>{t('校验世界')}</button>
-            <button disabled={busy || dirty || conflict || json !== null || !draft || !validation?.valid} onClick={() => operate('publish')}>{t('发布并冒险 →')}</button>
+            <button className="primary" disabled={busy || conflict || json !== null || canvasMode === 'play' || (!!draft && !dirty)} onClick={() => operate('save')}>{t('保存世界草稿')}</button>
+            <button disabled={busy || dirty || conflict || json !== null || canvasMode === 'play' || !draft} onClick={() => operate('validate')}>{t('校验世界')}</button>
+            <button disabled={busy || dirty || conflict || json !== null || canvasMode === 'play' || !draft || !validation?.valid} onClick={() => operate('publish')}>{t('发布并冒险 →')}</button>
             <span className="hint">{t('先保存，再校验，最后发布。')}</span>
           </div>
           {validation && (

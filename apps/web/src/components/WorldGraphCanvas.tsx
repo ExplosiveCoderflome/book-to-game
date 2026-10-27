@@ -5,6 +5,7 @@ import { edgeCurve } from '../lib/graph-curve';
 import {
   WORLD_NODE_H, WORLD_NODE_W, buildWorldEdges, layoutWorldNodes, openingActionDensity,
 } from '../lib/world-graph';
+import type { WorldPlayOverlayState } from '../lib/world-play-overlay';
 
 interface Props {
   content: WorldContent;
@@ -13,10 +14,13 @@ interface Props {
   onLayoutChange?: (layout: CanvasLayout) => void;
   primary?: boolean;
   warnings?: string[];
+  playOverlay?: WorldPlayOverlayState | null;
+  readOnly?: boolean;
 }
 
 export function WorldGraphCanvas({
   content, selectedLocationId, onSelectLocation, onLayoutChange, primary = false, warnings = [],
+  playOverlay = null, readOnly = false,
 }: Props) {
   const { t } = useI18n();
   const markerPrefix = useId().replace(/:/g, '');
@@ -44,6 +48,10 @@ export function WorldGraphCanvas({
   }, [autoLayout, content.canvasLayout, dragPos]);
 
   const edges = useMemo(() => buildWorldEdges(content, nodes), [content, nodes]);
+  const trailEdges = useMemo(() => new Set(playOverlay?.trailEdgeKeys ?? []), [playOverlay]);
+  const blockedEdges = useMemo(() => new Set(playOverlay?.blockedEdgeKeys ?? []), [playOverlay]);
+  const visitedLocations = useMemo(() => new Set(playOverlay?.visitedLocationIds ?? []), [playOverlay]);
+  const currentPlayLocationId = playOverlay?.currentLocationId ?? null;
   const hoveredEdge = useMemo(
     () => edges.find(edge => edge.key === hoveredEdgeKey) ?? null,
     [edges, hoveredEdgeKey],
@@ -100,6 +108,10 @@ export function WorldGraphCanvas({
       if (!id) return;
       const node = nodes.find(n => n.id === id);
       if (!node) return;
+      if (readOnly) {
+        onSelectLocation(id);
+        return;
+      }
       nodeDrag.current = { id, startX: event.clientX, startY: event.clientY, origX: node.x, origY: node.y, moved: false };
       event.currentTarget.setPointerCapture(event.pointerId);
       return;
@@ -152,17 +164,18 @@ export function WorldGraphCanvas({
     <div className="branch-canvas-chrome" data-canvas-ui>
       <div>
         <h4>{t('世界画布')}</h4>
-        <small className="hint">{t('主编辑面：地点为节点，移动行动为曲边；拖节点排版，点选打开侧栏。')}</small>
+        <small className="hint">{t(playOverlay ? '试玩叠层：高亮当前位置与移动足迹；未解锁移动边会变淡。' : '主编辑面：地点为节点，移动行动为曲边；拖节点排版，点选打开侧栏。')}</small>
       </div>
       <div className="branch-canvas-toolbar">
         <span className="hint">{t('{count} 个地点', { count: content.locations.length })}</span>
         <span className="hint">{t('{count} 条移动', { count: edges.length })}</span>
+        {playOverlay && <span className="play-overlay-badge" data-testid="world-play-overlay-badge">{t('试玩路径')}</span>}
         <button type="button" className="small" onClick={() => setZoom(z => Math.min(2.2, z * 1.12))} aria-label={t('放大')}>＋</button>
         <button type="button" className="small" onClick={() => setZoom(z => Math.max(0.45, z * 0.88))} aria-label={t('缩小')}>－</button>
         <button type="button" className="small" onClick={fitView}>{t('适应画布')}</button>
       </div>
     </div>
-    {bannerWarnings.length > 0 && (
+    {!playOverlay && bannerWarnings.length > 0 && (
       <div className="branch-canvas-banner world-opening-banner" data-canvas-ui data-testid="world-opening-banner" role="status">
         <strong>{t('开局行动提醒')}</strong>
         <ul>{bannerWarnings.slice(0, 5).map((message, index) => <li key={`${index}-${message.slice(0, 24)}`}>{message}</li>)}</ul>
@@ -183,15 +196,21 @@ export function WorldGraphCanvas({
           <marker id={`${markerPrefix}-arrow`} markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
             <path d="M0,0 L6,3 L0,6 Z" fill="currentColor" />
           </marker>
+          <marker id={`${markerPrefix}-arrow-trail`} markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="#1a7a4c" />
+          </marker>
         </defs>
         <g transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
           {edges.map(edge => {
             const curve = edgeCurve(edge.x1, edge.y1, edge.x2, edge.y2, edge.siblingIndex, edge.siblingCount);
             const active = hoveredEdgeKey === edge.key;
+            const trail = trailEdges.has(edge.key);
+            const blocked = blockedEdges.has(edge.key);
+            const marker = trail ? `url(#${markerPrefix}-arrow-trail)` : `url(#${markerPrefix}-arrow)`;
             return (
               <g
                 key={edge.key}
-                className={`branch-edge${active ? ' hovered' : ''}`}
+                className={`branch-edge${trail ? ' trail' : ''}${blocked ? ' blocked' : ''}${active ? ' hovered' : ''}`}
                 data-edge-key={edge.key}
                 data-testid={active ? 'world-edge-hover-active' : undefined}
               >
@@ -210,27 +229,33 @@ export function WorldGraphCanvas({
                   }}
                   onPointerLeave={() => { setHoveredEdgeKey(null); setHoverScreen(null); }}
                 />
-                <path className="branch-edge-stroke" d={curve.d} fill="none" markerEnd={`url(#${markerPrefix}-arrow)`} />
-                <text x={curve.labelX} y={curve.labelY} textAnchor="middle" className="branch-edge-label">{edge.shortLabel}</text>
+                <path className="branch-edge-stroke" d={curve.d} fill="none" markerEnd={marker} />
+                <text x={curve.labelX} y={curve.labelY} textAnchor="middle" className="branch-edge-label">
+                  {edge.shortLabel}{blocked ? ` · ${t('未解锁')}` : ''}
+                </text>
               </g>
             );
           })}
           {nodes.map(node => {
             const selected = node.id === selectedLocationId;
+            const isCurrent = currentPlayLocationId === node.id;
+            const visited = visitedLocations.has(node.id);
             return (
               <g
                 key={node.id}
                 data-node
                 data-node-id={node.id}
+                data-play-current={isCurrent ? 'true' : undefined}
+                data-play-visited={visited ? 'true' : undefined}
                 data-testid={`world-node-${node.id}`}
                 transform={`translate(${node.x} ${node.y})`}
-                className={`branch-node world-node${selected ? ' selected' : ''}${node.isStart ? ' start' : ''}`}
-                style={{ cursor: 'grab' }}
+                className={`branch-node world-node${selected ? ' selected' : ''}${node.isStart ? ' start' : ''}${isCurrent ? ' play-current' : ''}${visited && !isCurrent ? ' play-visited' : ''}`}
+                style={{ cursor: readOnly ? 'pointer' : 'grab' }}
               >
                 <rect width={WORLD_NODE_W} height={WORLD_NODE_H} rx="10" ry="10" />
                 <text x={12} y={24} className="branch-node-title">{truncate(node.title || node.id, 14)}</text>
                 <text x={12} y={44} className="branch-node-meta">
-                  {node.isStart ? t('开局地点') : t('{count} 个行动', { count: node.actionCount })}
+                  {isCurrent ? t('当前位置') : node.isStart ? t('开局地点') : t('{count} 个行动', { count: node.actionCount })}
                 </text>
                 <text x={12} y={60} className="branch-node-meta world-node-sub">
                   {t('本地 {local} · 移动 {move}', { local: node.localActionCount, move: node.moveActionCount })}
@@ -256,6 +281,7 @@ export function WorldGraphCanvas({
           {hoveredEdge.summaryLines.length === 0
             ? <p className="hint">{t('移动至另一地点')}</p>
             : hoveredEdge.summaryLines.map(line => <p key={line}>{line}</p>)}
+          {blockedEdges.has(hoveredEdge.key) && <p className="edge-tooltip-blocked">{t('当前条件未解锁')}</p>}
         </div>
       )}
       {!content.locations.length && (

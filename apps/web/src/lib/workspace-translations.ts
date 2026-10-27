@@ -352,4 +352,13 @@ export const workspaceEnglish: Record<string, string> = {
   '其他地点': 'Other locations',
   '在画布上点击一个地点节点。': 'Click a location node on the canvas.',
   '建立手动世界': 'Create a manual world',
+  '地点拓扑是主操作面：编辑与试玩可在同一画布切换；曲边是移动行动，试玩时高亮足迹。': 'Location topology is the main surface: switch edit/play on the same canvas; curves are moves, trails highlight while playtesting.',
+  '试玩叠层：高亮当前位置与移动足迹；未解锁移动边会变淡。': 'Play overlay: highlight the current location and move trail; locked move edges fade.',
+  '当前位置': 'Current location',
+  '当前条件未解锁': 'Locked under current conditions',
+  '请先发布一个世界版本，再在画布上试玩。': 'Publish a world revision before playtesting on the canvas.',
+  '发布版本 v{version} · 行动 {turn}': 'Published v{version} · Action {turn}',
+  '在开放冒险打开 →': 'Open in open adventure →',
+  '观察、交谈与行动会留下后果。每份存档固定一个世界版本。画布上可见当前位置与移动足迹。': 'Observe, talk and act with lasting consequences. Each save locks a world revision. The canvas shows your location and move trail.',
+  '世界路径': 'World path',
 };
