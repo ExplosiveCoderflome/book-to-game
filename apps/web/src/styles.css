@@ -116,6 +116,9 @@ input, select, textarea {
 }
 input:focus, textarea:focus, select:focus {
   outline: none;
+}
+input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: none;
   border-color: color-mix(in srgb, var(--focus) 65%, var(--line-strong));
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 18%, transparent);
 }
@@ -1876,4 +1879,405 @@ legend {
 .story-input,
 .history > div > p:last-child {
   font-family: var(--serif);
+}
+
+/* === ui-ux-kit App/Product Redesign — precision workbench === */
+/* Concept: precision instrument for branching narrative — calm neutrals, one green signal, canvas dominates, chrome quiet/dense like Linear. */
+
+.site-header {
+  padding: 8px 0;
+}
+.brand small {
+  font-size: 10.5px;
+  opacity: 0.92;
+}
+
+/* Nav: quiet app tabs, not brochure wizard */
+.workspace-bar nav {
+  gap: 2px;
+}
+.workspace-bar nav button {
+  padding: 8px 10px;
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.workspace-bar nav button span {
+  font-size: 10px;
+  margin-right: 5px;
+  color: color-mix(in srgb, var(--muted) 50%, var(--line-strong));
+  font-weight: 500;
+  opacity: 0.9;
+}
+.workspace-bar nav button:hover:not(:disabled) {
+  border-bottom-color: var(--line-strong);
+}
+.workspace-bar nav button.active {
+  color: var(--ink);
+  font-weight: 600;
+  border-bottom-color: var(--green);
+}
+.workspace-bar nav button.active span {
+  color: var(--green);
+  opacity: 1;
+}
+
+.work-section {
+  padding: 10px 0 20px;
+}
+
+/* Quieter workbench headers — reclaim canvas height */
+.section-heading {
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.section-heading h2 {
+  font-size: 17px;
+  line-height: 1.25;
+  margin-bottom: 4px;
+  letter-spacing: -0.015em;
+}
+.section-heading .eyebrow {
+  margin-bottom: 2px;
+  letter-spacing: 0.02em;
+  font-size: 10px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--muted) 75%, var(--line-strong));
+}
+.section-heading p:last-child {
+  font-size: 12px;
+  line-height: 1.45;
+  max-width: 60ch;
+}
+.draft-workspace .section-heading,
+.world-workspace .section-heading {
+  margin-bottom: 6px;
+  align-items: center;
+}
+.draft-workspace .section-heading h2,
+.world-workspace .section-heading h2 {
+  font-size: 15px;
+  margin-bottom: 0;
+  font-weight: 650;
+}
+.draft-workspace .section-heading > div > p:not(.eyebrow),
+.world-workspace .section-heading > div > p:not(.eyebrow) {
+  display: none;
+}
+
+.draft-canvas-stage {
+  height: calc(100vh - 168px);
+  border-radius: var(--radius);
+}
+
+/* Status strips: tool signals, not pastel posters */
+.branch-canvas-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--line);
+  border-left: 3px solid color-mix(in srgb, var(--rust) 75%, var(--line));
+  background: var(--surface-muted);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.branch-canvas-banner strong {
+  display: inline;
+  margin: 0;
+  color: var(--rust);
+  font-size: 12px;
+  font-weight: 650;
+}
+.branch-canvas-banner ul {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  color: var(--muted);
+  list-style: none;
+}
+.branch-canvas-banner li {
+  display: inline;
+  margin: 0;
+}
+.branch-canvas-banner li + li::before {
+  content: " · ";
+  color: var(--line-strong);
+}
+.branch-canvas-banner-hint {
+  display: none;
+}
+
+.branch-canvas-gen {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  border-left: 3px solid color-mix(in srgb, var(--muted) 50%, var(--line));
+  background: var(--surface-muted);
+  gap: 6px;
+}
+.branch-canvas-gen.succeeded {
+  border-left-color: var(--green);
+  border-bottom-color: var(--line);
+  background: var(--surface-muted);
+}
+.branch-canvas-gen.failed {
+  border-left-color: var(--rust);
+  border-bottom-color: var(--line);
+  background: var(--surface-muted);
+}
+.branch-canvas-gen-head {
+  gap: 6px 12px;
+}
+.branch-canvas-gen-head strong {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 650;
+}
+.branch-canvas-gen.succeeded .branch-canvas-gen-head strong {
+  color: var(--green);
+}
+.branch-canvas-gen.failed .branch-canvas-gen-head strong {
+  color: var(--rust);
+}
+.branch-canvas-gen progress {
+  height: 4px;
+}
+.gen-stage-chips {
+  gap: 4px;
+}
+.gen-stage-chip {
+  font-size: 10px;
+  padding: 1px 7px;
+  background: var(--surface);
+}
+.gen-stage-chip.done {
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 35%, var(--line));
+  background: color-mix(in srgb, var(--green) 6%, var(--surface));
+}
+.gen-stage-chip.active {
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--green) 40%, var(--line));
+  background: color-mix(in srgb, var(--green) 10%, var(--surface));
+  font-weight: 600;
+}
+.branch-canvas-gen-actions {
+  gap: 6px;
+}
+
+.branch-canvas-skeleton-banner {
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--line);
+  border-left: 3px solid color-mix(in srgb, var(--muted) 55%, var(--line));
+  background: var(--surface-muted);
+  gap: 6px 12px;
+  font-size: 12px;
+}
+.branch-canvas-skeleton-banner strong {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.branch-canvas-extend-guide {
+  gap: 6px 10px;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--line);
+  border-left: 3px solid color-mix(in srgb, var(--muted) 50%, var(--line));
+  background: var(--surface-muted);
+  font-size: 12px;
+  color: var(--muted);
+}
+.branch-canvas-extend-guide strong {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.world-opening-banner {
+  border-left: 3px solid color-mix(in srgb, var(--muted) 55%, #b45309);
+  background: var(--surface-muted) !important;
+}
+.world-opening-banner.is-error {
+  border-left-color: var(--rust);
+  background: var(--surface-muted) !important;
+}
+
+/* Flatten inspector / nested cards */
+.draft-inspector-header {
+  padding: 8px 12px;
+}
+.draft-inspector-body {
+  padding: 12px 12px 20px;
+}
+.draft-inspector .panel,
+.draft-inspector-pane .panel {
+  box-shadow: none;
+  border-color: var(--line);
+  background: transparent;
+  padding: 0;
+}
+.draft-inspector-pane-label {
+  letter-spacing: 0.04em;
+  font-size: 10px;
+  font-weight: 650;
+}
+.draft-meta-strip,
+.draft-toolbar.panel {
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  box-shadow: none;
+}
+.draft-editor.panel {
+  box-shadow: none;
+  padding: 10px 12px 14px;
+}
+.branch-canvas-chrome {
+  padding: 6px 10px;
+}
+.branch-canvas-chrome h4 {
+  font-size: 12px;
+  font-weight: 650;
+}
+.branch-canvas-empty-card {
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: none;
+}
+
+.fill-scene-block {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+}
+.worldbook-entry {
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+/* Kill AI-purple / blue-pastel tool callouts — one green accent only */
+.tiandao-box {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+}
+.propose-act-box {
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+}
+.extend-history-chip {
+  color: var(--muted);
+  background: var(--surface-muted);
+  border-color: var(--line);
+}
+.extend-retry-bar,
+.extend-conflict-bar {
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  color: var(--ink);
+}
+.extend-retry-bar { border-left-color: var(--rust); }
+.extend-conflict-bar { border-left-color: color-mix(in srgb, var(--muted) 55%, #b45309); }
+
+.narrate-box {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+}
+.narrate-text {
+  color: var(--ink);
+}
+
+/* Empty / loading affordance */
+.empty {
+  min-height: 140px;
+  padding: 24px 20px;
+  color: var(--muted);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+.empty > span {
+  font-size: 18px;
+  color: color-mix(in srgb, var(--muted) 70%, var(--line-strong));
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.notice {
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  font-size: 12.5px;
+}
+
+/* Play denser */
+.reading-page {
+  padding: 22px 24px 20px;
+  box-shadow: var(--shadow-xs);
+}
+.reading-page > h3 {
+  font-size: 18px;
+  margin-bottom: 12px;
+}
+.reader-choices > button {
+  padding: 10px 12px;
+  margin-top: 6px;
+}
+.play-layout > aside.panel {
+  box-shadow: var(--shadow-xs);
+  padding: 14px;
+}
+
+/* Connect / demo — light product tone */
+.connect-page {
+  gap: 48px;
+  padding: 48px 0;
+  max-width: 960px;
+}
+.connect-intro h1 {
+  font-size: clamp(28px, 3.4vw, 40px);
+  letter-spacing: -0.02em;
+}
+.connect-form {
+  padding: 22px !important;
+  border-top: 2px solid var(--green) !important;
+  box-shadow: var(--shadow-sm);
+}
+.connect-form h2 {
+  font-size: 20px;
+}
+.ink-line {
+  width: 40px;
+  height: 2px;
+  margin-top: 16px;
+  background: var(--green);
+}
+.demo-badge {
+  background: var(--surface-muted);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+}
+.demo-callout {
+  background: var(--surface-muted);
+  border-left: 3px solid var(--green);
+}
+.demo-heading {
+  padding: 36px 0 24px;
+  max-width: 640px;
+}
+.demo-heading h1 {
+  font-size: clamp(28px, 4vw, 40px);
+}
+
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible),
+summary:focus:not(:focus-visible) {
+  outline: none;
 }

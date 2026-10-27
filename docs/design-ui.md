@@ -38,13 +38,15 @@ Avoid cream paper fills, heavy inset seals, and multi-pastel “theater” boxes
 
 - Shared radius: `--radius-sm` (6) / `--radius` (8) / `--radius-lg` (12).
 - Buttons, inputs, selects, chips, and tabs share padding, hover, focus, and disabled treatment.
-- Focus: 2px `--focus` ring (or soft blue glow on fields). Prefer keyboard-visible focus over decorative outlines.
+- Focus: 2px `--focus` ring on `:focus-visible` only (buttons/links/summary). Fields use border + soft glow on `:focus-visible` — no mouse `:focus` flash.
 
 ## Panels & canvas
 
 - Panels: white surface, 1px `--line`, light `--shadow-xs` only — no deep drop shadows or “serify section theater”.
-- Canvas remains primary (see `design-layout.md`). Inspectors nest beside it with a quiet left border, not a heavy cast shadow.
+- Canvas remains primary (see `design-layout.md`). Inspectors nest beside it with a quiet left border, not a heavy cast shadow. Flatten inspector hierarchy (no card-in-card).
 - Wide viewports show more modules (dual inspector), not empty stretch.
+- Generation / playability / skeleton / extend cues are **compact status strips** (left accent + muted fill), not tall pastel posters.
+- Workbench section titles stay quiet (small h2; hide long blurbs on canvas pages) so the graph keeps vertical space.
 
 ## Play reader
 
@@ -59,3 +61,8 @@ Avoid cream paper fills, heavy inset seals, and multi-pastel “theater” boxes
 - [ ] Controls reuse radius / focus tokens
 - [ ] Layout still follows `design-layout.md` (fill + density)
 - [ ] Screenshot check ~1680×980 after UI-facing changes
+
+## Related
+
+- Layout density: [`design-layout.md`](./design-layout.md)
+- Full token/system record: [`../DESIGN_SYSTEM.md`](../DESIGN_SYSTEM.md)

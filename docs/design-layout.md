@@ -45,3 +45,4 @@ Defined in `apps/web/src/styles.css` `:root`:
 ## Related
 
 Visual chrome, type, and control principles: [`design-ui.md`](./design-ui.md).
+- Full system: [`../DESIGN_SYSTEM.md`](../DESIGN_SYSTEM.md)
