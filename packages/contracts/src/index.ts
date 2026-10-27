@@ -137,6 +137,8 @@ export const extendDraftSceneInputSchema = z.object({
   version: z.number().int().positive(),
   sceneId: z.string().min(1).max(80),
   direction: z.string().max(2000).optional(),
+  /** How many neighbor scenes to grow from the anchor this round (1=单叶, 2=双邻). */
+  neighborCount: z.union([z.literal(1), z.literal(2)]).optional(),
 });
 export type ExtendDraftSceneInput = z.infer<typeof extendDraftSceneInputSchema>;
 

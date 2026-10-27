@@ -48,8 +48,8 @@ export const EXTEND_SCENE_SYSTEM = `你是文字分支冒险的关卡扩展师�
 任务：从锚点 sceneId 生长邻近节点与显式选择边，丰富局部冲突，不要改写或删除无关节点。
 架构原则（灵活图）：只输出新场景与挂到锚点的新选择边；不要发明隐含连线；不要改 startSceneId、variables 初值或既有场景的 id/choices（除通过 anchorChoices 追加）。
 要求：
-1. 新增 1–4 个场景；每个新场景有可读正文 text；可选带 ending 的叶节点。
-2. anchorChoices 至少 1 条，targetSceneId 必须指向本次 scenes 中的新场景（或现有图中已存在的 id）。
+1. 按用户 payload.neighborCount（默认 1）控制本轮规模：1 → 恰好 1 个新场景；2 → 恰好 2 个新场景。不要超过；每个新场景有可读正文 text；可选带 ending 的叶节点。
+2. anchorChoices 至少 1 条（neighborCount=2 时可 1–2 条），targetSceneId 必须指向本次 scenes 中的新场景（或现有图中已存在的 id）。
 3. 新场景内部也可以有选择边（指向新场景或现有场景），但不得使用已占用的 choice.id（尤其锚点上已有的 id）。
 4. 新场景 id 不得与现有 scenes[].id 冲突；文字使用简体中文；mode 概念上仍是 story 局部扩展。
 5. 选项文案体现冲突/代价；禁止空洞「继续」。

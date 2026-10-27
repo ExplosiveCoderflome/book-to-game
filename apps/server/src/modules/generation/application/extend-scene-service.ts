@@ -28,11 +28,14 @@ export async function extendDraftScene(
   if (!draft.content.scenes.some(scene => scene.id === input.sceneId)) {
     throw new AppError('SCENE_NOT_FOUND', `锚点场景不存在：${input.sceneId}`, 404);
   }
+  const neighborCount = input.neighborCount === 2 ? 2 : 1;
   const extension = await provider.extendScenes(
     draft.content,
     input.sceneId,
     input.direction ?? draft.content.premise,
     AbortSignal.timeout(120_000),
+    undefined,
+    {neighborCount},
   );
   const content = mergeSceneExtension(draft.content, input.sceneId, extension);
   return drafts.update(input.id, {version: input.version, content});

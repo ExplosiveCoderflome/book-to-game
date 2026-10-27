@@ -29,6 +29,14 @@ interface Props {
   /** Progressive growth: extend neighbors from the selected scene. */
   onExtendScene?: (sceneId: string) => void;
   extendBusy?: boolean;
+  /** 1 = single leaf, 2 = two neighbors this round. */
+  extendNeighborCount?: 1 | 2;
+  onExtendNeighborCountChange?: (count: 1 | 2) => void;
+  /** Grow again from the newest leaf created by the last extend. */
+  onExtendAgain?: () => void;
+  extendAgainTargetId?: string | null;
+  /** Subtle strip chip: last successful extend summary. */
+  lastExtendSummary?: { addedCount: number; anchorTitle: string; neighborCount: 1 | 2 } | null;
   /** After extend: pan/zoom to these scene ids (falls back to full fit). */
   focusSceneIds?: string[];
   /** Bump to re-trigger focus even when ids are unchanged. */
@@ -46,7 +54,9 @@ export function BranchGraphCanvas({
   content, selectedSceneId, onSelectScene, onAddScene, onLayoutChange, onConnectScenes, onDisconnectEdge,
   primary = false, playabilityMode = 'publish', playOverlay = null, readOnly = false,
   generationJob = null, onOpenGenerationDraft, onWatchGeneration, skeletonPlaceholder = false,
-  onExtendScene, extendBusy = false, focusSceneIds, focusNonce = 0,
+  onExtendScene, extendBusy = false, extendNeighborCount = 1, onExtendNeighborCountChange,
+  onExtendAgain, extendAgainTargetId = null, lastExtendSummary = null,
+  focusSceneIds, focusNonce = 0,
 }: Props) {
   const { t } = useI18n();
   const markerPrefix = useId().replace(/:/g, '');
@@ -294,15 +304,49 @@ export function BranchGraphCanvas({
         <button type="button" className="small" onClick={() => setZoom(z => Math.max(0.45, z * 0.88))} aria-label={t('缩小')}>－</button>
         <button type="button" className="small" onClick={() => fitView()}>{t('适应画布')}</button>
         {!readOnly && !skeletonPlaceholder && onExtendScene && selectedSceneId && (
-          <button
-            type="button"
-            className="small primary"
-            data-testid="canvas-extend-scene"
-            disabled={extendBusy}
-            onClick={() => onExtendScene(selectedSceneId)}
-          >
-            {t(extendBusy ? '延申中…' : '延申节点')}
-          </button>
+          <>
+            <div className="extend-breadth-row" role="group" aria-label={t('延申规模')} data-testid="extend-breadth">
+              {([1, 2] as const).map(n => (
+                <button
+                  key={n}
+                  type="button"
+                  className={`small${extendNeighborCount === n ? ' active' : ''}`}
+                  disabled={extendBusy}
+                  onClick={() => onExtendNeighborCountChange?.(n)}
+                >{t(n === 1 ? '+1 叶' : '+2 邻')}</button>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="small primary"
+              data-testid="canvas-extend-scene"
+              disabled={extendBusy}
+              onClick={() => { if (!extendBusy) onExtendScene(selectedSceneId); }}
+            >
+              {t(extendBusy ? '延申中…' : '延申节点')}
+            </button>
+            {onExtendAgain && extendAgainTargetId && (
+              <button
+                type="button"
+                className="small"
+                data-testid="canvas-extend-again"
+                disabled={extendBusy}
+                title={t('对上一轮新增的叶节点再延申一轮')}
+                onClick={() => { if (!extendBusy) onExtendAgain(); }}
+              >
+                {t(extendBusy ? '延申中…' : '沿此节点再延申一轮')}
+              </button>
+            )}
+          </>
+        )}
+        {lastExtendSummary && (
+          <span className="extend-history-chip" data-testid="extend-history-chip" role="status">
+            {t('上次延申 +{count}（{breadth}）· 自「{anchor}」', {
+              count: lastExtendSummary.addedCount,
+              breadth: lastExtendSummary.neighborCount === 2 ? t('+2 邻') : t('+1 叶'),
+              anchor: lastExtendSummary.anchorTitle,
+            })}
+          </span>
         )}
       </div>
     </div>

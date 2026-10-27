@@ -33,11 +33,16 @@ export class ChatCompletionsProvider implements GenerationProvider {
   async generateSkeleton(analysis: AnalysisResult, direction: string, signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}, scanDepth: ScanDepth = 'medium'): Promise<BranchSkeleton> {
     return this.complete('generate_skeleton', SKELETON_SYSTEM, skeletonUserPayload(analysis, direction, scanDepth), signal, branchSkeletonSchema, feedback?.errors ?? []);
   }
-  async extendScenes(content: GameContent, sceneId: string, direction: string, signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}): Promise<SceneExtension> {
+  async extendScenes(content: GameContent, sceneId: string, direction: string, signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}, options?: {neighborCount?: 1 | 2}): Promise<SceneExtension> {
     const anchor = content.scenes.find(scene => scene.id === sceneId);
+    const neighborCount = options?.neighborCount === 2 ? 2 : 1;
     return this.complete('extend_scenes', EXTEND_SCENE_SYSTEM, {
       direction: direction || content.premise,
       sceneId,
+      neighborCount,
+      neighborGuide: neighborCount === 1
+        ? '本轮只新增 1 个邻近场景，并给锚点挂 1 条新选择边。'
+        : '本轮新增 2 个邻近场景（可互连或各自回锚点），锚点挂 1–2 条新选择边。',
       anchor: anchor ?? null,
       existingSceneIds: content.scenes.map(scene => scene.id),
       graph: {title: content.title, startSceneId: content.startSceneId, variables: content.variables, scenes: content.scenes},

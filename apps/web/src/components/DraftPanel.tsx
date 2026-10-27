@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { gameContentSchema, type CanvasLayout, type Draft, type GameContent, type GameRevision, type GenerationJob, type RuntimeInfo, type ScanDepth, type SessionView, type SourceSummary, type ValidationResult } from '@novel-game/contracts';
+import { gameContentSchema, type CanvasLayout, type Draft, type GameContent, type GameRevision, type GenerationJob, type RuntimeInfo, type ScanDepth, type SessionView, type SourceDocument, type SourceSummary, type ValidationResult } from '@novel-game/contracts';
 import { errorMessage, request, RequestError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { relevantStoryJob } from '../lib/job-on-canvas';
 import { shouldShowSkeletonPlaceholder, skeletonToCanvasContent } from '../lib/skeleton-placeholder';
 import { playOverlayFromSession } from '../lib/play-overlay';
+import { selectedChapters } from '../lib/generation-scope';
 import { Empty, Notice } from './Notice';
 import { BranchGraphCanvas } from './BranchGraphCanvas';
 import { SceneEditor } from './SceneEditor';
@@ -51,9 +52,15 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
   const [extendFailedSceneId, setExtendFailedSceneId] = useState<string | null>(null);
   const [focusSceneIds, setFocusSceneIds] = useState<string[]>([]);
   const [focusNonce, setFocusNonce] = useState(0);
+  const [extendNeighborCount, setExtendNeighborCount] = useState<1 | 2>(1);
+  const [lastExtendSummary, setLastExtendSummary] = useState<{ addedCount: number; anchorTitle: string; neighborCount: 1 | 2; leafId: string | null } | null>(null);
+  const extendInFlight = useRef(false);
+  const [scanDocument, setScanDocument] = useState<SourceDocument | null>(null);
+  const [chapterScope, setChapterScope] = useState<'all' | 'pick'>('all');
+  const [scanChapterIds, setScanChapterIds] = useState<string[]>([]);
   useEffect(() => {
     let active = true;
-    setDraft(null); setDirty(false); setConflict(false); setValidation(null); setError(null); setMessage(null); setJsonMode(false); setSceneIndex(0); setInspectorOpen(false); setInspectorTab('scene'); setCanvasMode('edit'); setPlaySession(null); setExtendFailedSceneId(null); setFocusSceneIds([]);
+    setDraft(null); setDirty(false); setConflict(false); setValidation(null); setError(null); setMessage(null); setJsonMode(false); setSceneIndex(0); setInspectorOpen(false); setInspectorTab('scene'); setCanvasMode('edit'); setPlaySession(null); setExtendFailedSceneId(null); setFocusSceneIds([]); setLastExtendSummary(null);
     if (!selectedId) { setContent(blankContent()); return; }
     setBusy(true);
     request<Draft>(token, `/drafts/${selectedId}`).then(value => {
@@ -61,6 +68,18 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
     }).catch(e => { if (active) setError(errorMessage(e)); }).finally(() => { if (active) setBusy(false); });
     return () => { active = false; };
   }, [selectedId, token, reload]);
+  useEffect(() => {
+    let active = true;
+    setScanDocument(null);
+    if (!sourceId) { setScanChapterIds([]); return; }
+    request<SourceDocument>(token, `/sources/${sourceId}`).then(doc => {
+      if (!active) return;
+      setScanDocument(doc);
+      setScanChapterIds(doc.chapters.map(c => c.id));
+      if (chapterScope !== 'pick') setChapterScope('all');
+    }).catch(e => { if (active) setError(errorMessage(e)); });
+    return () => { active = false; };
+  }, [token, sourceId, selectedId]);
   function change(next: GameContent) { setContent(next); setDirty(true); setValidation(null); setMessage(null); }
   function selectScene(id: string) {
     const index = content.scenes.findIndex(s => s.id === id);
@@ -115,18 +134,24 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
       setError(t('请先保存当前编辑，再延申节点。'));
       return;
     }
+    if (extendInFlight.current || extendBusy) return; // ignore double-clicks / queue
+    extendInFlight.current = true;
     setExtendBusy(true); setError(null); setMessage(null); setExtendFailedSceneId(null);
     const beforeIds = new Set(content.scenes.map(s => s.id));
+    const anchorTitle = content.scenes.find(s => s.id === sceneId)?.title || sceneId;
+    const breadth = extendNeighborCount;
     try {
       const updated = await request<Draft>(token, `/drafts/${draft.id}/extend-scene`, 'POST', {
-        version: draft.version, sceneId, direction: content.premise || scanDirection,
+        version: draft.version, sceneId, direction: content.premise || scanDirection, neighborCount: breadth,
       });
       setDraft(updated); setContent(updated.content); setDirty(false);
       const added = updated.content.scenes.map(s => s.id).filter(id => !beforeIds.has(id));
       const focus = added.length > 0 ? added : [sceneId];
       setFocusSceneIds(focus);
       setFocusNonce(n => n + 1);
-      const prefer = added[0] ?? sceneId;
+      const leafId = added[added.length - 1] ?? null;
+      setLastExtendSummary({ addedCount: added.length, anchorTitle, neighborCount: breadth, leafId });
+      const prefer = leafId ?? sceneId;
       const index = updated.content.scenes.findIndex(s => s.id === prefer);
       if (index >= 0) { setSceneIndex(index); setInspectorOpen(true); setInspectorTab('scene'); }
       setMessage(t('已延申节点（草稿 v{version}）· 新增 {count} 个场景', { version: updated.version, count: added.length }));
@@ -136,7 +161,13 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
       setExtendFailedSceneId(sceneId);
       if (e instanceof RequestError && e.status === 409) setConflict(true);
     }
-    finally { setExtendBusy(false); }
+    finally { extendInFlight.current = false; setExtendBusy(false); }
+  }
+
+  function extendAgainFromLeaf() {
+    const leaf = lastExtendSummary?.leafId;
+    if (!leaf || extendInFlight.current) return;
+    void extendSelectedScene(leaf);
   }
 
   async function startCanvasScan() {
@@ -144,7 +175,15 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
     if (!runtime.providerConfigured) { setError(t('尚未配置模型服务。请先前往模型设置。')); return; }
     if (jsonMode) { setError(t('请先退出 JSON 模式，再开始扫描。')); return; }
     if (dirty && content.scenes.length > 0) { setError(t('请先保存或放弃当前编辑，再开始扫描。')); return; }
+    if (!scanDocument) { setError(t('请等待原文章节载入。')); return; }
     const direction = scanDirection.trim() || t('尊重原作世界规则，设计一次有明确选择后果的短篇冒险');
+    let chapterIds: string[] | undefined;
+    try {
+      chapterIds = chapterScope === 'all'
+        ? scanDocument.chapters.map(c => c.id)
+        : selectedChapters(scanDocument.chapters, scanChapterIds);
+    } catch (e) { setError(errorMessage(e)); return; }
+    if (!chapterIds.length) { setError(t('请至少选择一个章节。')); return; }
     setScanBusy(true); setError(null); setMessage(null);
     try {
       await request<GenerationJob>(token, '/jobs', 'POST', {
@@ -152,10 +191,12 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
         direction,
         mode: 'story',
         scanDepth,
+        chapterIds,
         requestId: crypto.randomUUID(),
       });
-      setMessage(t('已提交扫描任务（{depth}）。骨架生成后会落到画布。', {
+      setMessage(t('已提交扫描任务（{depth} · {chapters} 章）。骨架生成后会落到画布。', {
         depth: scanDepth === 'coarse' ? t('粗') : scanDepth === 'fine' ? t('细') : t('中'),
+        chapters: chapterIds.length,
       }));
       await refresh();
     } catch (e) { setError(errorMessage(e)); }
@@ -311,26 +352,46 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
               </select>
             </label>
             <label className="empty-scan-direction">{t('改编方向')}
-              <textarea rows={2} maxLength={2000} value={scanDirection} disabled={scanBusy} onChange={e => setScanDirection(e.target.value)} placeholder={t('例如：让读者在关键夜中决定是否交出秘密。')} data-testid="empty-scan-direction" />
+              <textarea rows={2} maxLength={2000} value={scanDirection} disabled={scanBusy} onChange={e => setScanDirection(e.target.value)} placeholder={t('例如：让读者在关夜中决定是否交出秘密。')} data-testid="empty-scan-direction" />
             </label>
             <div className="scan-depth-row" role="group" aria-label={t('扫描粒度')}>
               {([['coarse', '粗 · 章弧'], ['medium', '中 · 默认'], ['fine', '细 · 拍点']] as const).map(([value, label]) => (
                 <button key={value} type="button" className={`small${scanDepth === value ? ' active' : ''}`} disabled={scanBusy} onClick={() => setScanDepth(value)}>{t(label)}</button>
               ))}
             </div>
+            <div className="empty-scan-scope" data-testid="empty-scan-scope">
+              <div className="scan-depth-row" role="group" aria-label={t('章节范围')}>
+                <button type="button" className={`small${chapterScope === 'all' ? ' active' : ''}`} disabled={scanBusy || !scanDocument} onClick={() => { setChapterScope('all'); if (scanDocument) setScanChapterIds(scanDocument.chapters.map(c => c.id)); }}>{t('全书')}</button>
+                <button type="button" className={`small${chapterScope === 'pick' ? ' active' : ''}`} disabled={scanBusy || !scanDocument} onClick={() => setChapterScope('pick')}>{t('选章')}</button>
+              </div>
+              <p className="hint">{scanDocument
+                ? t('本次范围：{count} / {total} 章', { count: chapterScope === 'all' ? scanDocument.chapters.length : scanChapterIds.length, total: scanDocument.chapters.length })
+                : t('正在载入章节…')}</p>
+              {chapterScope === 'pick' && scanDocument && (
+                <div className="empty-scan-chapters" data-testid="empty-scan-chapters">
+                  <button type="button" className="quiet small" disabled={scanBusy} onClick={() => setScanChapterIds(scanDocument.chapters.map(c => c.id))}>{t('全选')}</button>
+                  {scanDocument.chapters.map(c => (
+                    <label className="check-label" key={c.id}>
+                      <input type="checkbox" checked={scanChapterIds.includes(c.id)} disabled={scanBusy} onChange={e => setScanChapterIds(ids => e.target.checked ? [...ids, c.id] : ids.filter(id => id !== c.id))} />
+                      {c.index + 1}. {c.title}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
             <p className="hint">{t('留在画布即可按粒度扫描原作；骨架生成后落到此处。之后可对任一节点「延申节点」。当前：{depth}', { depth: scanDepth === 'coarse' ? t('粗') : scanDepth === 'fine' ? t('细') : t('中') })}</p>
             {!runtime.providerConfigured && (
               <p className="hint">{t('尚未配置模型服务。')}{onConfigure && <> <button type="button" className="quiet small" onClick={onConfigure}>{t('前往模型设置 →')}</button></>}</p>
             )}
             <div className="empty-scan-actions">
-              <button type="button" className="small primary" data-testid="empty-scan-start" disabled={scanBusy || !sourceId || !runtime.providerConfigured || !!generationJob && (generationJob.status === 'queued' || generationJob.status === 'running')} onClick={() => void startCanvasScan()}>
+              <button type="button" className="small primary" data-testid="empty-scan-start" disabled={scanBusy || !sourceId || !scanDocument || !runtime.providerConfigured || !!generationJob && (generationJob.status === 'queued' || generationJob.status === 'running')} onClick={() => void startCanvasScan()}>
                 {t(scanBusy ? '正在提交扫描…' : (generationJob && (generationJob.status === 'queued' || generationJob.status === 'running') ? '扫描进行中…' : '按此粒度扫描生成'))}
               </button>
-              {onOpenGeneration && <button type="button" className="quiet small" disabled={scanBusy} onClick={onOpenGeneration}>{t('高级选项（章节范围）→')}</button>}
+              {onOpenGeneration && <button type="button" className="quiet small" disabled={scanBusy} onClick={onOpenGeneration}>{t('更多选项 →')}</button>}
             </div>
           </div>
         )}
-          <BranchGraphCanvas
+<BranchGraphCanvas
             primary
             content={canvasGraphContent}
             selectedSceneId={skeletonPlaceholder ? undefined : (canvasMode === 'play' ? (playSession?.scene.id) : (inspectorOpen ? scene?.id : undefined))}
@@ -345,6 +406,11 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
             skeletonPlaceholder={skeletonPlaceholder}
             onExtendScene={skeletonPlaceholder || canvasMode === 'play' || !draft || dirty ? undefined : extendSelectedScene}
             extendBusy={extendBusy}
+            extendNeighborCount={extendNeighborCount}
+            onExtendNeighborCountChange={setExtendNeighborCount}
+            onExtendAgain={skeletonPlaceholder || canvasMode === 'play' || !draft || dirty || !lastExtendSummary?.leafId ? undefined : extendAgainFromLeaf}
+            extendAgainTargetId={lastExtendSummary?.leafId ?? null}
+            lastExtendSummary={lastExtendSummary}
             focusSceneIds={focusSceneIds}
             focusNonce={focusNonce}
             generationJob={canvasMode === 'edit' ? generationJob : null}
