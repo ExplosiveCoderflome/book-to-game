@@ -12,7 +12,7 @@ export {
 import { worldbookSchema } from './worldbook.js';
 export {
   STAT_TEMPLATES, getStatTemplate, getStatTemplateRef, templateInitialVariables,
-  applyStatTemplateVariables, displayLabelForVariable, statTemplatePromptPayload,
+  applyStatTemplateVariables, displayLabelForVariable, roleForVariable, statTemplatePromptPayload,
   statTemplateIdSchema, statRoleSchema, statTemplateSchema, statTemplateVariableSchema,
   statTemplateRefSchema,
   type StatTemplate, type StatTemplateId, type StatTemplateVariable, type StatRole,

@@ -165,6 +165,24 @@ export function applyStatTemplateVariables(
   return { ...templateInitialVariables(template), ...existing };
 }
 
+/** Prefer template role when variable name matches stamped (or any) catalog entry; else undefined. */
+export function roleForVariable(
+  name: string,
+  preferredTemplateId?: string | null,
+  preferredVersion?: number | null,
+): StatRole | undefined {
+  const preferred = getStatTemplate(preferredTemplateId ?? undefined);
+  if (preferred && (preferredVersion == null || preferred.version === preferredVersion)) {
+    const fromPreferred = preferred.variables.find(v => v.name === name)?.role;
+    if (fromPreferred) return fromPreferred;
+  }
+  for (const template of STAT_TEMPLATES) {
+    const hit = template.variables.find(v => v.name === name)?.role;
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
 /** Prefer template displayLabel when variable name matches; else raw name. Old drafts without template still work. */
 export function displayLabelForVariable(
   name: string,

@@ -93,6 +93,7 @@ Anti-slop: no purple gradients, no AI lavender fills, no cream-literary chrome.
 - **Forms / inputs:** shared radius-sm; focus ring only on `:focus-visible`.
 - **Status strips:** `.branch-canvas-gen`, `.branch-canvas-banner`, skeleton/extend guides — compact left-accent strips.
 - **Play stats HUD:** `.play-stats` — always-visible variable chips above choices; `.play-stats-delta` flashes post-act changes; choice buttons may show muted `.reader-choice-cost` from effects (never invented).
+- **Stat Editor:** `.stat-editor` — universal inspector for `content.variables` (template-seeded or hand-added). Dense property-list rows (display label + mono name, role chip from catalog, type select, initial value, delete); compact template-apply strip; footer add bar. No fieldset stack, no card-in-card. Roles are display metadata only.
 - **Inspectors:** flat hierarchy; no card-in-card elevation; dual panes ≥1440.
 - **Reader choices:** muted list actions, not brochure cards.
 

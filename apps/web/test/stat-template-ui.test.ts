@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {
   STAT_TEMPLATES,
   applyStatTemplateVariables,
+  displayLabelForVariable,
   getStatTemplate,
+  roleForVariable,
   type GameContent,
 } from '@novel-game/contracts';
 
@@ -53,4 +55,12 @@ test('generation payload only includes statTemplateId when selected', () => {
   const withChosen = { mode: 'story', ...(chosen ? { statTemplateId: chosen } : {}) };
   assert.equal('statTemplateId' in withEmpty, false);
   assert.equal(withChosen.statTemplateId, 'mystery_deduction');
+});
+
+test('role and display helpers resolve stamped template metadata', () => {
+  assert.equal(roleForVariable('qi', 'xianxia_pressure', 1), 'resource');
+  assert.equal(roleForVariable('calamity', 'xianxia_pressure', 1), 'pressure');
+  assert.equal(displayLabelForVariable('qi', 'xianxia_pressure', 1), '修为');
+  assert.equal(roleForVariable('custom_only', 'xianxia_pressure', 1), undefined);
+  assert.equal(displayLabelForVariable('custom_only', 'xianxia_pressure', 1), 'custom_only');
 });

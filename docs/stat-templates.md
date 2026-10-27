@@ -2,7 +2,7 @@
 
 > 源文档：题材数值骨架如何叠在**统一引擎基底**上，避免「开放文字游戏」塌成多选题。  
 > 实现入口：`packages/contracts/src/stat-templates.ts`  
-> 状态：v1 设计已定稿；改编桌 / 空图画布 / 变量编辑器可选模板；玩时 HUD delta 可后续精修。
+> 状态：v1 设计已定稿；改编桌 / 空图画布可选模板；**单局编辑面 = 通用数值编辑器（Stat Editor）**；玩时 HUD delta 可后续精修。
 
 ---
 
@@ -186,7 +186,7 @@
 | runner 戳记 id/version | 已接 |
 | 改编桌下拉选择模板 | 已接（`GenerationPanel` · `statTemplateId` 进任务，含 pending 重试） |
 | 空图画布扫描模板 | 已接（`DraftPanel` empty-scan） |
-| 变量编辑器套用模板 | 已接（`StoryVariablesEditor` → `applyStatTemplateVariables`，不覆盖已有键） |
+| 通用数值编辑器（Stat Editor） | 已接（`StatEditor` / `StoryVariablesEditor` 别名；属性列表 UI + 套用模板） |
 | 玩时状态条 / delta | WIP / 跟进（非本设计阻断项） |
 
 ---
@@ -198,9 +198,10 @@
 | 改编桌「数值模板」下拉 → `GenerationInput.statTemplateId` | 已完成 |
 | 空图画布扫描同款下拉 | 已完成 |
 | 变量编辑器「套用数值模板」（灌初值 + 戳记，不覆盖已有键） | 已完成 |
-| 单局增删改变量 | 已有 `StoryVariablesEditor` |
+| 单局增删改变量 | 已有通用数值编辑器 `StatEditor`（检视器「变量」页） |
 | 选项条件/效果 | 已有场景/`ChoiceRulesEditor` |
 | 用户自建全局模板目录 / CRUD | **非目标（v1）** |
 | 题材自动推断 | 非目标（v1） |
 | 模板版本自动迁移工具 | 非目标（v1） |
+
 

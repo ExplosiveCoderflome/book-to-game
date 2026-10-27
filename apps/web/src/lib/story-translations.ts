@@ -4,7 +4,7 @@ export const storyTranslations: Record<string, string> = {
   '请输入有限数值。': 'Enter a finite number.', '请选择真或假。': 'Choose true or false.', '文本变量最多 2000 个字符。': 'Text variables are limited to 2,000 characters.',
   '变量名需为 1–80 个字符，首尾不能有空白。': 'Variable names must be 1–80 characters with no surrounding spaces.', '此变量名已存在，请使用其他名称。': 'This variable name already exists.',
   '此变量正被选项规则引用，请先移除相关条件与效果，再删除变量。': 'This variable is referenced by a choice rule. Remove those rules before deleting it.', '此变量正被选项规则引用，请先移除相关规则再更改类型。': 'This variable is referenced by a choice rule. Remove those rules before changing its type.',
-  '无法删除变量。': 'Unable to delete variable.', '变量名': 'Variable name', '类型': 'Type', '数值': 'Number', '文本': 'Text', '布尔': 'Boolean', '初始值': 'Initial value', '删除变量': 'Delete variable', '故事变量': 'Story variables',
+  '无法删除变量。': 'Unable to delete variable.', '变量名': 'Variable name', '类型': 'Type', '数值': 'Stats', '数字': 'Number', '删除': 'Delete', '添加': 'Add', '套用模板': 'Apply template', '名称': 'Name', '角色 / 类型': 'Role / type', '文本': 'Text', '布尔': 'Boolean', '初始值': 'Initial value', '删除变量': 'Delete variable', '故事变量': 'Story variables',
   '设置数值、文本或布尔变量，让选择产生不同后果。重命名会同步更新规则引用。': 'Add number, text, or boolean variables so choices can have consequences. Renaming updates rule references.', '新变量名': 'New variable name', '新变量类型': 'New variable type', '新变量初始值': 'New variable value', '例如 trust': 'e.g. trust', '＋ 添加变量': '＋ Add variable',
   '显示条件（全部满足才显示）': 'Display conditions (all must match)', '选择效果（依次执行）': 'Choice effects (in order)', '规则变量': 'Rule variable', '操作': 'Operation', '规则值': 'Rule value', '等于': 'equals', '大于或等于': 'greater than or equal to', '设置为': 'set to', '增加（负数为减少）': 'increment (negative decreases)', '此规则引用的变量不存在，请选择已有变量或移除规则。': 'This rule references a missing variable. Choose an existing variable or remove the rule.', '移除规则': 'Remove rule', '＋ 添加条件': '＋ Add condition', '＋ 添加效果': '＋ Add effect', '先添加故事变量，再设置条件与效果。': 'Add a story variable before setting rules.',
   '场景内容': 'Scene content', '删除场景': 'Delete scene', '场景 ID': 'Scene ID', '标题': 'Title', '叙事正文': 'Narrative text', '内容来源': 'Content source', '依据原作': 'From source', '改编新增': 'Adapted', '结局描述（仅结局场景）': 'Ending description (ending scenes only)', '留空表示尚未结束': 'Leave blank if the scene does not end the story.', '原文证据': 'Source evidence', '从原文预览中复制章节与段落 ID；原作场景须关联真实证据。': 'Copy chapter and paragraph IDs from the source preview; source scenes need evidence.', '章节 ID': 'Chapter ID', '段落 ID': 'Paragraph ID', '移除': 'Remove', '＋ 添加证据': '＋ Add evidence', '读者选择': 'Reader choices', '此场景暂时没有选项。结局场景应填写结局描述。': 'This scene has no choices. Ending scenes should include an ending description.', '选项ID': 'Choice ID', '选项 ID': 'Choice ID', '前往场景': 'Target scene', '选择目标场景': 'Choose a target scene', '选择文案': 'Choice label', '移除选项': 'Remove choice', '＋ 添加选择': '＋ Add choice',
@@ -98,5 +98,12 @@ export const storyTranslations: Record<string, string> = {
   '线索进度、嫌疑压力与同盟信任；收集与对峙推动状态，结局依赖线索或不在场证明。': 'Clues, suspicion and ally trust; investigation and confrontation drive state; endings gate on clues or alibi.',
   '金钱、声望与风险；买卖与押运产生代价，结局看货仓与声誉。': 'Coin, reputation and risk; trade and hauling have costs; endings look at cargo and standing.',
   '好感与张力拉锯，承诺旗标与章节节拍；选择改变关系曲线。': 'Affection vs tension, promises and chapter beats; choices reshape the relationship curve.',
+  '共享状态基底：改这里的变量，选项条件/效果才能产生代价。重命名会同步规则引用。': 'Shared state substrate: edit variables here so choice conditions/effects can carry costs. Renaming updates rule references.',
+  '还没有数值。套用上方题材模板灌入骨架，或在下方添加自定义变量。': 'No stats yet. Apply a genre template above to seed the skeleton, or add a custom variable below.',
+  '资源': 'Resource',
+  '关系': 'Relationship',
+  '旗帜': 'Flag',
+  '进度': 'Progress',
+  '压力': 'Pressure',
 };
 export const storyEnglish = storyTranslations;
