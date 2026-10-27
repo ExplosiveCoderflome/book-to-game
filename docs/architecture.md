@@ -67,6 +67,18 @@ flowchart TD
 
 现有开放运行时已支持有限建议行动。下一步优先完善小说资料到世界规则的改编质量，以及条件/效果的可视化编辑。自由文本以后由行动解释适配器转成受限行动提议，游戏规则仍控制状态提交，不让 LLM 直接改数据库。RPG 数值规则独立模块，不能堆进 HTTP/MCP 路由。冒险转小说读取已有存档经历，不反向改写已发生的状态。
 
+## 演进章程（低耦合 / 高延伸）
+
+产品可能演进为「传统文字类型游戏 + AI」的完善开放类型游戏编辑器。五层分离、PR 检查清单、反模式与当前耦合风险见 **[extensibility.md](./extensibility.md)**。摘要：
+
+- **Substrate**（图 / variables / 条件效果 / 世界书 / 规则引擎）慢变、无题材 if、domain 不碰 LLM
+- **Catalog**（数值模板等）只编译下行到 Substrate
+- **AI adapters** 可替换；只建议/映射，状态只经 sessions·adventures·games 端口提交
+- **Authoring UI** 只读 contracts，不发明并行状态语义
+- **Transport** 仅 HTTP/MCP 共用命令表
+
+相关：[`stat-templates.md`](./stat-templates.md)、[`if-editor-patterns.md`](./if-editor-patterns.md)。
+
 ## 开放世界的规则边界
 
 `worlds` 负责创作数据及来源校验，`adventure-sessions` 负责运行状态；彼此通过公开入口和只读发布端口协作。generation 通过草稿写入端口按 mode 分流；任务完成与草稿写入由组合根放进同一事务，模型调用不占用事务。传输层只做 DTO 校验与服务分发。

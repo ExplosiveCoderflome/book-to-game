@@ -1,7 +1,7 @@
 # 传统文字游戏编辑器用法精华（IF Editor Patterns）
 
 > 目标：从 Twine / ChoiceScript / Ink / Inform 里抽出**作者与玩家怎么用**的模式，接到本书工坊（画布 + 数值 + 世界书），**不克隆**各自运行时。  
-> 配套：`docs/stat-templates.md`（数值模板骨架）、`DESIGN_SYSTEM.md`（玩时 HUD / Stat Editor）。
+> 配套：`docs/stat-templates.md`（数值模板骨架）、`DESIGN_SYSTEM.md`（玩时 HUD / Stat Editor）、[`extensibility.md`](./extensibility.md)（低耦合演进章程）。
 
 ---
 

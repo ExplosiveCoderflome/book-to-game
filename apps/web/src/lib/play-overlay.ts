@@ -1,20 +1,13 @@
 import type { Choice, GameContent, SessionView, VariableValue } from '@novel-game/contracts';
+import { reachChoiceAvailable as choiceAvailable } from '@novel-game/contracts';
+
+export { choiceAvailable };
 
 export interface PlayOverlayState {
   currentSceneId: string;
   visitedSceneIds: string[];
   trailEdgeKeys: string[];
   blockedEdgeKeys: string[];
-}
-
-export function choiceAvailable(choice: Choice, variables: Record<string, VariableValue>): boolean {
-  return (choice.conditions ?? []).every(condition => {
-    if (!Object.hasOwn(variables, condition.variable)) return false;
-    const current = variables[condition.variable];
-    return condition.type === 'variable.equals'
-      ? current === condition.value
-      : typeof current === 'number' && Number.isFinite(current) && current >= condition.value;
-  });
 }
 
 /** Reconstruct taken edges from session history against the published graph. */

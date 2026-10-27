@@ -2,6 +2,7 @@
 
 > 源文档：题材数值骨架如何叠在**统一引擎基底**上，避免「开放文字游戏」塌成多选题。  
 > 实现入口：`packages/contracts/src/stat-templates.ts`  
+> 演进纪律：[`extensibility.md`](./extensibility.md)（模板属 Catalog 层，必须 compile-down 到 Substrate）。  
 > 状态：v1 设计已定稿；改编桌 / 空图画布可选模板；**单局编辑面 = 通用数值编辑器（Stat Editor）**；玩时 HUD 已按 ChoiceScript 灵感升级（见 `docs/if-editor-patterns.md`）。
 
 ---
