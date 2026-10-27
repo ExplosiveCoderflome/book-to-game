@@ -1542,3 +1542,10 @@ legend {
 .scan-depth-option input { margin: 0; }
 .branch-canvas-empty-scan { margin: 0 0 10px; padding: 12px 14px; border: 1px dashed #9eb6e8; border-radius: 12px; background: #f5f8ff; display: grid; gap: 8px; }
 .branch-canvas-empty-scan strong { color: #1f4fbf; font-size: 13px; }
+.branch-canvas-empty-scan .empty-scan-source,
+.branch-canvas-empty-scan .empty-scan-direction { display: grid; gap: 4px; font-size: 12px; color: #3a4a6b; }
+.branch-canvas-empty-scan .empty-scan-source select,
+.branch-canvas-empty-scan .empty-scan-direction textarea { width: 100%; }
+.empty-scan-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.extend-retry-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; background: #fff4f0; border: 1px solid #f0b4a4; }
+.branch-node.just-extended rect { stroke: #c47b16; stroke-width: 2.6; filter: drop-shadow(0 0 6px rgba(196,123,22,.45)); }

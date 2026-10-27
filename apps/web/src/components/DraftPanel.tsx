@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { gameContentSchema, type CanvasLayout, type Draft, type GameContent, type GameRevision, type GenerationJob, type SessionView, type SourceSummary, type ValidationResult } from '@novel-game/contracts';
+import { gameContentSchema, type CanvasLayout, type Draft, type GameContent, type GameRevision, type GenerationJob, type RuntimeInfo, type ScanDepth, type SessionView, type SourceSummary, type ValidationResult } from '@novel-game/contracts';
 import { errorMessage, request, RequestError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { relevantStoryJob } from '../lib/job-on-canvas';
@@ -15,13 +15,15 @@ interface Props {
   token: string; drafts: Draft[]; sources: SourceSummary[];
   revisions: GameRevision[]; sessions: SessionView[];
   jobs: GenerationJob[];
+  runtime: RuntimeInfo;
   selectedId: string; select: (id: string) => void; refresh: () => Promise<void>;
   onPublished: (revision: GameRevision) => void;
   onOpenPlay?: (revisionId: string) => void;
   onOpenGeneration?: () => void;
+  onConfigure?: () => void;
 }
 
-export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, selectedId, select, refresh, onPublished, onOpenPlay, onOpenGeneration }: Props) {
+export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, runtime, selectedId, select, refresh, onPublished, onOpenPlay, onOpenGeneration, onConfigure }: Props) {
   const { t } = useI18n();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [content, setContent] = useState<GameContent>(blankContent);
@@ -43,10 +45,15 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
   const [playSession, setPlaySession] = useState<SessionView | null>(null);
   const [playBusy, setPlayBusy] = useState(false);
   const [extendBusy, setExtendBusy] = useState(false);
-  const [scanDepth, setScanDepth] = useState<'coarse' | 'medium' | 'fine'>('medium');
+  const [scanDepth, setScanDepth] = useState<ScanDepth>('medium');
+  const [scanDirection, setScanDirection] = useState(() => t('尊重原作世界规则，设计一次有明确选择后果的短篇冒险'));
+  const [scanBusy, setScanBusy] = useState(false);
+  const [extendFailedSceneId, setExtendFailedSceneId] = useState<string | null>(null);
+  const [focusSceneIds, setFocusSceneIds] = useState<string[]>([]);
+  const [focusNonce, setFocusNonce] = useState(0);
   useEffect(() => {
     let active = true;
-    setDraft(null); setDirty(false); setConflict(false); setValidation(null); setError(null); setMessage(null); setJsonMode(false); setSceneIndex(0); setInspectorOpen(false); setInspectorTab('scene'); setCanvasMode('edit'); setPlaySession(null);
+    setDraft(null); setDirty(false); setConflict(false); setValidation(null); setError(null); setMessage(null); setJsonMode(false); setSceneIndex(0); setInspectorOpen(false); setInspectorTab('scene'); setCanvasMode('edit'); setPlaySession(null); setExtendFailedSceneId(null); setFocusSceneIds([]);
     if (!selectedId) { setContent(blankContent()); return; }
     setBusy(true);
     request<Draft>(token, `/drafts/${selectedId}`).then(value => {
@@ -108,18 +115,51 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
       setError(t('请先保存当前编辑，再延申节点。'));
       return;
     }
-    setExtendBusy(true); setError(null); setMessage(null);
+    setExtendBusy(true); setError(null); setMessage(null); setExtendFailedSceneId(null);
+    const beforeIds = new Set(content.scenes.map(s => s.id));
     try {
       const updated = await request<Draft>(token, `/drafts/${draft.id}/extend-scene`, 'POST', {
-        version: draft.version, sceneId, direction: content.premise,
+        version: draft.version, sceneId, direction: content.premise || scanDirection,
       });
       setDraft(updated); setContent(updated.content); setDirty(false);
-      const index = updated.content.scenes.findIndex(s => s.id === sceneId);
+      const added = updated.content.scenes.map(s => s.id).filter(id => !beforeIds.has(id));
+      const focus = added.length > 0 ? added : [sceneId];
+      setFocusSceneIds(focus);
+      setFocusNonce(n => n + 1);
+      const prefer = added[0] ?? sceneId;
+      const index = updated.content.scenes.findIndex(s => s.id === prefer);
       if (index >= 0) { setSceneIndex(index); setInspectorOpen(true); setInspectorTab('scene'); }
-      setMessage(t('已延申节点（草稿 v{version}）', { version: updated.version }));
+      setMessage(t('已延申节点（草稿 v{version}）· 新增 {count} 个场景', { version: updated.version, count: added.length }));
       await refresh();
-    } catch (e) { setError(errorMessage(e)); if (e instanceof RequestError && e.status === 409) setConflict(true); }
+    } catch (e) {
+      setError(t('延申失败：{detail}', { detail: errorMessage(e) }));
+      setExtendFailedSceneId(sceneId);
+      if (e instanceof RequestError && e.status === 409) setConflict(true);
+    }
     finally { setExtendBusy(false); }
+  }
+
+  async function startCanvasScan() {
+    if (!sourceId) { setError(t('请先选择原作，再按粒度扫描生成。')); return; }
+    if (!runtime.providerConfigured) { setError(t('尚未配置模型服务。请先前往模型设置。')); return; }
+    if (jsonMode) { setError(t('请先退出 JSON 模式，再开始扫描。')); return; }
+    if (dirty && content.scenes.length > 0) { setError(t('请先保存或放弃当前编辑，再开始扫描。')); return; }
+    const direction = scanDirection.trim() || t('尊重原作世界规则，设计一次有明确选择后果的短篇冒险');
+    setScanBusy(true); setError(null); setMessage(null);
+    try {
+      await request<GenerationJob>(token, '/jobs', 'POST', {
+        sourceId,
+        direction,
+        mode: 'story',
+        scanDepth,
+        requestId: crypto.randomUUID(),
+      });
+      setMessage(t('已提交扫描任务（{depth}）。骨架生成后会落到画布。', {
+        depth: scanDepth === 'coarse' ? t('粗') : scanDepth === 'fine' ? t('细') : t('中'),
+      }));
+      await refresh();
+    } catch (e) { setError(errorMessage(e)); }
+    finally { setScanBusy(false); }
   }
   function applyJson() {
     try {
@@ -230,6 +270,12 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
     <div className="section-heading"><div><p className="eyebrow">{t('05 / 分支草稿')}</p><h2>{t('无限画布工作台')}</h2><p>{t('分支图是主操作面：编辑与试玩可在同一画布切换；侧栏写场景，试玩时高亮路径。')}</p></div><span className="edition">CANVAS FIRST</span></div>
     <div className="draft-toolbar panel"><label>{t('打开草稿')}<select value={selectedId} disabled={dirty || busy || jsonMode} onChange={e => select(e.target.value)}><option value="">{t('新建手动草稿')}</option>{drafts.map(d => <option key={d.id} value={d.id}>{d.content.title} · v{d.version}</option>)}</select></label><span className="hint">{draft ? t('当前 v{version}', { version: draft.version }) : t('手动创作')}{dirty || jsonMode ? t(' · 有未保存编辑') : ''}</span>{(dirty || conflict || jsonMode) && <button onClick={() => setReload(v => v + 1)} disabled={busy}>{t('放弃编辑并重新载入')}</button>}</div>
     <Notice text={error} /><Notice kind="success" text={message} />
+    {extendFailedSceneId && (
+      <div className="extend-retry-bar" data-testid="extend-retry-bar">
+        <button type="button" className="small primary" disabled={extendBusy || dirty || jsonMode || !draft} onClick={() => void extendSelectedScene(extendFailedSceneId)}>{t(extendBusy ? '正在重试延申…' : '重试延申节点')}</button>
+        <button type="button" className="quiet small" disabled={extendBusy} onClick={() => { setExtendFailedSceneId(null); setError(null); }}>{t('关闭')}</button>
+      </div>
+    )}
     {conflict && <Notice text={t('草稿版本发生冲突，当前内容没有覆盖服务端。请先复制需要保留的内容，再点击“放弃编辑并重新载入”，基于最新版本重新编辑。')} />}
     {dirty && <p className="hint">{t('请先保存或放弃当前编辑，再切换草稿。')}</p>}
     {selectedId && !draft ? <div className="panel">{busy ? <p role="status">{t('正在打开草稿…')}</p> : <><Empty>{t('草稿未能打开。请重新载入后继续编辑。')}</Empty><button onClick={() => setReload(v => v + 1)}>{t('重新载入草稿')}</button></>}</div> : <form className="panel draft-editor draft-editor-canvas" onChange={() => { setDirty(true); setValidation(null); setMessage(null); }} onSubmit={e => { e.preventDefault(); void save(); }}><fieldset className="editor-body" disabled={busy}>
@@ -256,15 +302,32 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
         </div>}
         <div className={`draft-canvas-stage${(inspectorOpen || canvasMode === 'play') ? ' with-inspector' : ''}${canvasMode === 'play' ? ' play-mode' : ''}`}>
         {content.scenes.length === 0 && !skeletonPlaceholder && (
-          <div className="branch-canvas-empty-scan" data-testid="empty-scan-depth" data-canvas-ui>
-            <strong>{t('空图画布 · 选择扫描粒度')}</strong>
+          <div className="branch-canvas-empty-scan" data-testid="empty-scan-depth" data-canvas-ui onChange={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
+            <strong>{t('空图画布 · 一键扫描生成')}</strong>
+            <label className="empty-scan-source">{t('原作')}
+              <select value={sourceId} disabled={scanBusy || !!draft} onChange={e => setSourceId(e.target.value)} data-testid="empty-scan-source">
+                <option value="">{t('选择原作')}</option>
+                {sources.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
+              </select>
+            </label>
+            <label className="empty-scan-direction">{t('改编方向')}
+              <textarea rows={2} maxLength={2000} value={scanDirection} disabled={scanBusy} onChange={e => setScanDirection(e.target.value)} placeholder={t('例如：让读者在关键夜中决定是否交出秘密。')} data-testid="empty-scan-direction" />
+            </label>
             <div className="scan-depth-row" role="group" aria-label={t('扫描粒度')}>
               {([['coarse', '粗 · 章弧'], ['medium', '中 · 默认'], ['fine', '细 · 拍点']] as const).map(([value, label]) => (
-                <button key={value} type="button" className={`small${scanDepth === value ? ' active' : ''}`} onClick={() => setScanDepth(value)}>{t(label)}</button>
+                <button key={value} type="button" className={`small${scanDepth === value ? ' active' : ''}`} disabled={scanBusy} onClick={() => setScanDepth(value)}>{t(label)}</button>
               ))}
             </div>
-            <p className="hint">{t('请到「改编生成」按此粒度扫描原作；生成后骨架会落到画布。当前选择：{depth}', { depth: scanDepth === 'coarse' ? t('粗') : scanDepth === 'fine' ? t('细') : t('中') })}</p>
-            {onOpenGeneration && <button type="button" className="small primary" onClick={onOpenGeneration}>{t('去改编生成 →')}</button>}
+            <p className="hint">{t('留在画布即可按粒度扫描原作；骨架生成后落到此处。之后可对任一节点「延申节点」。当前：{depth}', { depth: scanDepth === 'coarse' ? t('粗') : scanDepth === 'fine' ? t('细') : t('中') })}</p>
+            {!runtime.providerConfigured && (
+              <p className="hint">{t('尚未配置模型服务。')}{onConfigure && <> <button type="button" className="quiet small" onClick={onConfigure}>{t('前往模型设置 →')}</button></>}</p>
+            )}
+            <div className="empty-scan-actions">
+              <button type="button" className="small primary" data-testid="empty-scan-start" disabled={scanBusy || !sourceId || !runtime.providerConfigured || !!generationJob && (generationJob.status === 'queued' || generationJob.status === 'running')} onClick={() => void startCanvasScan()}>
+                {t(scanBusy ? '正在提交扫描…' : (generationJob && (generationJob.status === 'queued' || generationJob.status === 'running') ? '扫描进行中…' : '按此粒度扫描生成'))}
+              </button>
+              {onOpenGeneration && <button type="button" className="quiet small" disabled={scanBusy} onClick={onOpenGeneration}>{t('高级选项（章节范围）→')}</button>}
+            </div>
           </div>
         )}
           <BranchGraphCanvas
@@ -282,6 +345,8 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
             skeletonPlaceholder={skeletonPlaceholder}
             onExtendScene={skeletonPlaceholder || canvasMode === 'play' || !draft || dirty ? undefined : extendSelectedScene}
             extendBusy={extendBusy}
+            focusSceneIds={focusSceneIds}
+            focusNonce={focusNonce}
             generationJob={canvasMode === 'edit' ? generationJob : null}
             onOpenGenerationDraft={generationJob?.draftId ? (() => select(generationJob.draftId!)) : undefined}
             onWatchGeneration={onOpenGeneration}

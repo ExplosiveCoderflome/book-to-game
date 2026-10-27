@@ -29,6 +29,10 @@ interface Props {
   /** Progressive growth: extend neighbors from the selected scene. */
   onExtendScene?: (sceneId: string) => void;
   extendBusy?: boolean;
+  /** After extend: pan/zoom to these scene ids (falls back to full fit). */
+  focusSceneIds?: string[];
+  /** Bump to re-trigger focus even when ids are unchanged. */
+  focusNonce?: number;
 }
 
 interface LayoutNode {
@@ -42,7 +46,7 @@ export function BranchGraphCanvas({
   content, selectedSceneId, onSelectScene, onAddScene, onLayoutChange, onConnectScenes, onDisconnectEdge,
   primary = false, playabilityMode = 'publish', playOverlay = null, readOnly = false,
   generationJob = null, onOpenGenerationDraft, onWatchGeneration, skeletonPlaceholder = false,
-  onExtendScene, extendBusy = false,
+  onExtendScene, extendBusy = false, focusSceneIds, focusNonce = 0,
 }: Props) {
   const { t } = useI18n();
   const markerPrefix = useId().replace(/:/g, '');
@@ -137,16 +141,19 @@ export function BranchGraphCanvas({
     [edges, hoveredEdgeKey],
   );
 
-  function fitView() {
+  function fitView(targetIds?: string[]) {
     const el = viewportRef.current;
     if (!el || nodes.length === 0) {
       setPan({ x: 48, y: 48 });
       setZoom(1);
       return;
     }
+    const wanted = targetIds?.length ? new Set(targetIds) : null;
+    const subset = wanted ? nodes.filter(n => wanted.has(n.id)) : nodes;
+    const focus = subset.length > 0 ? subset : nodes;
     const pad = 56;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const node of nodes) {
+    for (const node of focus) {
       minX = Math.min(minX, node.x);
       minY = Math.min(minY, node.y);
       maxX = Math.max(maxX, node.x + NODE_W);
@@ -166,10 +173,18 @@ export function BranchGraphCanvas({
 
   useEffect(() => {
     if (!primary) return;
-    const timer = window.setTimeout(fitView, 40);
+    const timer = window.setTimeout(() => fitView(), 40);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [primary, content.scenes.map(s => s.id).join('|'), content.startSceneId]);
+
+  useEffect(() => {
+    if (!primary || !focusNonce) return;
+    const ids = focusSceneIds?.length ? focusSceneIds : undefined;
+    const timer = window.setTimeout(() => fitView(ids), 60);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [primary, focusNonce, (focusSceneIds ?? []).join('|')]);
 
   function onWheel(event: ReactWheelEvent<HTMLDivElement>) {
     event.preventDefault();
@@ -277,7 +292,7 @@ export function BranchGraphCanvas({
         )}
         <button type="button" className="small" onClick={() => setZoom(z => Math.min(2.2, z * 1.12))} aria-label={t('放大')}>＋</button>
         <button type="button" className="small" onClick={() => setZoom(z => Math.max(0.45, z * 0.88))} aria-label={t('缩小')}>－</button>
-        <button type="button" className="small" onClick={fitView}>{t('适应画布')}</button>
+        <button type="button" className="small" onClick={() => fitView()}>{t('适应画布')}</button>
         {!readOnly && !skeletonPlaceholder && onExtendScene && selectedSceneId && (
           <button
             type="button"
@@ -420,7 +435,7 @@ export function BranchGraphCanvas({
               data-play-visited={visited ? 'true' : undefined}
               data-skeleton={skeletonPlaceholder ? 'true' : undefined}
               transform={`translate(${node.x} ${node.y})`}
-              className={`branch-node${selected ? ' selected' : ''}${node.ending ? ' ending' : ''}${node.isStart ? ' start' : ''}${flagged ? ' flagged' : ''}${connecting ? ' connecting' : ''}${isCurrent ? ' play-current' : ''}${visited && !isCurrent ? ' play-visited' : ''}${skeletonPlaceholder ? ' skeleton' : ''}`}
+              className={`branch-node${selected ? ' selected' : ''}${node.ending ? ' ending' : ''}${node.isStart ? ' start' : ''}${flagged ? ' flagged' : ''}${connecting ? ' connecting' : ''}${isCurrent ? ' play-current' : ''}${visited && !isCurrent ? ' play-visited' : ''}${skeletonPlaceholder ? ' skeleton' : ''}${focusSceneIds?.includes(node.id) ? ' just-extended' : ''}`}
               style={{ cursor: readOnly ? 'pointer' : 'grab' }}
             >
               <rect width={NODE_W} height={NODE_H} rx="10" ry="10" />
