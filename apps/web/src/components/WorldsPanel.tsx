@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { SYSTEM_WAIT_ACTION_ID, worldContentSchema, type AdventureView, type CanvasLayout, type SourceSummary, type WorldContent, type WorldDraft, type WorldRevision, type ValidationResult } from '@novel-game/contracts';
+import { SYSTEM_WAIT_ACTION_ID, worldContentSchema, type AdventureView, type CanvasLayout, type ProposeAdventureActResult, type SourceSummary, type WorldContent, type WorldDraft, type WorldRevision, type ValidationResult } from '@novel-game/contracts';
 import { request, RequestError, errorMessage } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { openingActionDensity } from '../lib/world-graph';
@@ -7,6 +7,8 @@ import { worldPlayOverlayFromAdventure } from '../lib/world-play-overlay';
 import { Notice, Empty } from './Notice';
 import { WorldGraphCanvas } from './WorldGraphCanvas';
 import { WorldOverview } from './WorldOverview';
+import { WorldbookEditor } from './WorldbookEditor';
+import { ProposeActBox } from './ProposeActBox';
 
 const blank = (): WorldContent => ({
   schemaVersion: 1, mode: 'open', title: '', premise: '', playerRole: '', goal: '', worldRules: [''],
@@ -39,12 +41,13 @@ export function WorldsPanel({
   const [conflict, setConflict] = useState(false);
   const [reload, setReload] = useState(0);
   const [inspectorOpen, setInspectorOpen] = useState(false);
-  const [inspectorTab, setInspectorTab] = useState<'location' | 'meta' | 'all'>('location');
+  const [inspectorTab, setInspectorTab] = useState<'location' | 'meta' | 'all' | 'worldbook'>('location');
   const [selectedLocationId, setSelectedLocationId] = useState<string | undefined>();
   const [metaOpen, setMetaOpen] = useState(false);
   const [canvasMode, setCanvasMode] = useState<'edit' | 'play'>('edit');
   const [playSession, setPlaySession] = useState<AdventureView | null>(null);
   const [playBusy, setPlayBusy] = useState(false);
+  const [proposeNote, setProposeNote] = useState<string | null>(null);
 
   useEffect(() => { onDirtyChange(dirty || json !== null); }, [dirty, json, onDirtyChange]);
   useEffect(() => {
@@ -123,6 +126,48 @@ export function WorldsPanel({
       setPlaySession(result);
       await refresh();
     } catch (e) { setError(errorMessage(e)); } finally { setPlayBusy(false); }
+  }
+
+  async function proposeOnCanvas(text: string) {
+    if (!playSession) throw new Error('no session');
+    setPlayBusy(true); setError(null);
+    try {
+      const result = await request<ProposeAdventureActResult>(token, `/adventures/${playSession.id}/propose-act`, 'POST', {
+        text, expectedTurn: playSession.turn, requestId: crypto.randomUUID(), autoAct: true,
+      });
+      if (result.status === 'acted' && result.adventure) {
+        setProposeNote(result.label ? `已映射并执行：${result.label}` : '已映射并执行');
+        setPlaySession(result.adventure as AdventureView);
+        await refresh();
+      } else if (result.status === 'none' || result.status === 'rejected') {
+        setProposeNote(result.reason);
+      }
+      return {
+        status: result.status,
+        choiceId: result.actionId,
+        label: result.label,
+        reason: result.reason,
+        candidates: result.candidates,
+        session: result.adventure,
+      };
+    } finally { setPlayBusy(false); }
+  }
+
+  function resourcesToText(resources: Record<string, number> | undefined): string {
+    return Object.entries(resources ?? {}).map(([k, v]) => `${k}=${v}`).join(', ');
+  }
+  function textToResources(raw: string): Record<string, number> {
+    const next: Record<string, number> = {};
+    for (const part of raw.split(/[,，]/)) {
+      const trimmed = part.trim();
+      if (!trimmed) continue;
+      const eq = trimmed.indexOf('=');
+      if (eq <= 0) continue;
+      const key = trimmed.slice(0, eq).trim();
+      const value = Number(trimmed.slice(eq + 1).trim());
+      if (key && Number.isFinite(value)) next[key] = value;
+    }
+    return next;
   }
 
   function change(next: WorldContent) { setContent(next); setDirty(true); setValidation(null); setMessage(null); }
@@ -213,6 +258,7 @@ export function WorldsPanel({
               )}
               <button type="button" className="small" disabled={busy || json !== null || canvasMode === 'play'} onClick={() => setMetaOpen(v => !v)}>{t(metaOpen ? '收起世界信息' : '世界信息')}</button>
               <button type="button" className="small" disabled={busy || json !== null || canvasMode === 'play' || !content.locations.length} onClick={() => { setInspectorTab('all'); setInspectorOpen(true); }}>{t('全览')}</button>
+              <button type="button" className="small" data-testid="open-worldbook" disabled={busy || json !== null || canvasMode === 'play'} onClick={() => { setInspectorTab('worldbook'); setInspectorOpen(true); }}>{t('世界书')}</button>
               <button type="button" className="small" disabled={busy || canvasMode === 'play'} onClick={() => json === null ? setJson(JSON.stringify(content, null, 2)) : apply()}>{json === null ? t('高级 JSON') : t('应用 JSON 到编辑器')}</button>
             </div>
           </div>
@@ -273,6 +319,10 @@ export function WorldsPanel({
                           </label>
                         </div>
                         <h4>{playSession.location.title}</h4>
+                        {proposeNote && <Notice kind="success" text={proposeNote} />}
+                        {playSession.resources && Object.keys(playSession.resources).length > 0 && (
+                          <p className="hint" data-testid="play-resources">{t('资源：')}{Object.entries(playSession.resources).map(([k, v]) => `${k}=${v}`).join(' · ')}</p>
+                        )}
                         <div className="reader-text">{playSession.location.text.split(/\n+/).map((text, i) => <p key={i}>{text}</p>)}</div>
                         {playSession.ending && <div className="ending"><p className="eyebrow">{t('冒险结局')}</p><h4>{playSession.ending.title}</h4><p>{playSession.ending.text}</p></div>}
                         {!playSession.ended && <div className="adventure-actions">
@@ -287,6 +337,7 @@ export function WorldsPanel({
                             </div>
                           ))}
                         </div>}
+                        {!playSession.ended && <ProposeActBox disabled={playBusy} busy={playBusy} onPropose={proposeOnCanvas} onPickCandidate={id => void actOnCanvas(id)} />}
                         {onOpenAdventure && latestRevision && <button type="button" className="quiet small" onClick={() => onOpenAdventure(latestRevision.id)}>{t('在开放冒险打开 →')}</button>}
                       </>}
                   </div>
@@ -297,6 +348,7 @@ export function WorldsPanel({
                     <div className="draft-inspector-tabs">
                       <button type="button" className={inspectorTab === 'location' ? 'active' : ''} onClick={() => setInspectorTab('location')}>{t('地点')}</button>
                       <button type="button" className={inspectorTab === 'meta' ? 'active' : ''} onClick={() => setInspectorTab('meta')}>{t('信息')}</button>
+                      <button type="button" className={inspectorTab === 'worldbook' ? 'active' : ''} data-testid="inspector-worldbook-tab" onClick={() => setInspectorTab('worldbook')}>{t('世界书')}</button>
                       <button type="button" className={inspectorTab === 'all' ? 'active' : ''} onClick={() => setInspectorTab('all')}>{t('全览')}</button>
                     </div>
                     <button type="button" className="quiet small" onClick={() => setInspectorOpen(false)} aria-label={t('关闭侧栏')}>{t('关闭')}</button>

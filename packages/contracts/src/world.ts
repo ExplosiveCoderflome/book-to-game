@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { worldbookSchema } from './worldbook.js';
 export const SYSTEM_WAIT_ACTION_ID = '__wait__';
 
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/, '标识只允许字母、数字、短横线和下划线');
@@ -16,6 +17,8 @@ export const worldEffectSchema = z.discriminatedUnion('kind', [
   z.object({kind: z.literal('npc_learn'), npcId: id, factId: id}),
   z.object({kind: z.literal('move'), locationId: id}),
   z.object({kind: z.literal('npc_move'), npcId: id, locationId: id}),
+  /** Adjust open-world numeric resource (power/upgrade pools). Capped by worldbook. */
+  z.object({kind: z.literal('resource'), resourceId: id, delta: z.number().finite()}),
 ]);
 export const worldContentSchema = z.object({
   schemaVersion: z.literal(1), mode: z.literal('open'), title: z.string().min(1).max(200),
@@ -31,11 +34,17 @@ export const worldContentSchema = z.object({
   actions: z.array(z.object({id, label: z.string().min(1).max(200), description: z.string().max(1000), locationId: id,
     npcId: id.optional(), availableWhen: z.array(worldConditionSchema).max(20), requires: z.array(worldConditionSchema).max(20),
     blockedReason: z.string().min(1).max(500), risk: z.string().max(500), timeCost: z.number().int().min(1).max(5),
-    once: z.boolean(), effects: z.array(worldEffectSchema).min(1).max(20), text: z.string().min(1).max(3000), ...provenance})).min(3).max(80),
+    once: z.boolean(), effects: z.array(worldEffectSchema).min(1).max(20), text: z.string().min(1).max(3000),
+    /** Optional tags for worldbook hard rules (same constraint types as story choices). */
+    tags: z.array(z.string().min(1).max(40)).max(10).optional(), ...provenance})).min(3).max(80),
   events: z.array(z.object({id, label: z.string().min(1).max(120), when: z.array(worldConditionSchema).min(1).max(20),
     effects: z.array(worldEffectSchema).min(1).max(20), text: z.string().max(2000), visibility: z.enum(['public', 'hidden'])})).max(40),
   endings: z.array(z.object({id, title: z.string().min(1).max(200), text: z.string().min(1).max(3000),
     when: z.array(worldConditionSchema).min(1).max(20)})).min(1).max(12),
+  /** Numeric power/upgrade pools for worldbook gates/spends/ladders (not boolean facts). */
+  resources: z.record(z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/), z.number().finite()).optional(),
+  /** Same hard worldbook as story; scope may use locations. */
+  worldbook: worldbookSchema.optional(),
   /** Optional infinite-canvas location positions; authoring metadata, ignored by adventure runtime. */
   canvasLayout: z.record(z.string().min(1).max(80), z.object({ x: z.number().finite(), y: z.number().finite() })).optional(),
 });
@@ -51,6 +60,7 @@ export interface AdventureView {
   id: string; worldRevisionId: string; turn: number; elapsed: number; timeLimit: number; ended: boolean;
   playerRole: string; goal: string; location: {id: string; title: string; text: string};
   facts: {id: string; label: string; description: string; kind: 'clue' | 'item' | 'relationship' | 'event'; value: boolean}[];
+  resources?: Record<string, number>;
   npcs: {id: string; name: string; description: string}[];
   actions: {id: string; label: string; description: string; timeCost: number; risk: string; enabled: boolean; blockedReason?: string}[];
   ending?: {id: string; title: string; text: string}; history: AdventureHistory[]; createdAt: string; updatedAt: string;

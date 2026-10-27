@@ -14,6 +14,8 @@ export class AdventureService {
       turn: 0, elapsed: 0, locationId: world.initialLocationId,
       facts: Object.fromEntries(world.facts.map(fact => [fact.id, fact.initialValue])),
       knownFactIds: world.facts.filter(fact => fact.playerKnown).map(fact => fact.id),
+      resources: { ...(world.resources ?? {}) },
+      takenTags: [],
       npcs: Object.fromEntries(world.npcs.map(npc => [npc.id, {locationId: npc.initialLocationId, knownFactIds: [...npc.knownFactIds]}])),
       performedActionIds: [], triggeredEventIds: [], history: [], createdAt: now, updatedAt: now};
     const publicEvents = settle(world, state);

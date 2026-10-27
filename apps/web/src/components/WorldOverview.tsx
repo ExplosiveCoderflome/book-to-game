@@ -19,7 +19,9 @@ export function WorldOverview({ content: w, focusLocationId }: Props) {
   const effect = (e: WorldEffect): string => e.kind === 'move' ? t('玩家前往{location}', { location: location(e.locationId) })
     : e.kind === 'npc_move' ? t('{npc}前往{location}', { npc: npc(e.npcId), location: location(e.locationId) })
     : e.kind === 'npc_learn' ? t('{npc}获知「{fact}」', { npc: npc(e.npcId), fact: fact(e.factId) })
-    : e.kind === 'reveal' ? t('向玩家揭示「{fact}」', { fact: fact(e.factId) }) : t('「{fact}」变为{value}', { fact: fact(e.factId), value: truth(e.value) });
+    : e.kind === 'reveal' ? t('向玩家揭示「{fact}」', { fact: fact(e.factId) })
+    : e.kind === 'resource' ? t('资源 {id} {delta}', { id: e.resourceId, delta: e.delta > 0 ? `+${e.delta}` : String(e.delta) })
+    : t('「{fact}」变为{value}', { fact: fact(e.factId), value: truth(e.value) });
   const provenance = (v: { origin: 'source' | 'adapted'; evidence: { chapterId: string; paragraphId: string }[] }) => <div className="hint">{t(v.origin === 'source' ? '依据原作' : '改编新增')} · {t('{count} 处证据', { count: v.evidence.length })}{v.evidence.length > 0 && <details><summary>{t('证据标识')}</summary>{v.evidence.map((e, i) => <div key={i}><code>{e.chapterId} / {e.paragraphId}</code></div>)}</details>}</div>;
 
   const focus = focusLocationId ? w.locations.find(l => l.id === focusLocationId) : undefined;

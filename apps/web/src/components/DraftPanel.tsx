@@ -642,7 +642,13 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
                 ? <SceneEditor key={scene.id} scene={scene} scenes={content.scenes} variables={content.variables} update={value => change({ ...content, scenes: content.scenes.map((s, i) => i === sceneIndex ? value : s) })} remove={() => { change({ ...content, scenes: content.scenes.filter((_, i) => i !== sceneIndex) }); setSceneIndex(Math.max(0, sceneIndex - 1)); setInspectorOpen(false); }} />
                 : <Empty>{t('在画布上点击一个节点，或添加场景。')}</Empty>)}
               {inspectorTab === 'variables' && <StoryVariablesEditor key={draft?.id ?? 'new'} content={content} update={change} />}
-              {inspectorTab === 'worldbook' && <WorldbookEditor key={draft?.id ?? 'new-wb'} content={content} update={change} />}
+              {inspectorTab === 'worldbook' && <WorldbookEditor key={draft?.id ?? 'new-wb'}
+                worldbook={content.worldbook}
+                onChange={wb => change({ ...content, worldbook: wb })}
+                numericNames={Object.keys(content.variables ?? {}).filter(name => typeof content.variables![name] === 'number')}
+                places={content.scenes.map(s => ({ id: s.id, title: s.title || s.id }))}
+                placeScopeType="scenes"
+              />}
               {inspectorTab === 'meta' && <div className="stack draft-inspector-meta">
                 <label>{t('游戏标题')}<input value={content.title} maxLength={200} onChange={e => change({ ...content, title: e.target.value })} /></label>
                 <label>{t('起始场景')}<select value={content.startSceneId} onChange={e => change({ ...content, startSceneId: e.target.value })}><option value="">{t('选择故事入口')}</option>{content.scenes.map((s, i) => <option key={i} value={s.id}>{s.title || s.id}</option>)}</select></label>

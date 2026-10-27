@@ -13,6 +13,10 @@ export const worldbookScopeSchema = z.discriminatedUnion('type', [
     type: z.literal('scenes'),
     sceneIds: z.array(z.string().min(1).max(80)).min(1).max(50),
   }),
+  z.object({
+    type: z.literal('locations'),
+    locationIds: z.array(z.string().min(1).max(80)).min(1).max(50),
+  }),
 ]);
 export type WorldbookScope = z.infer<typeof worldbookScopeSchema>;
 
@@ -100,13 +104,34 @@ export function emptyWorldbook(): Worldbook {
   return { entries: [] };
 }
 
+export type WorldbookPlaceKind = 'scene' | 'location';
+
 export function entryAppliesToScene(entry: WorldbookEntry, sceneId: string): boolean {
   if (entry.scope.type === 'global') return true;
+  if (entry.scope.type !== 'scenes') return false;
   return entry.scope.sceneIds.includes(sceneId);
 }
 
+export function entryAppliesToLocation(entry: WorldbookEntry, locationId: string): boolean {
+  if (entry.scope.type === 'global') return true;
+  if (entry.scope.type !== 'locations') return false;
+  return entry.scope.locationIds.includes(locationId);
+}
+
+export function entriesForPlace(
+  worldbook: Worldbook | undefined,
+  placeId: string,
+  placeKind: WorldbookPlaceKind = 'scene',
+): WorldbookEntry[] {
+  return (worldbook?.entries ?? []).filter(entry =>
+    placeKind === 'location'
+      ? entryAppliesToLocation(entry, placeId)
+      : entryAppliesToScene(entry, placeId),
+  );
+}
+
 export function entriesForScene(worldbook: Worldbook | undefined, sceneId: string): WorldbookEntry[] {
-  return (worldbook?.entries ?? []).filter(entry => entryAppliesToScene(entry, sceneId));
+  return entriesForPlace(worldbook, sceneId, 'scene');
 }
 
 function choiceHasTag(choice: { tags?: string[] }, tag: string): boolean {
@@ -137,13 +162,14 @@ function numericVar(
  */
 export function worldbookBlockReason(
   choice: { id: string; tags?: string[] },
-  sceneId: string,
+  placeId: string,
   variables: Record<string, string | number | boolean>,
   worldbook: Worldbook | undefined,
   takenTags: readonly string[] = [],
+  placeKind: WorldbookPlaceKind = 'scene',
 ): string | undefined {
   const taken = new Set(takenTags);
-  for (const entry of entriesForScene(worldbook, sceneId)) {
+  for (const entry of entriesForPlace(worldbook, placeId, placeKind)) {
     for (const constraint of entry.constraints ?? []) {
       if (constraint.type === 'forbid_choice_tags') {
         if (choiceHasAnyTag(choice, constraint.tags)) return constraint.message;
@@ -205,11 +231,12 @@ export function worldbookIncrementCap(
 /** Resource spends to apply after a tagged choice succeeds (same projection scope as block). */
 export function worldbookSpendsForChoice(
   choice: { tags?: string[] },
-  sceneId: string,
+  placeId: string,
   worldbook: Worldbook | undefined,
+  placeKind: WorldbookPlaceKind = 'scene',
 ): Array<{ variable: string; amount: number }> {
   const spends: Array<{ variable: string; amount: number }> = [];
-  for (const entry of entriesForScene(worldbook, sceneId)) {
+  for (const entry of entriesForPlace(worldbook, placeId, placeKind)) {
     for (const constraint of entry.constraints ?? []) {
       if (constraint.type !== 'spend_on_choice') continue;
       if (!choiceHasAnyTag(choice, constraint.tags)) continue;
@@ -248,22 +275,27 @@ function requireNumericVariable(
   label: string,
   variable: string,
   variables: Record<string, string | number | boolean>,
+  numericLabel = '变量',
 ): void {
   if (!Object.hasOwn(variables, variable)) {
-    errors.push(`世界书「${entryTitle}」${label}引用了不存在的变量：${variable}`);
+    errors.push(`世界书「${entryTitle}」${label}引用了不存在的${numericLabel}：${variable}`);
   } else if (typeof variables[variable] !== 'number') {
-    errors.push(`世界书「${entryTitle}」${label}变量必须是数值：${variable}`);
+    errors.push(`世界书「${entryTitle}」${label}${numericLabel}必须是数值：${variable}`);
   }
 }
 
 export function validateWorldbookContent(input: {
   worldbook?: Worldbook;
-  sceneIds: Set<string>;
+  sceneIds?: Set<string>;
+  locationIds?: Set<string>;
   variables: Record<string, string | number | boolean>;
   choiceTags: Set<string>;
+  /** zh-CN noun for numeric pools in errors (变量 / 资源). */
+  numericLabel?: string;
 }): { errors: string[]; warnings: string[] } {
   const errors: string[] = [];
   const warnings: string[] = [];
+  const numericLabel = input.numericLabel ?? '变量';
   const worldbook = input.worldbook;
   if (!worldbook) return { errors, warnings };
   const parsed = worldbookSchema.safeParse(worldbook);
@@ -277,8 +309,15 @@ export function validateWorldbookContent(input: {
     if (ids.has(entry.id)) errors.push(`世界书条目 ID 重复：${entry.id}`);
     ids.add(entry.id);
     if (entry.scope.type === 'scenes') {
+      const sceneIds = input.sceneIds ?? new Set<string>();
       for (const sceneId of entry.scope.sceneIds) {
-        if (!input.sceneIds.has(sceneId)) errors.push(`世界书「${entry.title}」引用了不存在的场景：${sceneId}`);
+        if (!sceneIds.has(sceneId)) errors.push(`世界书「${entry.title}」引用了不存在的场景：${sceneId}`);
+      }
+    }
+    if (entry.scope.type === 'locations') {
+      const locationIds = input.locationIds ?? new Set<string>();
+      for (const locationId of entry.scope.locationIds) {
+        if (!locationIds.has(locationId)) errors.push(`世界书「${entry.title}」引用了不存在的地点：${locationId}`);
       }
     }
     if (entry.kind === 'lore' && (entry.constraints?.length ?? 0) > 0) {
@@ -295,11 +334,11 @@ export function validateWorldbookContent(input: {
         if (constraint.min !== undefined && constraint.max !== undefined && constraint.min > constraint.max) {
           errors.push(`世界书「${entry.title}」的门控范围无效：min > max`);
         }
-        requireNumericVariable(errors, entry.title, '的门控', constraint.variable, input.variables);
+        requireNumericVariable(errors, entry.title, '的门控', constraint.variable, input.variables, numericLabel);
         warnUnusedTags(warnings, entry.title, '门控标签', constraint.tags, input.choiceTags);
       }
       if (constraint.type === 'cap_variable_increment') {
-        requireNumericVariable(errors, entry.title, '的增量上限', constraint.variable, input.variables);
+        requireNumericVariable(errors, entry.title, '的增量上限', constraint.variable, input.variables, numericLabel);
         const prev = caps.get(constraint.variable);
         if (prev !== undefined && prev !== constraint.maxDelta) {
           warnings.push(`变量 ${constraint.variable} 存在多个增量上限（将取更严的 ${Math.min(prev, constraint.maxDelta)}）`);
@@ -307,15 +346,15 @@ export function validateWorldbookContent(input: {
         caps.set(constraint.variable, prev === undefined ? constraint.maxDelta : Math.min(prev, constraint.maxDelta));
       }
       if (constraint.type === 'require_min_variable') {
-        requireNumericVariable(errors, entry.title, '的最低战力', constraint.variable, input.variables);
+        requireNumericVariable(errors, entry.title, '的最低战力', constraint.variable, input.variables, numericLabel);
         warnUnusedTags(warnings, entry.title, '最低要求标签', constraint.tags, input.choiceTags);
       }
       if (constraint.type === 'require_max_variable') {
-        requireNumericVariable(errors, entry.title, '的最高限制', constraint.variable, input.variables);
+        requireNumericVariable(errors, entry.title, '的最高限制', constraint.variable, input.variables, numericLabel);
         warnUnusedTags(warnings, entry.title, '最高限制标签', constraint.tags, input.choiceTags);
       }
       if (constraint.type === 'spend_on_choice') {
-        requireNumericVariable(errors, entry.title, '的消耗', constraint.variable, input.variables);
+        requireNumericVariable(errors, entry.title, '的消耗', constraint.variable, input.variables, numericLabel);
         warnUnusedTags(warnings, entry.title, '消耗标签', constraint.tags, input.choiceTags);
       }
       if (constraint.type === 'one_path_lock') {
@@ -327,7 +366,7 @@ export function validateWorldbookContent(input: {
         }
       }
       if (constraint.type === 'upgrade_ladder') {
-        requireNumericVariable(errors, entry.title, '的升级阶梯', constraint.variable, input.variables);
+        requireNumericVariable(errors, entry.title, '的升级阶梯', constraint.variable, input.variables, numericLabel);
         const thresholds = constraint.steps.map(s => s.threshold);
         for (let i = 1; i < thresholds.length; i++) {
           if (thresholds[i]! < thresholds[i - 1]!) {

@@ -2,10 +2,12 @@ import { z } from 'zod';
 export * from './world.js';
 export {
   worldbookSchema, worldbookEntrySchema, worldbookConstraintSchema, worldbookEntryKindSchema,
-  worldbookScopeSchema, emptyWorldbook, entryAppliesToScene, entriesForScene,
+  worldbookScopeSchema, emptyWorldbook, entryAppliesToScene, entryAppliesToLocation,
+  entriesForScene, entriesForPlace,
   worldbookBlockReason, worldbookIncrementCap, worldbookSpendsForChoice, mergeTakenTags,
   validateWorldbookContent,
   type Worldbook, type WorldbookEntry, type WorldbookConstraint, type WorldbookEntryKind, type WorldbookScope,
+  type WorldbookPlaceKind,
 } from './worldbook.js';
 import { worldbookSchema } from './worldbook.js';
 export { modelListInputSchema, modelSettingsInputSchema, type ModelListInput, type ModelListResult, type ModelSettingsInput, type ModelSettingsView, type ModelConnectionResult } from './model-settings.js';

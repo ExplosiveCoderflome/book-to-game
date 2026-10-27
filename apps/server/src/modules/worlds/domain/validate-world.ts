@@ -1,4 +1,4 @@
-import { SYSTEM_WAIT_ACTION_ID, assessOpeningActions, type WorldContent, type WorldCondition, type WorldEffect, type SourceDocument, type ValidationResult } from '@novel-game/contracts';
+import { SYSTEM_WAIT_ACTION_ID, assessOpeningActions, validateWorldbookContent, type WorldContent, type WorldCondition, type WorldEffect, type SourceDocument, type ValidationResult } from '@novel-game/contracts';
 export function validateWorld(world: WorldContent, source: SourceDocument): ValidationResult {
   const errors: string[] = []; const warnings: string[] = [];
   function ids(entries: {id: string}[], category: string): Set<string> {
@@ -23,11 +23,15 @@ export function validateWorld(world: WorldContent, source: SourceDocument): Vali
       if (item.kind === 'time' && item.atLeast > world.timeLimit) warnings.push(`${owner} 的时间条件超过时限`);
     }
   }
+  const resourceIds = new Set(Object.keys(world.resources ?? {}));
   function effects(items: WorldEffect[], owner: string): void {
     for (const item of items) {
       if (item.kind === 'set' || item.kind === 'reveal' || item.kind === 'npc_learn') reference(facts, item.factId, owner, '事实');
       if (item.kind === 'npc_move' || item.kind === 'npc_learn') reference(npcs, item.npcId, owner, 'NPC');
       if (item.kind === 'move' || item.kind === 'npc_move') reference(locations, item.locationId, owner, '地点');
+      if (item.kind === 'resource' && !resourceIds.has(item.resourceId)) {
+        errors.push(`${owner} 的资源不存在：${item.resourceId}`);
+      }
     }
   }
   for (const entry of [...world.locations, ...world.facts, ...world.npcs, ...world.actions]) {
@@ -74,5 +78,17 @@ export function validateWorld(world: WorldContent, source: SourceDocument): Vali
   }
   for (const location of world.locations) if (!reachable.has(location.id)) warnings.push(`地点可能不可达：${location.id}（仅检查潜在连通性）`);
   warnings.push('潜在连通性检查不证明所有条件可满足或所有策略可到达结局，请试玩验证。');
+  const actionTags = new Set<string>();
+  for (const action of world.actions) for (const tag of action.tags ?? []) actionTags.add(tag);
+  const wb = validateWorldbookContent({
+    worldbook: world.worldbook,
+    locationIds: locations,
+    sceneIds: new Set(),
+    variables: { ...(world.resources ?? {}) },
+    choiceTags: actionTags,
+    numericLabel: '资源',
+  });
+  errors.push(...wb.errors);
+  warnings.push(...wb.warnings);
   return {valid: errors.length === 0, errors, warnings};
 }
