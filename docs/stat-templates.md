@@ -2,7 +2,7 @@
 
 > 源文档：题材数值骨架如何叠在**统一引擎基底**上，避免「开放文字游戏」塌成多选题。  
 > 实现入口：`packages/contracts/src/stat-templates.ts`  
-> 状态：v1 设计已定稿；改编桌 / 空图画布可选模板；**单局编辑面 = 通用数值编辑器（Stat Editor）**；玩时 HUD delta 可后续精修。
+> 状态：v1 设计已定稿；改编桌 / 空图画布可选模板；**单局编辑面 = 通用数值编辑器（Stat Editor）**；玩时 HUD 已按 ChoiceScript 灵感升级（见 `docs/if-editor-patterns.md`）。
 
 ---
 
@@ -153,7 +153,7 @@
 - 题材专属运行时或新 effect 类型
 - 天道检测管线
 - 强制所有故事必须选模板
-- 玩时 HUD 精修（可跟进；展示不得成为状态真相源）
+- 玩时 HUD 发明状态（展示不得成为状态真相源；HUD 已接 displayLabel / role 排序 / meter，见 if-editor-patterns）
 
 ---
 
@@ -187,9 +187,13 @@
 | 改编桌下拉选择模板 | 已接（`GenerationPanel` · `statTemplateId` 进任务，含 pending 重试） |
 | 空图画布扫描模板 | 已接（`DraftPanel` empty-scan） |
 | 通用数值编辑器（Stat Editor） | 已接（`StatEditor` / `StoryVariablesEditor` 别名；属性列表 UI + 套用模板） |
-| 玩时状态条 / delta | WIP / 跟进（非本设计阻断项） |
+| 玩时状态条 / delta | 已接（`PlayStatsBar` 常驻表 + meter + displayLabel delta；节奏：正文→状态→选项） |
 
 ---
+
+## 13b. 与传统 IF 编辑器用法对齐
+
+数值模板只解决「题材骨架」；**怎么露出给作者/玩家**见 [`docs/if-editor-patterns.md`](./if-editor-patterns.md)：Twine 的画布主舞台、ChoiceScript 的常驻属性表与 set→if、Ink 的状态筛选项、Inform 的规则拥有状态。Opposed-pair 不进运行时。
 
 ## 14. 下一步 / 已完成（UI）
 

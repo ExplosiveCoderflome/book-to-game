@@ -5,7 +5,7 @@ import { useI18n } from '../lib/i18n';
 import { readTiandaoCorrect } from '../lib/tiandao';
 import { PendingAction, type PendingActionValue } from '../lib/pending-action';
 import { playOverlayFromSession } from '../lib/play-overlay';
-import { costHintForChoice, diffVariables, type VariableDelta } from '../lib/variable-delta';
+import { costHintForChoice, diffVariables, labelFnFromContent, type VariableDelta } from '../lib/variable-delta';
 import { BranchGraphCanvas } from './BranchGraphCanvas';
 import { Empty, Notice, dateLabel } from './Notice';
 import { NarrateBox } from './NarrateBox';
@@ -67,7 +67,8 @@ export function PlayPanel({ token, revisions, sessions, revisionId, selectRevisi
       sessionStorage.setItem(pendingKey, JSON.stringify(pending.current.value));
       const result = await request<SessionView>(token, `/sessions/${session.id}/actions`, 'POST', input);
       pending.current.confirm(); sessionStorage.removeItem(pendingKey); setUncertain(false);
-      const deltas = diffVariables(before, result.variables ?? {});
+      const rev = revisions.find(r => r.id === result.gameRevisionId) ?? revisions.find(r => r.id === revisionId);
+      const deltas = diffVariables(before, result.variables ?? {}, labelFnFromContent(rev?.content));
       setVarDeltas(deltas.length ? deltas : null);
       setSession(result); await refresh();
     } catch (e) {
@@ -93,7 +94,8 @@ export function PlayPanel({ token, revisions, sessions, revisionId, selectRevisi
       if (result.status === 'acted' && result.session) {
         setProposeNote(result.label ? `已映射并执行：${result.label}` : '已映射并执行');
         const next = result.session as SessionView;
-        const deltas = diffVariables(session.variables ?? {}, next.variables ?? {});
+        const rev = revisions.find(r => r.id === next.gameRevisionId) ?? revisions.find(r => r.id === revisionId);
+        const deltas = diffVariables(session.variables ?? {}, next.variables ?? {}, labelFnFromContent(rev?.content));
         setVarDeltas(deltas.length ? deltas : null);
         setSession(next);
         await refresh();
@@ -124,8 +126,6 @@ export function PlayPanel({ token, revisions, sessions, revisionId, selectRevisi
       {busy && !session ? <p role="status">{t('正在读取存档…')}</p> : !session ? <Empty>{t('选择一本已发布的故事，或者打开左侧存档。')}</Empty> : <>
         <div className="reader-meta"><span>{activeRevision?.content.title ?? t('文字冒险')} · v{activeRevision?.version ?? '—'}</span><span>{t('第 {turn} 幕', { turn: session.turn + 1 })}</span></div>
         <h3>{session.scene.title}</h3><div className="reader-text">{session.scene.text.split(/\n+/).map((text, i) => <p key={i}>{text}</p>)}</div>
-        <TiandaoToggle disabled={busy || uncertain} />
-        <NarrateBox visitKey={`${session.id}:${session.scene.id}:${session.turn}`} disabled={busy || uncertain} onNarrate={narrate} />
         <PlayStatsBar variables={session.variables ?? {}} deltas={varDeltas} statTemplateId={activeRevision?.content.statTemplateId} statTemplateVersion={activeRevision?.content.statTemplateVersion} />
         {session.ended && <div className="ending"><p className="eyebrow">{t('故事抵达了一个结局')}</p><p>{session.scene.ending ?? t('旅程告一段落。')}</p></div>}
         {proposeNote && <Notice kind="success" text={proposeNote} />}
@@ -141,7 +141,11 @@ export function PlayPanel({ token, revisions, sessions, revisionId, selectRevisi
             <span className="reader-choice-arrow" aria-hidden="true">→</span>
           </button>;
         })}</div>}
-        {!session.ended && !uncertain && <ProposeActBox disabled={busy} busy={busy} onPropose={propose} onPickCandidate={id => void act(id)} />}
+        <div className="reader-aux stack">
+          <TiandaoToggle disabled={busy || uncertain} />
+          <NarrateBox visitKey={`${session.id}:${session.scene.id}:${session.turn}`} disabled={busy || uncertain} onNarrate={narrate} />
+          {!session.ended && !uncertain && <ProposeActBox disabled={busy} busy={busy} onPropose={propose} onPickCandidate={id => void act(id)} />}
+        </div>
         <div className="reader-footer"><p className="hint">{t('选择成功后自动保存。存档 ID：{id}', { id: session.id })}</p><button className="quiet small" disabled={busy} onClick={() => setReload(v => v + 1)}>{t('重新读取存档')}</button></div>
         <details className="history"><summary>{t('回看行程 · {count} 条记录', { count: session.history.length })}</summary>{session.history.map((entry, i) => <div key={i}><p className="eyebrow">{t('第 {turn} 幕', { turn: entry.turn + 1 })}{entry.choiceLabel ? ` · ${entry.choiceLabel}` : ''}</p><p>{entry.text}</p></div>)}</details>
         {activeRevision && <div className="play-path-panel" data-testid="play-path-panel">

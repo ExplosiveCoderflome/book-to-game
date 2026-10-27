@@ -940,22 +940,30 @@ legend {
   color: var(--green);
 }
 
-/* Play-time stats HUD — always-visible variable strip + post-act delta */
+/* Play-time stats HUD — ChoiceScript-inspired chart (our chrome); always-visible by default */
 .play-stats {
-  margin: 14px 0 8px;
-  padding: 8px 10px;
+  margin: 14px 0 10px;
+  padding: 0;
   border: 1px solid var(--line);
   border-left: 3px solid var(--green);
   border-radius: var(--radius-sm);
   background: var(--surface-muted);
-  display: grid;
-  gap: 6px;
 }
-.play-stats-row {
+.play-stats-summary {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
+  padding: 8px 10px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.play-stats-summary::-webkit-details-marker { display: none; }
+.play-stats-summary-hint {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
 }
 .play-stats-label,
 .play-stats-delta-label {
@@ -965,49 +973,216 @@ legend {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
-  padding-top: 3px;
 }
-.play-stats-chips,
+.play-stats-body {
+  display: grid;
+  gap: 8px;
+  padding: 0 10px 10px;
+}
+.play-stats-chart {
+  display: grid;
+  gap: 6px;
+}
+.play-stats-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 10px;
+  align-items: center;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-variant-numeric: tabular-nums;
+}
+.play-stats-item.is-changed {
+  border-color: color-mix(in srgb, var(--green) 45%, var(--line));
+  background: color-mix(in srgb, var(--green) 8%, var(--surface));
+}
+.play-stats-item.is-flag {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.play-stats-item-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  grid-column: 1 / -1;
+}
+.play-stats-name { color: var(--muted); font-size: 11px; }
+.play-stats-role {
+  font-size: 10px;
+  color: var(--muted);
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-muted);
+}
+.play-stats-value { font-weight: 600; margin-left: auto; color: var(--ink); font-size: 12px; }
+.play-stats-meter {
+  grid-column: 1 / -1;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line) 80%, var(--surface));
+  overflow: hidden;
+}
+.play-stats-meter.is-plain { opacity: 0.35; }
+.play-stats-meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--green);
+  min-width: 0;
+}
+.play-stats-item.role-pressure .play-stats-meter-fill {
+  background: color-mix(in srgb, var(--rust) 70%, var(--green));
+}
+.play-stats-flag-pill {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  background: var(--surface-muted);
+  margin-left: auto;
+  justify-self: end;
+}
+.play-stats-flag-pill.is-on {
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 40%, var(--line));
+  background: color-mix(in srgb, var(--green) 8%, var(--surface));
+}
+.play-stats-empty { font-size: 12px; color: var(--muted); }
 .play-stats-delta {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
-  min-width: 0;
+  padding-top: 6px;
+  border-top: 1px dashed var(--line);
+  width: 100%;
 }
-.play-stats-chip,
 .play-stats-delta-chip {
   display: inline-flex;
   align-items: baseline;
   gap: 6px;
   padding: 3px 9px;
   border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--green) 40%, var(--line));
+  background: color-mix(in srgb, var(--green) 6%, var(--surface));
   font-size: 12px;
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-}
-.play-stats-chip.is-changed {
-  border-color: color-mix(in srgb, var(--green) 45%, var(--line));
-  background: color-mix(in srgb, var(--green) 8%, var(--surface));
-}
-.play-stats-name { color: var(--muted); font-size: 11px; }
-.play-stats-value { font-weight: 600; }
-.play-stats-empty { font-size: 12px; color: var(--muted); }
-.play-stats-delta {
-  padding-top: 2px;
-  border-top: 1px dashed var(--line);
-  margin-top: 2px;
-  padding-top: 6px;
-  width: 100%;
-}
-.play-stats-delta-chip {
-  border-color: color-mix(in srgb, var(--green) 40%, var(--line));
   color: var(--green);
   font-weight: 600;
-  background: color-mix(in srgb, var(--green) 6%, var(--surface));
+  font-variant-numeric: tabular-nums;
 }
+
+.reader-aux {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+  opacity: 0.92;
+}
+.reader-aux .hint { color: var(--muted); }
+
+/* Choice rules — dense instrument (gate / cost), peer of Stat Editor */
+.choice-rules {
+  display: grid;
+  gap: 14px;
+}
+.choice-rules-section {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 10px 10px 8px;
+}
+.choice-rules-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.choice-rules-section-head strong {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.choice-rules-badge {
+  font-size: 10px;
+  color: var(--muted);
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-muted);
+}
+.choice-rules-badge.kind-gate {
+  border-color: color-mix(in srgb, var(--focus) 25%, var(--line));
+}
+.choice-rules-badge.kind-cost {
+  border-color: color-mix(in srgb, var(--green) 35%, var(--line));
+  color: color-mix(in srgb, var(--green) 70%, var(--muted));
+}
+.choice-rules-field {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+.choice-rules-field-label {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+.choice-rules-list {
+  display: grid;
+  gap: 8px;
+}
+.choice-rules-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(72px, 0.7fr) auto;
+  gap: 8px;
+  align-items: end;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+}
+.choice-rules-cell {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  min-width: 0;
+}
+.choice-rules-cell select,
+.choice-rules-field input {
+  width: 100%;
+  min-width: 0;
+}
+.choice-rules-value .stat-editor-value {
+  display: block;
+}
+.choice-rules-remove {
+  align-self: end;
+  margin-bottom: 1px;
+}
+.choice-rules-alert {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.choice-rules-add {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+@media (max-width: 720px) {
+  .choice-rules-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .choice-rules-remove { justify-self: start; }
+  .choice-rules-alert { grid-column: 1 / -1; }
+}
+
+/* legacy choice-editor padding kept for any residual markup */
 
 .reader-choice {
   display: flex;

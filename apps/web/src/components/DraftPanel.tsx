@@ -7,7 +7,7 @@ import { readTiandaoCorrect } from '../lib/tiandao';
 import { relevantStoryJob } from '../lib/job-on-canvas';
 import { shouldShowSkeletonPlaceholder, skeletonToCanvasContent } from '../lib/skeleton-placeholder';
 import { playOverlayFromSession } from '../lib/play-overlay';
-import { costHintForChoice, diffVariables, type VariableDelta } from '../lib/variable-delta';
+import { costHintForChoice, diffVariables, labelFnFromContent, type VariableDelta } from '../lib/variable-delta';
 import { selectedChapters } from '../lib/generation-scope';
 import { findLeafSceneIds } from '../lib/leaf-scenes';
 import { dismissExtendGuide, isExtendGuideDismissed } from '../lib/extend-guide';
@@ -472,7 +472,7 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
       const before = { ...(playSession.variables ?? {}) };
       const input = { choiceId, expectedTurn: playSession.turn, requestId: crypto.randomUUID() };
       const result = await request<SessionView>(token, `/sessions/${playSession.id}/actions`, 'POST', input);
-      const deltas = diffVariables(before, result.variables ?? {});
+      const deltas = diffVariables(before, result.variables ?? {}, labelFnFromContent(latestRevision?.content));
       setPlayVarDeltas(deltas.length ? deltas : null);
       setPlaySession(result);
       await refresh();
@@ -535,7 +535,7 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
       if (result.status === 'acted' && result.session) {
         setProposeNote(result.label ? `已映射并执行：${result.label}` : '已映射并执行');
         const next = result.session as SessionView;
-        const deltas = diffVariables(playSession.variables ?? {}, next.variables ?? {});
+        const deltas = diffVariables(playSession.variables ?? {}, next.variables ?? {}, labelFnFromContent(latestRevision?.content));
         setPlayVarDeltas(deltas.length ? deltas : null);
         setPlaySession(next);
         await refresh();
@@ -701,8 +701,6 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
                     <h4>{playSession.scene.title}</h4>
                     {proposeNote && <Notice kind="success" text={proposeNote} />}
                     <div className="reader-text">{playSession.scene.text.split(/\n+/).map((text, i) => <p key={i}>{text}</p>)}</div>
-                    <TiandaoToggle disabled={playBusy} />
-                    <NarrateBox visitKey={`${playSession.id}:${playSession.scene.id}:${playSession.turn}`} disabled={playBusy} onNarrate={narrateOnCanvas} />
                     <PlayStatsBar variables={playSession.variables ?? {}} deltas={playVarDeltas} statTemplateId={latestRevision?.content.statTemplateId} statTemplateVersion={latestRevision?.content.statTemplateVersion} />
                     {playSession.ended && <div className="ending"><p className="eyebrow">{t('故事抵达了一个结局')}</p><p>{playSession.scene.ending ?? t('旅程告一段落。')}</p></div>}
                     {!playSession.ended && <div className="reader-choices"><p className="eyebrow">{t('你将如何选择？')}</p>{playSession.scene.choices.map((choice, i) => {
@@ -716,7 +714,11 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
                         <span className="reader-choice-arrow" aria-hidden="true">→</span>
                       </button>;
                     })}</div>}
-                    {!playSession.ended && <ProposeActBox disabled={playBusy} busy={playBusy} onPropose={proposeOnCanvas} onPickCandidate={id => void actOnCanvas(id)} />}
+                    <div className="reader-aux stack">
+                      <TiandaoToggle disabled={playBusy} />
+                      <NarrateBox visitKey={`${playSession.id}:${playSession.scene.id}:${playSession.turn}`} disabled={playBusy} onNarrate={narrateOnCanvas} />
+                      {!playSession.ended && <ProposeActBox disabled={playBusy} busy={playBusy} onPropose={proposeOnCanvas} onPickCandidate={id => void actOnCanvas(id)} />}
+                    </div>
                     {onOpenPlay && latestRevision && <button type="button" className="quiet small" onClick={() => onOpenPlay(latestRevision.id)}>{t('在读者席打开 →')}</button>}
                   </>}
               </div>
