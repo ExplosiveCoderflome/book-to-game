@@ -12,6 +12,7 @@ export function findScene(revision: GameRevision, sceneId: string): Scene {
 export function projectSession(state: SessionState, revision: GameRevision): SessionView {
   const scene = findScene(revision, state.sceneId);
   const variables = state.variables ?? {};
+  const takenTags = state.takenTags ?? [];
   const worldbook = revision.content.worldbook;
   return {
     id: state.id, gameRevisionId: state.gameRevisionId, turn: state.turn, ended: state.ended,
@@ -19,7 +20,7 @@ export function projectSession(state: SessionState, revision: GameRevision): Ses
     scene: { id: scene.id, title: scene.title, text: scene.text,
       ...(scene.ending === undefined ? {} : { ending: scene.ending }),
       choices: state.ended ? [] : scene.choices
-        .filter(choice => choiceAllowed(choice, variables, scene.id, worldbook).ok)
+        .filter(choice => choiceAllowed(choice, variables, scene.id, worldbook, takenTags).ok)
         .map(choice => ({ id: choice.id, label: choice.label })) },
     history: state.history.map(entry => ({ ...entry })), createdAt: state.createdAt, updatedAt: state.updatedAt,
   };

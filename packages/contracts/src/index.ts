@@ -3,7 +3,8 @@ export * from './world.js';
 export {
   worldbookSchema, worldbookEntrySchema, worldbookConstraintSchema, worldbookEntryKindSchema,
   worldbookScopeSchema, emptyWorldbook, entryAppliesToScene, entriesForScene,
-  worldbookBlockReason, worldbookIncrementCap, validateWorldbookContent,
+  worldbookBlockReason, worldbookIncrementCap, worldbookSpendsForChoice, mergeTakenTags,
+  validateWorldbookContent,
   type Worldbook, type WorldbookEntry, type WorldbookConstraint, type WorldbookEntryKind, type WorldbookScope,
 } from './worldbook.js';
 import { worldbookSchema } from './worldbook.js';

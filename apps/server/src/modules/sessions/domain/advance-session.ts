@@ -1,4 +1,5 @@
 import type { ActInput, GameRevision } from '@novel-game/contracts';
+import { mergeTakenTags } from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
 import { findScene } from './project-session.js';
 import type { SessionState } from './session-state.js';
@@ -11,11 +12,19 @@ export function advanceSession(state: SessionState, input: ActInput, revision: G
   const choice = current.choices.find(choice => choice.id === input.choiceId);
   if (!choice) throw new AppError('UNKNOWN_CHOICE', '当前场景没有此选项', 400);
   const variables = state.variables ?? {};
-  const allowed = choiceAllowed(choice, variables, current.id, revision.content.worldbook);
+  const takenTags = state.takenTags ?? [];
+  const allowed = choiceAllowed(choice, variables, current.id, revision.content.worldbook, takenTags);
   if (!allowed.ok) throw new AppError('CHOICE_LOCKED', allowed.reason, 400);
   const next = findScene(revision, choice.targetSceneId);
   const turn = state.turn + 1;
-  return { ...state, sceneId: next.id, turn, ended: next.ending !== undefined,
-    variables: applyChoiceEffects(choice, variables, revision.content.worldbook), updatedAt: now,
-    history: [...state.history, { turn, sceneId: next.id, choiceLabel: choice.label, text: next.text }] };
+  return {
+    ...state,
+    sceneId: next.id,
+    turn,
+    ended: next.ending !== undefined,
+    variables: applyChoiceEffects(choice, variables, revision.content.worldbook, current.id),
+    takenTags: mergeTakenTags(takenTags, choice.tags),
+    updatedAt: now,
+    history: [...state.history, { turn, sceneId: next.id, choiceLabel: choice.label, text: next.text }],
+  };
 }
