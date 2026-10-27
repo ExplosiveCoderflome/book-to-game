@@ -1,0 +1,5 @@
+---
+description: Use the ui-ux-kit skill for any UI/design task
+alwaysApply: false
+---
+When designing, building, redesigning, auditing, or polishing any interface in this repo, follow `.cursor/ui-ux-kit/SKILL.md` and its `references/` files. Prefer App/Product UI or Redesign profiles. Honor `docs/design-layout.md` and `docs/design-ui.md` (and `DESIGN_SYSTEM.md` if present) as the living system.
