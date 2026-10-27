@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { actSchema, type GameRevision, type SessionView } from '@novel-game/contracts';
 import { errorMessage, request, RequestError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { PendingAction, type PendingActionValue } from '../lib/pending-action';
+import { playOverlayFromSession } from '../lib/play-overlay';
+import { BranchGraphCanvas } from './BranchGraphCanvas';
 import { Empty, Notice, dateLabel } from './Notice';
 
 const pendingKey = 'novel-game.pending-action';
@@ -27,6 +29,7 @@ export function PlayPanel({ token, revisions, sessions, revisionId, selectRevisi
   const [error, setError] = useState<string | null>(null);
   const [uncertain, setUncertain] = useState(!!pending.current.value);
   const [reload, setReload] = useState(0);
+  const [showPath, setShowPath] = useState(true);
   useEffect(() => {
     let active = true;
     setSession(null);
@@ -39,7 +42,7 @@ export function PlayPanel({ token, revisions, sessions, revisionId, selectRevisi
     setBusy(true); setError(null);
     try {
       const started = await request<SessionView>(token, '/sessions', 'POST', { gameRevisionId: revisionId });
-      setSession(started); setSessionId(started.id); await refresh();
+      setSession(started); setSessionId(started.id); setShowPath(true); await refresh();
     } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   }
   async function act(choiceId: string) {
@@ -56,7 +59,11 @@ export function PlayPanel({ token, revisions, sessions, revisionId, selectRevisi
       else setUncertain(!!pending.current.value);
     } finally { setBusy(false); }
   }
-  const activeRevision = revisions.find(r => r.id === session?.gameRevisionId);
+  const activeRevision = revisions.find(r => r.id === session?.gameRevisionId) ?? revisions.find(r => r.id === revisionId);
+  const playOverlay = useMemo(() => {
+    if (!session || !activeRevision) return null;
+    return playOverlayFromSession(activeRevision.content, session);
+  }, [session, activeRevision]);
   return <section className="work-section">
     <div className="section-heading"><div><p className="eyebrow">{t('04 / 读者席')}</p><h2>{t('现在，由你走进故事')}</h2><p>{t('每份存档固定一个发布版本。回到这里，继续上一次的选择。')}</p></div><span className="edition">READ & PLAY</span></div>
     <Notice text={error} /><Notice kind="info" text={uncertain ? t('上一选择的请求结果尚未确认。请重试原选择，服务会返回同一结果，不会重复推进故事。') : null} />
@@ -76,6 +83,22 @@ export function PlayPanel({ token, revisions, sessions, revisionId, selectRevisi
         {!session.ended && <div className="reader-choices"><p className="eyebrow">{t('你将如何选择？')}</p>{session.scene.choices.map((choice, i) => <button key={choice.id} disabled={busy || uncertain} onClick={() => act(choice.id)}><span aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>{choice.label}<span aria-hidden="true">→</span></button>)}</div>}
         <div className="reader-footer"><p className="hint">{t('选择成功后自动保存。存档 ID：{id}', { id: session.id })}</p><button className="quiet small" disabled={busy} onClick={() => setReload(v => v + 1)}>{t('重新读取存档')}</button></div>
         <details className="history"><summary>{t('回看行程 · {count} 条记录', { count: session.history.length })}</summary>{session.history.map((entry, i) => <div key={i}><p className="eyebrow">{t('第 {turn} 幕', { turn: entry.turn + 1 })}{entry.choiceLabel ? ` · ${entry.choiceLabel}` : ''}</p><p>{entry.text}</p></div>)}</details>
+        {activeRevision && <div className="play-path-panel" data-testid="play-path-panel">
+          <div className="panel-heading">
+            <h3>{t('分支路径')}</h3>
+            <button type="button" className="small" onClick={() => setShowPath(v => !v)}>{t(showPath ? '收起路径画布' : '展开路径画布')}</button>
+          </div>
+          {showPath && playOverlay && (
+            <BranchGraphCanvas
+              content={activeRevision.content}
+              selectedSceneId={session.scene.id}
+              onSelectScene={() => { /* play view: selection follows session */ }}
+              playOverlay={playOverlay}
+              readOnly
+              playabilityMode="publish"
+            />
+          )}
+        </div>}
       </>}
     </article></div>
   </section>;

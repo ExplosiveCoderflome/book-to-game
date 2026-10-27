@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react';
 import { annotatePlayability, type CanvasLayout, type GameContent, type PlayabilityAnnotation } from '@novel-game/contracts';
 import { useI18n } from '../lib/i18n';
+import type { PlayOverlayState } from '../lib/play-overlay';
 
 interface Props {
   content: GameContent;
@@ -11,6 +12,10 @@ interface Props {
   onConnectScenes?: (fromId: string, toId: string) => void;
   primary?: boolean;
   playabilityMode?: 'publish' | 'skeleton';
+  /** When set, highlight current scene / trail / blocked edges during playtest. */
+  playOverlay?: PlayOverlayState | null;
+  /** Soften editing affordances (no add/connect) for read-only play views. */
+  readOnly?: boolean;
 }
 
 interface LayoutNode {
@@ -22,9 +27,10 @@ const NODE_H = 64;
 
 export function BranchGraphCanvas({
   content, selectedSceneId, onSelectScene, onAddScene, onLayoutChange, onConnectScenes,
-  primary = false, playabilityMode = 'publish',
+  primary = false, playabilityMode = 'publish', playOverlay = null, readOnly = false,
 }: Props) {
   const { t } = useI18n();
+  const markerPrefix = useId().replace(/:/g, '');
   const viewportRef = useRef<HTMLDivElement>(null);
   const [pan, setPan] = useState({ x: 48, y: 48 });
   const [zoom, setZoom] = useState(1);
@@ -51,9 +57,14 @@ export function BranchGraphCanvas({
   const flaggedEdges = useMemo(() => new Set(annotation.flaggedEdgeKeys), [annotation]);
   const bannerIssues = annotation.issues.filter(i => i.severity === 'error' || i.code === 'CORRIDOR' || i.code === 'CHURN' || i.code === 'OPENING_FANOUT' || i.code === 'OPENING_DENSITY' || i.code === 'TOO_SHALLOW');
 
+  const trailEdges = useMemo(() => new Set(playOverlay?.trailEdgeKeys ?? []), [playOverlay]);
+  const blockedEdges = useMemo(() => new Set(playOverlay?.blockedEdgeKeys ?? []), [playOverlay]);
+  const visitedScenes = useMemo(() => new Set(playOverlay?.visitedSceneIds ?? []), [playOverlay]);
+  const currentPlaySceneId = playOverlay?.currentSceneId ?? null;
+
   const edges = useMemo(() => {
     const byId = new Map(nodes.map(node => [node.id, node]));
-    const list: { key: string; x1: number; y1: number; x2: number; y2: number; label: string; flagged: boolean }[] = [];
+    const list: { key: string; x1: number; y1: number; x2: number; y2: number; label: string; flagged: boolean; trail: boolean; blocked: boolean }[] = [];
     for (const scene of content.scenes) {
       const from = byId.get(scene.id);
       if (!from) continue;
@@ -67,11 +78,13 @@ export function BranchGraphCanvas({
           x2: to.x + NODE_W / 2, y2: to.y,
           label: choice.label.slice(0, 16),
           flagged: flaggedEdges.has(key),
+          trail: trailEdges.has(key),
+          blocked: blockedEdges.has(key),
         });
       }
     }
     return list;
-  }, [content, nodes, flaggedEdges]);
+  }, [content, nodes, flaggedEdges, trailEdges, blockedEdges]);
 
   function fitView() {
     const el = viewportRef.current;
@@ -121,9 +134,13 @@ export function BranchGraphCanvas({
       if (!id) return;
       const node = nodes.find(n => n.id === id);
       if (!node) return;
-      if (connectFrom) {
+      if (connectFrom && !readOnly) {
         if (connectFrom !== id && onConnectScenes) onConnectScenes(connectFrom, id);
         setConnectFrom(null);
+        onSelectScene(id);
+        return;
+      }
+      if (readOnly) {
         onSelectScene(id);
         return;
       }
@@ -184,8 +201,9 @@ export function BranchGraphCanvas({
       </div>
       <div className="branch-canvas-toolbar">
         <span className="hint">{t('{count} 个场景', { count: content.scenes.length })}</span>
-        {onAddScene && <button type="button" className="small" disabled={content.scenes.length >= 100} onClick={onAddScene}>{t('＋ 场景')}</button>}
-        {onConnectScenes && (
+        {playOverlay && <span className="play-overlay-badge" data-testid="play-overlay-badge">{t('试玩路径')}</span>}
+        {!readOnly && onAddScene && <button type="button" className="small" disabled={content.scenes.length >= 100} onClick={onAddScene}>{t('＋ 场景')}</button>}
+        {!readOnly && onConnectScenes && (
           <button type="button" className={`small${connectFrom ? ' active' : ''}`} onClick={() => setConnectFrom(v => v ? null : (selectedSceneId ?? (content.startSceneId || null)))}>
             {t(connectFrom ? '连线中…点目标' : '连线')}
           </button>
@@ -217,39 +235,51 @@ export function BranchGraphCanvas({
     >
       <svg className="branch-canvas-svg" width="100%" height="100%">
         <defs>
-          <marker id="branch-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <marker id={`${markerPrefix}-arrow`} markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
             <path d="M0,0 L6,3 L0,6 Z" fill="currentColor" />
           </marker>
-          <marker id="branch-arrow-bad" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <marker id={`${markerPrefix}-arrow-bad`} markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
             <path d="M0,0 L6,3 L0,6 Z" fill="#c44" />
+          </marker>
+          <marker id={`${markerPrefix}-arrow-trail`} markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="#1a7a4c" />
           </marker>
         </defs>
         <g transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
-          {edges.map(edge => (
-            <g key={edge.key} className={`branch-edge${edge.flagged ? ' flagged' : ''}`}>
-              <line
-                x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2}
-                markerEnd={edge.flagged ? 'url(#branch-arrow-bad)' : 'url(#branch-arrow)'}
-              />
-              <text x={(edge.x1 + edge.x2) / 2} y={(edge.y1 + edge.y2) / 2 - 4} textAnchor="middle">{edge.label}</text>
-            </g>
-          ))}
+          {edges.map(edge => {
+            const marker = edge.flagged
+              ? `url(#${markerPrefix}-arrow-bad)`
+              : edge.trail
+                ? `url(#${markerPrefix}-arrow-trail)`
+                : `url(#${markerPrefix}-arrow)`;
+            const curve = edgeCurve(edge.x1, edge.y1, edge.x2, edge.y2);
+            return (
+              <g key={edge.key} className={`branch-edge${edge.flagged ? ' flagged' : ''}${edge.trail ? ' trail' : ''}${edge.blocked ? ' blocked' : ''}`} data-edge-key={edge.key}>
+                <path d={curve.d} fill="none" markerEnd={marker} />
+                <text x={curve.labelX} y={curve.labelY} textAnchor="middle">{edge.label}{edge.blocked ? ` · ${t('未解锁')}` : ''}</text>
+              </g>
+            );
+          })}
           {nodes.map(node => {
             const selected = node.id === selectedSceneId;
             const flagged = flaggedScenes.has(node.id);
-            const connecting = connectFrom === node.id;
+            const connecting = !readOnly && connectFrom === node.id;
+            const isCurrent = currentPlaySceneId === node.id;
+            const visited = visitedScenes.has(node.id);
             return <g
               key={node.id}
               data-node
               data-node-id={node.id}
+              data-play-current={isCurrent ? 'true' : undefined}
+              data-play-visited={visited ? 'true' : undefined}
               transform={`translate(${node.x} ${node.y})`}
-              className={`branch-node${selected ? ' selected' : ''}${node.ending ? ' ending' : ''}${node.isStart ? ' start' : ''}${flagged ? ' flagged' : ''}${connecting ? ' connecting' : ''}`}
-              style={{ cursor: 'grab' }}
+              className={`branch-node${selected ? ' selected' : ''}${node.ending ? ' ending' : ''}${node.isStart ? ' start' : ''}${flagged ? ' flagged' : ''}${connecting ? ' connecting' : ''}${isCurrent ? ' play-current' : ''}${visited && !isCurrent ? ' play-visited' : ''}`}
+              style={{ cursor: readOnly ? 'pointer' : 'grab' }}
             >
               <rect width={NODE_W} height={NODE_H} rx="10" ry="10" />
               <text x={12} y={24} className="branch-node-title">{truncate(node.title || node.id, 14)}</text>
               <text x={12} y={44} className="branch-node-meta">
-                {flagged ? t('需关注') : node.isStart ? t('入口') : node.ending ? t('结局') : t('{count} 个选择', { count: node.choiceCount })}
+                {isCurrent ? t('当前场景') : flagged ? t('需关注') : node.isStart ? t('入口') : node.ending ? t('结局') : t('{count} 个选择', { count: node.choiceCount })}
               </text>
             </g>;
           })}
@@ -260,7 +290,7 @@ export function BranchGraphCanvas({
           <div className="branch-canvas-empty-card">
             <strong>{t('从分支图画故事')}</strong>
             <p>{t('先添加场景节点，再点选打开侧栏编写正文与选项。画布是主操作面。')}</p>
-            {onAddScene && <button type="button" className="primary small" onClick={onAddScene}>{t('＋ 添加第一个场景')}</button>}
+            {!readOnly && onAddScene && <button type="button" className="primary small" onClick={onAddScene}>{t('＋ 添加第一个场景')}</button>}
           </div>
         </div>
       )}
@@ -303,6 +333,27 @@ function layoutNodes(content: GameContent): LayoutNode[] {
     });
   }
   return nodes;
+}
+
+
+/** Smooth cubic Bezier from node bottom-center to target top-center. */
+function edgeCurve(x1: number, y1: number, x2: number, y2: number): { d: string; labelX: number; labelY: number } {
+  const dy = Math.max(40, Math.abs(y2 - y1) * 0.45);
+  const dx = (x2 - x1) * 0.15;
+  const c1x = x1 + dx;
+  const c1y = y1 + dy;
+  const c2x = x2 - dx;
+  const c2y = y2 - dy;
+  // Approximate mid-curve for label (cubic Bezier at t=0.5)
+  const t = 0.5;
+  const mt = 1 - t;
+  const labelX = mt * mt * mt * x1 + 3 * mt * mt * t * c1x + 3 * mt * t * t * c2x + t * t * t * x2;
+  const labelY = mt * mt * mt * y1 + 3 * mt * mt * t * c1y + 3 * mt * t * t * c2y + t * t * t * y2;
+  return {
+    d: `M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`,
+    labelX,
+    labelY: labelY - 4,
+  };
 }
 
 function truncate(value: string, max: number): string {

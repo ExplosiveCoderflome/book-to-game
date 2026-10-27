@@ -1349,7 +1349,7 @@ legend {
 .branch-canvas.primary .branch-canvas-viewport { min-height: 0; height: 100%; }
 .branch-canvas-viewport:active { cursor: grabbing; }
 .branch-canvas-svg { width: 100%; height: 100%; color: var(--muted); }
-.branch-edge line { stroke: color-mix(in srgb, var(--green) 55%, var(--muted)); stroke-width: 1.6; }
+.branch-edge path { stroke: color-mix(in srgb, var(--green) 55%, var(--muted)); stroke-width: 1.6; fill: none; }
 .branch-edge text { fill: var(--muted); font-size: 10px; }
 .branch-node rect {
   fill: var(--paper);
@@ -1383,8 +1383,40 @@ legend {
 .branch-canvas-banner strong { display: block; margin-bottom: 4px; color: #a33; }
 .branch-canvas-banner ul { margin: 0; padding-left: 18px; color: var(--muted); }
 .branch-canvas-banner li { margin: 2px 0; }
-.branch-edge.flagged line { stroke: #c44; stroke-width: 2.2; }
+.branch-edge.flagged path { stroke: #c44; stroke-width: 2.2; }
 .branch-edge.flagged text { fill: #a33; font-weight: 600; }
+.branch-edge.trail path { stroke: #1a7a4c; stroke-width: 2.6; }
+.branch-edge.trail text { fill: #1a7a4c; font-weight: 600; }
+.branch-edge.blocked path { stroke: color-mix(in srgb, var(--muted) 70%, transparent); stroke-width: 1.2; stroke-dasharray: 5 4; opacity: 0.55; }
+.branch-edge.blocked text { fill: var(--muted); opacity: 0.7; font-size: 9px; }
+.branch-node.play-current rect {
+  stroke: #1a7a4c;
+  stroke-width: 3;
+  fill: color-mix(in srgb, #1a7a4c 18%, var(--paper));
+  filter: drop-shadow(0 0 6px color-mix(in srgb, #1a7a4c 45%, transparent));
+}
+.branch-node.play-visited rect {
+  stroke: color-mix(in srgb, #1a7a4c 55%, var(--line));
+  fill: color-mix(in srgb, #1a7a4c 6%, var(--paper));
+}
+.play-overlay-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
+  color: #1a7a4c; background: color-mix(in srgb, #1a7a4c 14%, var(--paper));
+  border: 1px solid color-mix(in srgb, #1a7a4c 35%, var(--line));
+}
+.canvas-mode-toggle { display: inline-flex; gap: 0; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); }
+.canvas-mode-toggle button { border-radius: 0; border: 0; margin: 0; }
+.canvas-mode-toggle button.active {
+  background: color-mix(in srgb, var(--green) 16%, var(--paper));
+  color: var(--green); font-weight: 600;
+}
+.play-path-panel { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 12px; }
+.play-path-panel .branch-canvas { min-height: 320px; height: 360px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.draft-inspector.play-inspector .reader-choices { display: grid; gap: 8px; }
+.draft-inspector.play-inspector .reader-choices button {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+}
 .branch-node.flagged rect {
   stroke: #c44;
   stroke-width: 2.2;
