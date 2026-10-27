@@ -1281,15 +1281,72 @@ legend {
 }
 
 
-.branch-canvas { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1rem; }
-.branch-canvas-viewport {
-  position: relative; height: 360px; overflow: hidden; border-radius: 14px;
+.draft-workspace .section-heading { margin-bottom: 14px; }
+.draft-editor-canvas { padding: 18px 20px 22px; }
+.draft-canvas-actions { align-items: center; }
+.draft-action-cluster { display: flex; flex-wrap: wrap; gap: 8px; }
+.draft-meta-strip {
+  display: grid; gap: 12px; margin-bottom: 14px; padding: 14px 16px;
+  border: 1px solid var(--line); border-radius: 14px;
+  background: color-mix(in srgb, var(--paper) 88%, var(--line));
+}
+.draft-canvas-stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: min(72vh, 820px);
+  height: calc(100vh - 280px);
+  max-height: 900px;
   border: 1px solid var(--line);
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--paper);
+}
+.draft-canvas-stage.with-inspector { grid-template-columns: minmax(0, 1fr) minmax(320px, 420px); }
+.draft-canvas-stage > .branch-canvas { margin: 0; height: 100%; min-height: 0; border: 0; border-radius: 0; }
+.draft-inspector {
+  display: flex; flex-direction: column; min-height: 0; height: 100%;
+  border-left: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) 96%, var(--ink));
+  box-shadow: -18px 0 40px color-mix(in srgb, var(--ink) 8%, transparent);
+}
+.draft-inspector-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 12px 14px; border-bottom: 1px solid var(--line);
+}
+.draft-inspector-tabs { display: flex; gap: 4px; }
+.draft-inspector-tabs button {
+  border: 1px solid transparent; background: transparent; color: var(--muted);
+  border-radius: 999px; padding: 6px 12px; font: inherit; cursor: pointer;
+}
+.draft-inspector-tabs button.active {
+  color: var(--ink); border-color: var(--line);
+  background: color-mix(in srgb, var(--green) 12%, var(--paper));
+}
+.draft-inspector-body {
+  flex: 1; min-height: 0; overflow: auto; padding: 14px 16px 24px;
+}
+.draft-inspector-meta { gap: 14px; }
+.branch-canvas {
+  display: flex; flex-direction: column; gap: 0; margin-bottom: 1rem;
+  min-height: 0;
+}
+.branch-canvas.primary { margin-bottom: 0; height: 100%; }
+.branch-canvas-chrome {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: 12px 14px; border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) 94%, var(--line));
+}
+.branch-canvas-chrome h4 { margin: 0 0 2px; }
+.branch-canvas-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.branch-canvas-viewport {
+  position: relative; flex: 1; min-height: 360px; overflow: hidden;
   background:
     radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--muted) 28%, transparent) 1px, transparent 0) 0 0 / 24px 24px,
     color-mix(in srgb, var(--paper) 92%, var(--line));
   cursor: grab; touch-action: none;
 }
+.branch-canvas.primary .branch-canvas-viewport { min-height: 0; height: 100%; }
 .branch-canvas-viewport:active { cursor: grabbing; }
 .branch-canvas-svg { width: 100%; height: 100%; color: var(--muted); }
 .branch-edge line { stroke: color-mix(in srgb, var(--green) 55%, var(--muted)); stroke-width: 1.6; }
@@ -1307,4 +1364,24 @@ legend {
 .branch-canvas-empty {
   position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); pointer-events: none;
 }
-.scene-layout.with-canvas { margin-top: 0.5rem; }
+.branch-canvas-empty-card {
+  pointer-events: auto; max-width: 360px; text-align: center;
+  padding: 22px 24px; border-radius: 16px;
+  border: 1px dashed color-mix(in srgb, var(--muted) 55%, var(--line));
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  display: grid; gap: 10px; justify-items: center;
+}
+.branch-canvas-empty-card p { margin: 0; color: var(--muted); }
+@media (max-width: 980px) {
+  .draft-canvas-stage,
+  .draft-canvas-stage.with-inspector {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 640px;
+    max-height: none;
+  }
+  .draft-inspector {
+    border-left: 0; border-top: 1px solid var(--line);
+    max-height: 52vh; box-shadow: none;
+  }
+}

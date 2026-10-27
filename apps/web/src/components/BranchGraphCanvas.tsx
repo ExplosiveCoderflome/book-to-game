@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react';
 import type { GameContent } from '@novel-game/contracts';
 import { useI18n } from '../lib/i18n';
 
@@ -6,6 +6,8 @@ interface Props {
   content: GameContent;
   selectedSceneId?: string;
   onSelectScene: (sceneId: string) => void;
+  onAddScene?: () => void;
+  primary?: boolean;
 }
 
 interface LayoutNode {
@@ -15,9 +17,10 @@ interface LayoutNode {
 const NODE_W = 168;
 const NODE_H = 64;
 
-export function BranchGraphCanvas({ content, selectedSceneId, onSelectScene }: Props) {
+export function BranchGraphCanvas({ content, selectedSceneId, onSelectScene, onAddScene, primary = false }: Props) {
   const { t } = useI18n();
-  const [pan, setPan] = useState({ x: 40, y: 40 });
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [pan, setPan] = useState({ x: 48, y: 48 });
   const [zoom, setZoom] = useState(1);
   const drag = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
   const nodes = useMemo(() => layoutNodes(content), [content]);
@@ -41,6 +44,41 @@ export function BranchGraphCanvas({ content, selectedSceneId, onSelectScene }: P
     return list;
   }, [content, nodes]);
 
+  function fitView() {
+    const el = viewportRef.current;
+    if (!el || nodes.length === 0) {
+      setPan({ x: 48, y: 48 });
+      setZoom(1);
+      return;
+    }
+    const pad = 56;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const node of nodes) {
+      minX = Math.min(minX, node.x);
+      minY = Math.min(minY, node.y);
+      maxX = Math.max(maxX, node.x + NODE_W);
+      maxY = Math.max(maxY, node.y + NODE_H);
+    }
+    const width = Math.max(1, maxX - minX);
+    const height = Math.max(1, maxY - minY);
+    const vw = el.clientWidth;
+    const vh = el.clientHeight;
+    const nextZoom = Math.min(1.6, Math.max(0.45, Math.min((vw - pad * 2) / width, (vh - pad * 2) / height)));
+    setZoom(nextZoom);
+    setPan({
+      x: (vw - width * nextZoom) / 2 - minX * nextZoom,
+      y: (vh - height * nextZoom) / 2 - minY * nextZoom,
+    });
+  }
+
+  useEffect(() => {
+    if (!primary) return;
+    const timer = window.setTimeout(fitView, 40);
+    return () => window.clearTimeout(timer);
+    // Fit when scene set identity changes (new draft / regen), not every selection.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [primary, content.scenes.map(s => s.id).join('|'), content.startSceneId]);
+
   function onWheel(event: ReactWheelEvent<HTMLDivElement>) {
     event.preventDefault();
     const next = Math.min(2.2, Math.max(0.45, zoom * (event.deltaY > 0 ? 0.92 : 1.08)));
@@ -48,6 +86,7 @@ export function BranchGraphCanvas({ content, selectedSceneId, onSelectScene }: P
   }
   function onPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
     if ((event.target as HTMLElement).closest('[data-node]')) return;
+    if ((event.target as HTMLElement).closest('[data-canvas-ui]')) return;
     drag.current = { x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
@@ -63,12 +102,22 @@ export function BranchGraphCanvas({ content, selectedSceneId, onSelectScene }: P
     try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* ignore */ }
   }
 
-  return <div className="branch-canvas panel">
-    <div className="panel-heading">
-      <h4>{t('分支画布')}</h4>
-      <small className="hint">{t('无限画布：拖动画布平移，滚轮缩放；点击节点编辑场景。拓扑是故事真相源。')}</small>
+  return <div className={`branch-canvas${primary ? ' primary' : ''}`}>
+    <div className="branch-canvas-chrome" data-canvas-ui>
+      <div>
+        <h4>{t('分支画布')}</h4>
+        <small className="hint">{t('主编辑面：拖动画布平移，滚轮缩放；点击节点打开侧栏编辑。')}</small>
+      </div>
+      <div className="branch-canvas-toolbar">
+        <span className="hint">{t('{count} 个场景', { count: content.scenes.length })}</span>
+        {onAddScene && <button type="button" className="small" disabled={content.scenes.length >= 100} onClick={onAddScene}>{t('＋ 场景')}</button>}
+        <button type="button" className="small" onClick={() => setZoom(z => Math.min(2.2, z * 1.12))} aria-label={t('放大')}>＋</button>
+        <button type="button" className="small" onClick={() => setZoom(z => Math.max(0.45, z * 0.88))} aria-label={t('缩小')}>－</button>
+        <button type="button" className="small" onClick={fitView}>{t('适应画布')}</button>
+      </div>
     </div>
     <div
+      ref={viewportRef}
       className="branch-canvas-viewport"
       onWheel={onWheel}
       onPointerDown={onPointerDown}
@@ -103,7 +152,15 @@ export function BranchGraphCanvas({ content, selectedSceneId, onSelectScene }: P
           })}
         </g>
       </svg>
-      {!content.scenes.length && <div className="branch-canvas-empty">{t('添加场景后，这里会显示可平移缩放的分支图。')}</div>}
+      {!content.scenes.length && (
+        <div className="branch-canvas-empty">
+          <div className="branch-canvas-empty-card">
+            <strong>{t('从分支图画故事')}</strong>
+            <p>{t('先添加场景节点，再点选打开侧栏编写正文与选项。画布是主操作面。')}</p>
+            {onAddScene && <button type="button" className="primary small" onClick={onAddScene}>{t('＋ 添加第一个场景')}</button>}
+          </div>
+        </div>
+      )}
     </div>
   </div>;
 }
