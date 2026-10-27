@@ -1,5 +1,6 @@
 import type { GameContent, Scene, SourceDocument, ValidationResult } from '@novel-game/contracts';
 import { assessPlayability } from './playability.js';
+import { analyzeReachability } from './reachability.js';
 
 export function validateGame(content: GameContent, source: SourceDocument): ValidationResult {
   const errors: string[] = [];
@@ -71,7 +72,19 @@ export function validateGame(content: GameContent, source: SourceDocument): Vali
   if (new Set(endingScenes.map(scene => scene.ending!.trim())).size < 2) errors.push('至少需要两个不同的可达结局');
   if (!content.scenes.some(scene => reachable.has(scene.id) && new Set(scene.choices.map(choice => choice.targetSceneId)).size >= 2)) errors.push('至少需要一个具有不同去向的可达分支场景');
   if (content.scenes.some(scene => scene.choices.some(choice => choice.conditions?.length))) {
-    warnings.push('场景连通性检查忽略变量条件，不能证明所有选项可解锁或所有策略可到达结局，请试玩验证。');
+    const reach = analyzeReachability(content);
+    if (!reach.truncated && reach.stateEndingTexts.length < 2) {
+      errors.push(`变量条件下可达结局不足：仅 ${reach.stateEndingTexts.length} 个，至少需要 2 个不同结局`);
+    }
+    for (const id of reach.conditionBlockedEndingIds) {
+      warnings.push(`结局场景 ${id} 仅拓扑可达，变量条件实际不可达`);
+    }
+    if (reach.deadConditionalEdgeKeys.length) {
+      warnings.push(`存在从未可解锁的条件边：${reach.deadConditionalEdgeKeys.slice(0, 6).join('、')}${reach.deadConditionalEdgeKeys.length > 6 ? '…' : ''}`);
+    }
+    if (reach.truncated) {
+      warnings.push(`变量可达分析因状态空间过大被截断（已探索 ${reach.stateCount} 个状态），结果可能不完整`);
+    }
   }
   if (errors.length === 0) {
     const play = assessPlayability(content, 'publish');

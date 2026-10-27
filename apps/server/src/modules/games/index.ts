@@ -4,3 +4,4 @@ export type { GameRepository, SourceReader } from './application/ports.js';
 export type { Draft, GameRevision, GameContent, ValidationResult } from '@novel-game/contracts';
 
 export { assessPlayability, annotatePlayability, assertPlayableSkeleton, assertExpandedHonorsSkeleton } from './domain/playability.js';
+export { analyzeReachability } from './domain/reachability.js';

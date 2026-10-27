@@ -47,8 +47,9 @@ test('story conditions require every variable condition; locked choices stay pri
   const db = new Database(':memory:');
   try {
     const {games, draft, sessions, view} = start(db);
-    assert.equal(games.validate(draft.id).valid, true);
-    assert.match(games.validate(draft.id).warnings.join(''), /条件.*试玩/);
+    const validated = games.validate(draft.id);
+    assert.equal(validated.valid, true);
+    assert.ok(!validated.warnings.some(w => /仅拓扑可达|从未可解锁/.test(w)), validated.warnings.join(';'));
     assert.deepEqual(view.variables, {courage: 0, clue: false, role: 'visitor'});
     assert.deepEqual(view.scene.choices.map(choice => choice.id), ['train', 'search', 'leave']);
     for (const secret of ['targetSceneId', 'conditions', 'effects', '出示通行证']) assert.equal(JSON.stringify(view).includes(secret), false);
@@ -156,6 +157,7 @@ test('story contracts reject nonfinite numbers and runtime overflow leaves varia
   const db = new Database(':memory:');
   try {
     const game = content(); game.variables!.courage = Number.MAX_VALUE;
+    game.variables!.clue = true; game.variables!.role = 'scout';
     game.scenes[0].choices[0].effects![0].value = Number.MAX_VALUE;
     const {sessions, view} = start(db, game); const input = action('train', 0);
     assert.throws(() => sessions.act(view.id, input), code('INVALID_VARIABLE_STATE'));

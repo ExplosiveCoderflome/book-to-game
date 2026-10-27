@@ -121,3 +121,10 @@ export {
   assessPlayability, annotatePlayability, collectPlayabilityIssues,
   type PlayabilityMode, type PlayabilityIssue, type PlayabilityAnnotation, type PlayabilityGraph, type PlayabilityResult,
 } from './playability.js';
+
+export {
+  analyzeReachability, choiceAvailable as reachChoiceAvailable, applyChoiceEffects as reachApplyEffects,
+  type ReachabilityGraph, type ReachabilityReport, type ReachChoice, type ReachScene,
+  type ReachCondition, type ReachEffect, type ReachVarValue,
+} from './reachability.js';
+

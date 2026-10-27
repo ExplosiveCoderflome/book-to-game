@@ -1,5 +1,7 @@
 /** Pure story-graph playability checks shared by server gates and the canvas UI. */
 
+import { analyzeReachability, type ReachabilityGraph } from './reachability.js';
+
 export type PlayabilityMode = 'publish' | 'skeleton' | 'generated';
 
 export interface PlayabilityIssue {
@@ -47,8 +49,8 @@ export function annotatePlayability(content: PlayabilityGraph, mode: Playability
   const issues = collectPlayabilityIssues(content, mode);
   const errors = issues.filter(i => i.severity === 'error').map(i => i.message);
   const warnings = issues.filter(i => i.severity === 'warning').map(i => i.message);
-  const flaggedSceneIds = [...new Set(issues.filter(i => i.severity === 'error' || i.code === 'CORRIDOR' || i.code === 'CHURN' || i.code === 'OPENING_FANOUT' || i.code === 'OPENING_DENSITY' || i.code === 'FAKE_BRANCH' || i.code === 'TOO_SHALLOW' || i.code === 'EMPTY_LABELS').flatMap(i => i.sceneIds ?? []))];
-  const flaggedEdgeKeys = [...new Set(issues.filter(i => i.severity === 'error' || i.code === 'CORRIDOR' || i.code === 'CHURN' || i.code === 'FAKE_BRANCH' || i.code === 'EMPTY_LABELS' || i.code === 'OPENING_FANOUT').flatMap(i => i.edgeKeys ?? []))];
+  const flaggedSceneIds = [...new Set(issues.filter(i => i.severity === 'error' || i.code === 'CORRIDOR' || i.code === 'CHURN' || i.code === 'OPENING_FANOUT' || i.code === 'OPENING_DENSITY' || i.code === 'FAKE_BRANCH' || i.code === 'TOO_SHALLOW' || i.code === 'EMPTY_LABELS' || i.code === 'CONDITION_BLOCKED_ENDING' || i.code === 'FEW_STATE_ENDINGS' || i.code === 'DEAD_CONDITIONAL_EDGE').flatMap(i => i.sceneIds ?? []))];
+  const flaggedEdgeKeys = [...new Set(issues.filter(i => i.severity === 'error' || i.code === 'CORRIDOR' || i.code === 'CHURN' || i.code === 'FAKE_BRANCH' || i.code === 'EMPTY_LABELS' || i.code === 'OPENING_FANOUT' || i.code === 'CONDITION_BLOCKED_ENDING' || i.code === 'DEAD_CONDITIONAL_EDGE' || i.code === 'FEW_STATE_ENDINGS').flatMap(i => i.edgeKeys ?? []))];
   return { result: { valid: errors.length === 0, errors, warnings }, issues, flaggedSceneIds, flaggedEdgeKeys };
 }
 
@@ -245,12 +247,47 @@ export function collectPlayabilityIssues(content: PlayabilityGraph, mode: Playab
     });
   }
 
-  if (scenes.some(scene => scene.choices.some(choice => choice.conditions?.length))) {
-    issues.push({
-      code: 'CONDITIONS_IGNORED',
-      message: '可玩性路径统计忽略变量条件（TODO: games/domain/reachability.ts），请试玩验证条件分支。',
-      severity: 'warning',
-    });
+  const hasConditions = scenes.some(scene => scene.choices.some(choice => (choice.conditions?.length ?? 0) > 0));
+  if (hasConditions) {
+    const reach = analyzeReachability(content as ReachabilityGraph);
+    if (reach.conditionBlockedEndingIds.length) {
+      issues.push({
+        code: 'CONDITION_BLOCKED_ENDING',
+        message: `有 ${reach.conditionBlockedEndingIds.length} 个结局仅拓扑可达、变量条件实际不可达：${reach.conditionBlockedEndingIds.join('、')}`,
+        severity: mode === 'publish' ? 'warning' : 'error',
+        sceneIds: reach.conditionBlockedEndingIds,
+        edgeKeys: reach.deadConditionalEdgeKeys,
+      });
+    }
+    if (!reach.truncated && reach.stateEndingTexts.length < 2) {
+      issues.push({
+        code: 'FEW_STATE_ENDINGS',
+        message: `变量可达结局不足：当前 ${reach.stateEndingTexts.length} 个，至少需要 2 个不同结局（在合法选择序列下）`,
+        severity: 'error',
+        sceneIds: reach.conditionBlockedEndingIds.length
+          ? [...reach.stateEndingIds, ...reach.conditionBlockedEndingIds]
+          : endings.map(s => s.id),
+        edgeKeys: reach.deadConditionalEdgeKeys,
+      });
+    }
+    if (reach.deadConditionalEdgeKeys.length && reach.conditionBlockedEndingIds.length === 0) {
+      const dead = reach.deadConditionalEdgeKeys;
+      const sceneIds = [...new Set(dead.map(key => key.split(':')[0]!).filter(Boolean))];
+      issues.push({
+        code: 'DEAD_CONDITIONAL_EDGE',
+        message: `有 ${dead.length} 条条件边从未可解锁：${dead.slice(0, 4).join('、')}${dead.length > 4 ? '…' : ''}`,
+        severity: 'warning',
+        sceneIds,
+        edgeKeys: dead,
+      });
+    }
+    if (reach.truncated) {
+      issues.push({
+        code: 'REACHABILITY_TRUNCATED',
+        message: `变量可达分析因状态空间过大被截断（已探索 ${reach.stateCount} 个状态），结果可能不完整`,
+        severity: 'warning',
+      });
+    }
   }
 
   if (endings.length >= 2) {
