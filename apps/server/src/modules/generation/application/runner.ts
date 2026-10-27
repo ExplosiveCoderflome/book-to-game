@@ -86,6 +86,8 @@ export class GenerationRunner {
             assertPlayableSkeleton(draft);
             return draft;
           });
+          if (!this.repository.saveSkeleton(job.id, owner, skeleton)) return true;
+          this.logger?.info('generation.skeleton.saved', {jobId: job.id, requestId: job.requestId, scenes: skeleton.scenes.length});
           step = 'expand_scenes';
           this.logger?.info('generation.output.started', {jobId: job.id, requestId: job.requestId, mode: 'story', step});
           content = await this.withRepair(step, signal, context, async feedback => {

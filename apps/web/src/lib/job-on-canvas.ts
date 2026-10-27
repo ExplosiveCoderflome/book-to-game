@@ -6,38 +6,46 @@ export type JobStageChip = {
   state: 'done' | 'active' | 'pending';
 };
 
-const STAGE_ORDER = ['queued', 'analyze', 'design', 'draft'] as const;
+const STAGE_ORDER = ['queued', 'analyze', 'skeleton', 'expand', 'draft'] as const;
 
 /** Map job.stage / status into coarse chips for the canvas strip. */
-export function jobStageChips(job: Pick<GenerationJob, 'status' | 'stage' | 'progress' | 'mode'>): JobStageChip[] {
+export function jobStageChips(job: Pick<GenerationJob, 'status' | 'stage' | 'progress' | 'mode' | 'skeleton'>): JobStageChip[] {
   const stage = job.stage || '';
   let current: (typeof STAGE_ORDER)[number] =
     job.status === 'queued' ? 'queued'
       : job.status === 'succeeded' ? 'draft'
         : /分析/.test(stage) ? 'analyze'
-          : /设计|分支|开放|世界|冒险/.test(stage) ? 'design'
-            : /草稿|完成/.test(stage) ? 'draft'
-              : job.progress >= 0.85 ? 'design'
-                : job.progress > 0 ? 'analyze'
-                  : 'queued';
+          : /扩展|写正文|正文/.test(stage) || (/骨架已锁定/.test(stage)) ? 'expand'
+            : /骨架|设计分支|设计冒险/.test(stage) || (job.skeleton && /设计/.test(stage)) ? 'skeleton'
+              : /设计|开放|世界|冒险/.test(stage) ? (job.mode === 'open' ? 'skeleton' : 'skeleton')
+                : /草稿|完成/.test(stage) ? 'draft'
+                  : job.skeleton ? 'expand'
+                    : job.progress >= 0.9 ? 'expand'
+                      : job.progress >= 0.85 ? 'skeleton'
+                        : job.progress > 0 ? 'analyze'
+                          : 'queued';
   if (job.status === 'failed' || job.status === 'cancelled') {
     // keep estimated current for context
   }
   const labels: Record<(typeof STAGE_ORDER)[number], string> = {
     queued: '排队',
     analyze: '分析原文',
-    design: job.mode === 'open' ? '设计世界' : '设计分支',
+    skeleton: job.mode === 'open' ? '设计世界' : '锁定骨架',
+    expand: '写正文',
     draft: '写入草稿',
   };
   const idx = STAGE_ORDER.indexOf(current);
-  return STAGE_ORDER.map((id, i) => ({
-    id,
-    label: labels[id],
-    state: job.status === 'succeeded' ? 'done'
-      : i < idx ? 'done'
-        : i === idx ? (job.status === 'failed' || job.status === 'cancelled' ? 'active' : 'active')
-          : 'pending',
-  }));
+  return STAGE_ORDER.filter(id => job.mode === 'open' ? id !== 'expand' : true).map((id) => {
+    const order = STAGE_ORDER.indexOf(id);
+    return {
+      id,
+      label: labels[id],
+      state: job.status === 'succeeded' ? 'done'
+        : order < idx ? 'done'
+          : order === idx ? 'active'
+            : 'pending',
+    };
+  });
 }
 
 /** Prefer active story job for this source; else latest succeeded with draftId; else latest related. */

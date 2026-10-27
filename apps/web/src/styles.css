@@ -1461,6 +1461,24 @@ legend {
 .gen-stage-chip.active { color: #1f4fbf; border-color: color-mix(in srgb, #2f6fed 45%, var(--line)); background: color-mix(in srgb, #2f6fed 12%, var(--paper)); font-weight: 600; }
 .branch-canvas-gen-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
+.branch-canvas.skeleton-placeholder .branch-node rect {
+  stroke-dasharray: 5 4;
+  stroke: color-mix(in srgb, #2f6fed 55%, var(--line));
+  fill: color-mix(in srgb, #2f6fed 8%, var(--paper));
+}
+.branch-canvas.skeleton-placeholder .branch-edge path {
+  stroke-dasharray: 6 4;
+  opacity: 0.85;
+}
+.branch-canvas-skeleton-banner {
+  padding: 8px 14px;
+  border-bottom: 1px dashed color-mix(in srgb, #2f6fed 45%, var(--line));
+  background: color-mix(in srgb, #2f6fed 7%, var(--paper));
+  display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline;
+}
+.branch-canvas-skeleton-banner strong { color: #1f4fbf; font-size: 13px; }
+
+
 .canvas-mode-toggle { display: inline-flex; gap: 0; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); }
 .canvas-mode-toggle button { border-radius: 0; border: 0; margin: 0; }
 .canvas-mode-toggle button.active {

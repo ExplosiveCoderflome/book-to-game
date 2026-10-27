@@ -6,16 +6,22 @@ import { jobProgressLabel, jobStageChips, relevantStoryJob } from '../src/lib/jo
 function job(partial: Partial<GenerationJob> & Pick<GenerationJob, 'id' | 'status' | 'stage'>): GenerationJob {
   return {
     sourceId: 'src', progress: 0, completedChunks: 0, totalChunks: 4,
-    error: null, draftId: null, analysis: null, createdAt: '2026-01-01T00:00:00Z',
+    error: null, draftId: null, analysis: null, skeleton: null, createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z', mode: 'story',
     ...partial,
   };
 }
 
-test('jobStageChips tracks analyze → design → draft', () => {
+test('jobStageChips tracks analyze → skeleton → expand → draft', () => {
   const chips = jobStageChips(job({ id: '1', status: 'running', stage: '分析小说 2/4', progress: 0.4 }));
   assert.equal(chips.find(c => c.id === 'analyze')?.state, 'active');
-  assert.equal(chips.find(c => c.id === 'design')?.state, 'pending');
+  assert.equal(chips.find(c => c.id === 'skeleton')?.state, 'pending');
+  const expanding = jobStageChips(job({
+    id: '1', status: 'running', stage: '骨架已锁定，正在写正文', progress: 0.9,
+    skeleton: { title: 't', mode: 'story', premise: 'p', adaptationNotes: 'n', startSceneId: 'a', scenes: [] as never },
+  }));
+  assert.equal(expanding.find(c => c.id === 'skeleton')?.state, 'done');
+  assert.equal(expanding.find(c => c.id === 'expand')?.state, 'active');
   const done = jobStageChips(job({ id: '1', status: 'succeeded', stage: '草稿已生成', progress: 1, draftId: 'd1' }));
   assert.ok(done.every(c => c.state === 'done'));
 });

@@ -86,7 +86,10 @@ export interface JobFailure {
 export interface GenerationJob {
   id: string; sourceId: string; status: JobStatus; stage: string; progress: number;
   completedChunks: number; totalChunks: number; error: string | null; draftId: string | null;
-  analysis: AnalysisResult | null; createdAt: string; updatedAt: string;
+  analysis: AnalysisResult | null;
+  /** Locked story skeleton after generate_skeleton; exposed for mid-job canvas placeholders. */
+  skeleton?: BranchSkeleton | null;
+  createdAt: string; updatedAt: string;
   mode?: 'story' | 'open'; chapterIds?: string[]; playerRole?: string; canonPolicy?: 'faithful' | 'divergent'; direction?: string;
   failure?: JobFailure | null;
 }

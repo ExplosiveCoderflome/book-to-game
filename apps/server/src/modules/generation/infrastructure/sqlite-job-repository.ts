@@ -1,6 +1,6 @@
 import type { SqliteDatabase } from '../../../platform/database.js';
 import { randomUUID } from 'node:crypto';
-import type { Analysis, AnalysisResult, GenerationInput, JobFailure } from '@novel-game/contracts';
+import type { Analysis, AnalysisResult, BranchSkeleton, GenerationInput, JobFailure } from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
 import { formatJobError } from '../domain/failure.js';
 import type { JobRepository, StoredJob } from '../domain/ports.js';
@@ -35,7 +35,7 @@ export class SqliteJobRepository implements JobRepository {
       }
       const at = new Date().toISOString();
       const job: StoredJob = {...input, id: randomUUID(), status: 'queued', stage: '等待分析', progress: 0,
-        completedChunks: 0, totalChunks, error: null, draftId: null, analysis: null, checkpoints: [], createdAt: at, updatedAt: at};
+        completedChunks: 0, totalChunks, error: null, draftId: null, analysis: null, skeleton: null, checkpoints: [], createdAt: at, updatedAt: at};
       this.db.prepare('INSERT INTO generation_jobs(id,request_id,fingerprint,status,payload) VALUES(?,?,?,?,?)')
         .run(job.id, input.requestId, fingerprint, job.status, JSON.stringify(job));
       return job;
@@ -53,7 +53,7 @@ export class SqliteJobRepository implements JobRepository {
       const row = this.row(id); const job: StoredJob = JSON.parse(row.payload);
       if (operation === 'retry') {
         if (!['failed', 'cancelled'].includes(job.status)) throw new AppError('JOB_STATE_CONFLICT', '只有失败或取消的任务可以重试', 409);
-        job.status = 'queued'; job.error = null; job.failure = null; job.stage = '等待恢复';
+        job.status = 'queued'; job.error = null; job.failure = null; job.stage = '等待恢复'; job.skeleton = null;
       } else {
         if (job.status === 'succeeded') throw new AppError('JOB_STATE_CONFLICT', '任务已完成，无法取消', 409);
         job.status = 'cancelled'; job.stage = '已取消';
@@ -94,6 +94,13 @@ export class SqliteJobRepository implements JobRepository {
   }
   saveAnalysis(id: string, owner: string, analysis: AnalysisResult): boolean {
     return this.owned(id, owner, job => {job.analysis = analysis; job.progress = 0.85; job.stage = job.mode === 'open' ? '设计开放世界' : '设计分支冒险';});
+  }
+  saveSkeleton(id: string, owner: string, skeleton: BranchSkeleton): boolean {
+    return this.owned(id, owner, job => {
+      job.skeleton = skeleton;
+      job.progress = Math.max(job.progress, 0.9);
+      job.stage = '骨架已锁定，正在写正文';
+    });
   }
   completeWith(id: string, owner: string, createDraft: () => string): boolean {
     return this.owned(id, owner, job => {

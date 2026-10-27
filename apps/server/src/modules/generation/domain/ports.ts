@@ -18,6 +18,7 @@ export interface JobRepository {
   heartbeat(id: string, owner: string, now: number, leaseMs: number): boolean;
   saveChunk(id: string, owner: string, index: number, analysis: Analysis): boolean;
   saveAnalysis(id: string, owner: string, analysis: AnalysisResult): boolean;
+  saveSkeleton(id: string, owner: string, skeleton: BranchSkeleton): boolean;
   completeWith(id: string, owner: string, createDraft: () => string): boolean;
   fail(id: string, owner: string, failure: string | JobFailure): void;
 }

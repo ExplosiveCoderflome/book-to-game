@@ -24,6 +24,8 @@ interface Props {
   generationJob?: GenerationJob | null;
   onOpenGenerationDraft?: () => void;
   onWatchGeneration?: () => void;
+  /** Mid-job locked skeleton shown as read-only placeholder graph. */
+  skeletonPlaceholder?: boolean;
 }
 
 interface LayoutNode {
@@ -36,7 +38,7 @@ const NODE_H = 64;
 export function BranchGraphCanvas({
   content, selectedSceneId, onSelectScene, onAddScene, onLayoutChange, onConnectScenes, onDisconnectEdge,
   primary = false, playabilityMode = 'publish', playOverlay = null, readOnly = false,
-  generationJob = null, onOpenGenerationDraft, onWatchGeneration,
+  generationJob = null, onOpenGenerationDraft, onWatchGeneration, skeletonPlaceholder = false,
 }: Props) {
   const { t } = useI18n();
   const markerPrefix = useId().replace(/:/g, '');
@@ -238,7 +240,7 @@ export function BranchGraphCanvas({
     try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* ignore */ }
   }
 
-  return <div className={`branch-canvas${primary ? ' primary' : ''}`}>
+  return <div className={`branch-canvas${primary ? ' primary' : ''}${skeletonPlaceholder ? ' skeleton-placeholder' : ''}`}>
     <div className="branch-canvas-chrome" data-canvas-ui>
       <div>
         <h4>{t('分支画布')}</h4>
@@ -277,7 +279,13 @@ export function BranchGraphCanvas({
     {generationJob && (
       <div className={`branch-canvas-gen${generationJob.status === 'failed' ? ' failed' : generationJob.status === 'succeeded' ? ' succeeded' : ' active'}`} data-canvas-ui data-testid="canvas-gen-strip" role="status">
         <div className="branch-canvas-gen-head">
-          <strong>{t(generationJob.status === 'succeeded' ? '生成已完成' : generationJob.status === 'failed' ? '生成失败' : generationJob.status === 'cancelled' ? '生成已取消' : '正在生成到画布')}</strong>
+          <strong>{t(
+            generationJob.status === 'succeeded' ? '生成已完成'
+              : generationJob.status === 'failed' ? '生成失败'
+                : generationJob.status === 'cancelled' ? '生成已取消'
+                  : skeletonPlaceholder ? '生成中 · 骨架占位'
+                    : '正在生成到画布'
+          )}</strong>
           <span className="hint">{generationJob.stage || t('准备中')} · {jobProgressLabel(generationJob)}</span>
         </div>
         <div className="gen-stage-chips" aria-label={t('生成阶段')}>
@@ -297,6 +305,13 @@ export function BranchGraphCanvas({
             <button type="button" className="small" onClick={onWatchGeneration}>{t('前往重试')}</button>
           )}
         </div>
+      </div>
+    )}
+
+    {skeletonPlaceholder && (
+      <div className="branch-canvas-skeleton-banner" data-canvas-ui data-testid="canvas-skeleton-placeholder" role="status">
+        <strong>{t('骨架占位（只读）')}</strong>
+        <span className="hint">{t('分支结构已锁定，正在生成场景正文；完成后将替换为可编辑草稿。仅显示显式选择边。')}</span>
       </div>
     )}
     {bannerIssues.length > 0 && (
@@ -388,14 +403,15 @@ export function BranchGraphCanvas({
               data-node-id={node.id}
               data-play-current={isCurrent ? 'true' : undefined}
               data-play-visited={visited ? 'true' : undefined}
+              data-skeleton={skeletonPlaceholder ? 'true' : undefined}
               transform={`translate(${node.x} ${node.y})`}
-              className={`branch-node${selected ? ' selected' : ''}${node.ending ? ' ending' : ''}${node.isStart ? ' start' : ''}${flagged ? ' flagged' : ''}${connecting ? ' connecting' : ''}${isCurrent ? ' play-current' : ''}${visited && !isCurrent ? ' play-visited' : ''}`}
+              className={`branch-node${selected ? ' selected' : ''}${node.ending ? ' ending' : ''}${node.isStart ? ' start' : ''}${flagged ? ' flagged' : ''}${connecting ? ' connecting' : ''}${isCurrent ? ' play-current' : ''}${visited && !isCurrent ? ' play-visited' : ''}${skeletonPlaceholder ? ' skeleton' : ''}`}
               style={{ cursor: readOnly ? 'pointer' : 'grab' }}
             >
               <rect width={NODE_W} height={NODE_H} rx="10" ry="10" />
               <text x={12} y={24} className="branch-node-title">{truncate(node.title || node.id, 14)}</text>
               <text x={12} y={44} className="branch-node-meta">
-                {isCurrent ? t('当前场景') : flagged ? t('需关注') : node.isStart ? t('入口') : node.ending ? t('结局') : t('{count} 个选择', { count: node.choiceCount })}
+                {skeletonPlaceholder ? t('骨架') : isCurrent ? t('当前场景') : flagged ? t('需关注') : node.isStart ? t('入口') : node.ending ? t('结局') : t('{count} 个选择', { count: node.choiceCount })}
               </text>
             </g>;
           })}

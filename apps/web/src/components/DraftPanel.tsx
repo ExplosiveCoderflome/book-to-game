@@ -3,6 +3,7 @@ import { gameContentSchema, type CanvasLayout, type Draft, type GameContent, typ
 import { errorMessage, request, RequestError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { relevantStoryJob } from '../lib/job-on-canvas';
+import { shouldShowSkeletonPlaceholder, skeletonToCanvasContent } from '../lib/skeleton-placeholder';
 import { playOverlayFromSession } from '../lib/play-overlay';
 import { Empty, Notice } from './Notice';
 import { BranchGraphCanvas } from './BranchGraphCanvas';
@@ -146,6 +147,12 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
     () => relevantStoryJob(jobs, { sourceId: draft?.sourceId ?? (sourceId || null), draftId: draft?.id ?? (selectedId || null) }),
     [jobs, draft?.sourceId, draft?.id, sourceId, selectedId],
   );
+  const skeletonPlaceholder = shouldShowSkeletonPlaceholder(generationJob, { dirty, jsonMode, canvasMode });
+  const canvasGraphContent = useMemo(() => {
+    if (skeletonPlaceholder && generationJob?.skeleton) return skeletonToCanvasContent(generationJob.skeleton);
+    if (canvasMode === 'play' && latestRevision) return latestRevision.content;
+    return content;
+  }, [skeletonPlaceholder, generationJob?.skeleton, canvasMode, latestRevision, content]);
 
   useEffect(() => {
     if (canvasMode !== 'play' || !latestRevision) return;
@@ -229,16 +236,17 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
         <div className={`draft-canvas-stage${(inspectorOpen || canvasMode === 'play') ? ' with-inspector' : ''}${canvasMode === 'play' ? ' play-mode' : ''}`}>
           <BranchGraphCanvas
             primary
-            content={canvasMode === 'play' && latestRevision ? latestRevision.content : content}
-            selectedSceneId={canvasMode === 'play' ? (playSession?.scene.id) : (inspectorOpen ? scene?.id : undefined)}
-            onSelectScene={canvasMode === 'play' ? (() => {}) : selectScene}
-            onAddScene={canvasMode === 'play' ? undefined : addScene}
-            onLayoutChange={canvasMode === 'play' ? undefined : updateLayout}
-            onConnectScenes={canvasMode === 'play' ? undefined : connectScenes}
-            onDisconnectEdge={canvasMode === 'play' ? undefined : disconnectEdge}
-            playabilityMode="publish"
+            content={canvasGraphContent}
+            selectedSceneId={skeletonPlaceholder ? undefined : (canvasMode === 'play' ? (playSession?.scene.id) : (inspectorOpen ? scene?.id : undefined))}
+            onSelectScene={skeletonPlaceholder || canvasMode === 'play' ? (() => {}) : selectScene}
+            onAddScene={skeletonPlaceholder || canvasMode === 'play' ? undefined : addScene}
+            onLayoutChange={skeletonPlaceholder || canvasMode === 'play' ? undefined : updateLayout}
+            onConnectScenes={skeletonPlaceholder || canvasMode === 'play' ? undefined : connectScenes}
+            onDisconnectEdge={skeletonPlaceholder || canvasMode === 'play' ? undefined : disconnectEdge}
+            playabilityMode={skeletonPlaceholder ? 'skeleton' : 'publish'}
             playOverlay={canvasMode === 'play' ? playOverlay : null}
-            readOnly={canvasMode === 'play'}
+            readOnly={skeletonPlaceholder || canvasMode === 'play'}
+            skeletonPlaceholder={skeletonPlaceholder}
             generationJob={canvasMode === 'edit' ? generationJob : null}
             onOpenGenerationDraft={generationJob?.draftId ? (() => select(generationJob.draftId!)) : undefined}
             onWatchGeneration={onOpenGeneration}
