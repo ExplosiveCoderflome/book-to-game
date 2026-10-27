@@ -1,14 +1,8 @@
 import type { Choice, StoryEffect, VariableValue, Worldbook } from '@novel-game/contracts';
-import {
-  reachApplyEffects,
-  reachChoiceAvailable,
-  worldbookBlockReason,
-  worldbookIncrementCap,
-  worldbookSpendsForChoice,
-} from '@novel-game/contracts';
+import {reachApplyEffects, reachChoiceAvailable, worldbookBlockReason, worldbookIncrementCap, worldbookSpendsForChoice} from '@novel-game/rules';
 import { AppError } from '../../../shared/errors.js';
 
-/** Pure variable conditions — authority lives in contracts.reachability. */
+/** Pure variable conditions — authority lives in @novel-game/rules (reachability). */
 export function choiceAvailable(choice: Choice, variables: Record<string, VariableValue>): boolean {
   return reachChoiceAvailable(choice, variables);
 }

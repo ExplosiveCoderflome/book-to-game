@@ -1,5 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react';
-import { annotatePlayability, type CanvasLayout, type GameContent, type GenerationJob, type PlayabilityAnnotation } from '@novel-game/contracts';
+import {type CanvasLayout, type GameContent, type GenerationJob} from '@novel-game/contracts';
+import {annotatePlayability} from '@novel-game/rules';
+import type {PlayabilityAnnotation} from '@novel-game/rules';
 import { useI18n } from '../lib/i18n';
 import { summarizeChoice } from '../lib/edge-summary';
 import { edgeCurve } from '../lib/graph-curve';

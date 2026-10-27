@@ -23,8 +23,8 @@ function scan(directory: string): FileImports[] {
     return [{file, imports}];
   });
 }
-const files = [...scan('apps/server/src'), ...scan('apps/web/src')];
+const files = [...scan('apps/server/src'), ...scan('apps/web/src'), ...scan('packages')];
 const errors = checkImports(files);
 for (const file of files.filter(f => f.imports.includes('UNRESOLVED_DYNAMIC_IMPORT'))) errors.push(`${file.file}: 动态导入需使用可检查的常量路径`);
 if (errors.length) {console.error(errors.join('\n')); process.exitCode = 1;}
-else console.log(`Architecture OK: checked ${files.length} source files; core isolation, module public APIs and cycles.`);
+else console.log(`Architecture OK: checked ${files.length} source files; core isolation, packages purity, module public APIs and cycles.`);

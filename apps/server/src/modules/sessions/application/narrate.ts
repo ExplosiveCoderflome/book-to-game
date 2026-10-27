@@ -1,10 +1,5 @@
-import {
-  entriesForScene,
-  narrateInputSchema,
-  type NarrateInput,
-  type NarrateResult,
-  type SessionView,
-} from '@novel-game/contracts';
+import {narrateInputSchema, type NarrateInput, type NarrateResult, type SessionView} from '@novel-game/contracts';
+import {entriesForScene} from '@novel-game/rules';
 import { AppError } from '../../../shared/errors.js';
 import type { RevisionReader } from './ports.js';
 import type { SessionService } from './session-service.js';

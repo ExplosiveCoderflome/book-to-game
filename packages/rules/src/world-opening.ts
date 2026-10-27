@@ -1,6 +1,6 @@
 /** Opening action density & initial-state condition matching for open worlds. */
 
-import { SYSTEM_WAIT_ACTION_ID, type WorldCondition, type WorldContent } from './world.js';
+import { SYSTEM_WAIT_ACTION_ID, type WorldCondition, type WorldContent } from '@novel-game/contracts';
 
 /** Minimal snapshot for WorldCondition matching (opening eval + adventure runtime). */
 export type WorldConditionState = {

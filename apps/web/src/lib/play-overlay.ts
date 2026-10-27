@@ -1,5 +1,5 @@
 import type { Choice, GameContent, SessionView, VariableValue } from '@novel-game/contracts';
-import { reachChoiceAvailable as choiceAvailable } from '@novel-game/contracts';
+import {reachChoiceAvailable as choiceAvailable} from '@novel-game/rules';
 
 export { choiceAvailable };
 

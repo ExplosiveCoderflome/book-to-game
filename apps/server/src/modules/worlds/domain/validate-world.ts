@@ -1,4 +1,5 @@
-import { SYSTEM_WAIT_ACTION_ID, assessOpeningActions, validateWorldbookContent, type WorldContent, type WorldCondition, type WorldEffect, type SourceDocument, type ValidationResult } from '@novel-game/contracts';
+import {SYSTEM_WAIT_ACTION_ID, validateWorldbookContent, type WorldContent, type WorldCondition, type WorldEffect, type SourceDocument, type ValidationResult} from '@novel-game/contracts';
+import {assessOpeningActions} from '@novel-game/rules';
 export function validateWorld(world: WorldContent, source: SourceDocument): ValidationResult {
   const errors: string[] = []; const warnings: string[] = [];
   function ids(entries: {id: string}[], category: string): Set<string> {

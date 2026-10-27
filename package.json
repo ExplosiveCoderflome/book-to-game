@@ -3,8 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "workspaces": ["apps/web", "packages/contracts"],
-  "engines": {"node": ">=24.0.0"},
+  "workspaces": [
+    "apps/web",
+    "packages/contracts",
+    "packages/rules"
+  ],
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "scripts": {
     "dev": "concurrently -k -n api,worker,web \"npm:dev:api\" \"npm:dev:worker\" \"npm:dev:web\"",
     "dev:api": "tsx watch --env-file-if-exists=.env apps/server/src/main.ts",
@@ -24,7 +30,8 @@
     "@novel-game/contracts": "*",
     "express": "5.3.0",
     "iconv-lite": "0.7.3",
-    "zod": "4.6.5"
+    "zod": "4.6.5",
+    "@novel-game/rules": "*"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

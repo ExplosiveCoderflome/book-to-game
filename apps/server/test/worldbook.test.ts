@@ -1,12 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import {
-  gameContentSchema,
-  validateWorldbookContent,
-  worldbookBlockReason,
-  worldbookIncrementCap,
-  type GameContent,
-} from '@novel-game/contracts';
+import {gameContentSchema, validateWorldbookContent, type GameContent} from '@novel-game/contracts';
+import {worldbookBlockReason, worldbookIncrementCap} from '@novel-game/rules';
 import { validateGame } from '../src/modules/games/domain/validate-game.js';
 import { applyChoiceEffects, choiceAllowed } from '../src/modules/sessions/domain/story-variables.js';
 import { projectSession } from '../src/modules/sessions/domain/project-session.js';

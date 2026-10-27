@@ -8,6 +8,7 @@ export function checkImports(files: FileImports[]): string[] {
     /\/apps\/server\/src\/(app|adapters)\//.test(`/${file}`)
     || file.startsWith('apps/server/src/app/')
     || file.startsWith('apps/server/src/adapters/');
+  const packageFramework = /^(express(?:\/|$)|react(?:\/|$)|react-dom(?:\/|$)|better-sqlite3$|@modelcontextprotocol\/|node:(sqlite|fs|http|https|net)(\/|$))/;
   for (const entry of files) {
     const file = entry.file.replaceAll('\\', '/');
     const own = moduleOf(file);
@@ -18,6 +19,14 @@ export function checkImports(files: FileImports[]): string[] {
       if (/\/modules\/[^/]+\/(domain|application)\//.test(file) &&
         (/^(express(?:\/|$)|better-sqlite3$|@modelcontextprotocol\/|node:(sqlite|fs|http|https|net)(\/|$))/.test(specifier) ||
           /\/(infrastructure|platform|adapters)\//.test(target))) errors.push(`${file}: 核心层禁止依赖 ${specifier}`);
+      // Shared packages stay pure: no React / Express / SQL / MCP.
+      if (file.startsWith('packages/') && packageFramework.test(specifier)) {
+        errors.push(`${file}: packages 禁止依赖 ${specifier}`);
+      }
+      // contracts = schema/DTO only; must not depend on rules engines.
+      if (file.startsWith('packages/contracts/') && (specifier === '@novel-game/rules' || /packages\/rules\//.test(target))) {
+        errors.push(`${file}: contracts 禁止依赖 rules（schema 不得反向依赖求值引擎）`);
+      }
       const other = moduleOf(target);
       if (own && other && own !== other) {
         if (!/\/index\.(js|ts)$/.test(target)) errors.push(`${file}: 禁止引用模块 ${other} 内部 ${specifier}`);

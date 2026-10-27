@@ -2,10 +2,7 @@ import { z } from 'zod';
 export * from './world.js';
 export {
   worldbookSchema, worldbookEntrySchema, worldbookConstraintSchema, worldbookEntryKindSchema,
-  worldbookScopeSchema, emptyWorldbook, entryAppliesToScene, entryAppliesToLocation,
-  entriesForScene, entriesForPlace,
-  worldbookBlockReason, worldbookIncrementCap, worldbookSpendsForChoice, mergeTakenTags,
-  validateWorldbookContent,
+  worldbookScopeSchema, emptyWorldbook, validateWorldbookContent,
   type Worldbook, type WorldbookEntry, type WorldbookConstraint, type WorldbookEntryKind, type WorldbookScope,
   type WorldbookPlaceKind,
 } from './worldbook.js';
@@ -175,16 +172,7 @@ export const extendDraftSceneInputSchema = z.object({
 });
 export type ExtendDraftSceneInput = z.infer<typeof extendDraftSceneInputSchema>;
 
-export {
-  assessPlayability, annotatePlayability, collectPlayabilityIssues, normalizeEndingText, endingTextSimilarity,
-  type PlayabilityMode, type PlayabilityIssue, type PlayabilityAnnotation, type PlayabilityGraph, type PlayabilityResult,
-} from './playability.js';
 
-export {
-  analyzeReachability, choiceAvailable as reachChoiceAvailable, applyChoiceEffects as reachApplyEffects,
-  type ReachabilityGraph, type ReachabilityReport, type ReachChoice, type ReachScene,
-  type ReachCondition, type ReachEffect, type ReachVarValue,
-} from './reachability.js';
 
 export {
   proposeCandidateSchema, proposeActModelOutputSchema, proposeActInputSchema, proposeActResultSchema,
@@ -204,8 +192,4 @@ export {
   type FillSceneTextModelOutput, type FillSceneTextInput, type FillSceneTextResult,
 } from './fill-scene-text.js';
 
-export {
-  assessOpeningActions, initialWorldState, matchesWorldConditions, isWaitLikeAction,
-  type OpeningActionReport, type OpeningEvalState, type WorldConditionState,
-} from './world-opening.js';
 

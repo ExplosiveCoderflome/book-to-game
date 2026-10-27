@@ -1,12 +1,6 @@
-import {
-  annotatePlayability,
-  assessPlayability,
-  type BranchSkeleton,
-  type Choice,
-  type GameContent,
-  type PlayabilityMode,
-  type ValidationResult,
-} from '@novel-game/contracts';
+import {type BranchSkeleton, type Choice, type GameContent, type ValidationResult} from '@novel-game/contracts';
+import {annotatePlayability, assessPlayability} from '@novel-game/rules';
+import type {PlayabilityMode} from '@novel-game/rules';
 import { AppError } from '../../../shared/errors.js';
 
 export type { PlayabilityMode };

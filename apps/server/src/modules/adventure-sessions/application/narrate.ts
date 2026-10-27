@@ -1,11 +1,5 @@
-import {
-  entriesForPlace,
-  narrateInputSchema,
-  type AdventureView,
-  type NarrateInput,
-  type NarrateResult,
-  type WorldRevision,
-} from '@novel-game/contracts';
+import {narrateInputSchema, type AdventureView, type NarrateInput, type NarrateResult, type WorldRevision} from '@novel-game/contracts';
+import {entriesForPlace} from '@novel-game/rules';
 import { AppError } from '../../../shared/errors.js';
 import type { AdventureService } from './adventure-service.js';
 import type { RevisionReader } from './ports.js';

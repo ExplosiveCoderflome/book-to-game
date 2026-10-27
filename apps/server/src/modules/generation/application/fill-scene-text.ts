@@ -1,11 +1,5 @@
-import {
-  entriesForScene,
-  fillSceneTextInputSchema,
-  type Draft,
-  type FillSceneTextInput,
-  type FillSceneTextResult,
-  type SourceDocument,
-} from '@novel-game/contracts';
+import {fillSceneTextInputSchema, type Draft, type FillSceneTextInput, type FillSceneTextResult, type SourceDocument} from '@novel-game/contracts';
+import {entriesForScene} from '@novel-game/rules';
 import { AppError } from '../../../shared/errors.js';
 
 export interface DraftReader { get(id: string): Draft }

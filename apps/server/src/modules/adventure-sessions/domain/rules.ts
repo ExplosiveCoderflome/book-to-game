@@ -1,16 +1,8 @@
-import {
-  matchesWorldConditions,
-  mergeTakenTags,
-  worldbookBlockReason,
-  worldbookIncrementCap,
-  worldbookSpendsForChoice,
-  type WorldContent,
-  type WorldCondition,
-  type WorldEffect,
-} from '@novel-game/contracts';
+import {type WorldContent, type WorldCondition, type WorldEffect} from '@novel-game/contracts';
+import {matchesWorldConditions, mergeTakenTags, worldbookBlockReason, worldbookIncrementCap, worldbookSpendsForChoice} from '@novel-game/rules';
 import type { AdventureState } from './adventure-state.js';
 
-/** Pure WorldCondition match — authority lives in contracts.world-opening. */
+/** Pure WorldCondition match — authority lives in @novel-game/rules (world-opening). */
 export function matches(conditions: WorldCondition[], state: AdventureState): boolean {
   return matchesWorldConditions(conditions, state);
 }

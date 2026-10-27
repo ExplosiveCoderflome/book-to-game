@@ -4,4 +4,4 @@ export {
   reachApplyEffects,
   type ReachabilityGraph,
   type ReachabilityReport,
-} from '@novel-game/contracts';
+} from '@novel-game/rules';

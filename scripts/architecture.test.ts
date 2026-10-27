@@ -34,3 +34,18 @@ test('architecture guard rejects composition-root deep imports past module index
   ]), []);
 });
 
+
+test('architecture guard keeps contracts/rules packages free of frameworks and forbids contracts→rules', () => {
+  const framework = checkImports([
+    {file: 'packages/rules/src/reachability.ts', imports: ['react', 'express']},
+    {file: 'packages/contracts/src/index.ts', imports: ['better-sqlite3']},
+  ]);
+  assert.ok(framework.some(v => v.includes('packages 禁止依赖')));
+  const cycle = checkImports([
+    {file: 'packages/contracts/src/index.ts', imports: ['@novel-game/rules']},
+  ]);
+  assert.ok(cycle.some(v => v.includes('contracts 禁止依赖 rules')));
+  assert.deepEqual(checkImports([
+    {file: 'packages/rules/src/world-opening.ts', imports: ['@novel-game/contracts']},
+  ]), []);
+});

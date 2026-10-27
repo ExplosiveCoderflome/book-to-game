@@ -1,5 +1,5 @@
 import type { ActInput, GameRevision } from '@novel-game/contracts';
-import { mergeTakenTags } from '@novel-game/contracts';
+import {mergeTakenTags} from '@novel-game/rules';
 import { AppError } from '../../../shared/errors.js';
 import { findScene } from './project-session.js';
 import type { SessionState } from './session-state.js';

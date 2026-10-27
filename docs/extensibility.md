@@ -27,7 +27,7 @@
 | **1. Substrate（基底）** | 图节点/边、`variables` + conditions/effects、世界书约束、sessions / adventure-sessions 规则引擎 | 慢 | 题材 `if/else`；domain 导入 LLM / React / Express / SQL |
 | **2. Catalog / templates（编目）** | 数值模板、未来题材包、可玩性启发式配置 | 中 | 自建并行状态机；输出必须**编译下行**到 Substrate |
 | **3. AI adapters（可替换）** | generate / narrate / propose-act / fill-text / 天道 prompt | 快 | 直接写 SQLite / 绕过规则端口提交状态；换模型商要动 domain |
-| **4. Authoring UI（呈现）** | 画布、StatEditor、选项规则、玩时 HUD | 中 | 发明 contracts 没有的 effect/condition 语义；本地一套「真状态」 |
+| **4. Authoring UI（呈现）** | 画布、StatEditor、选项规则、玩时 HUD | 中 | 发明 contracts/rules 没有的 effect/condition 语义；本地一套「真状态」 |
 | **5. Transport** | HTTP / MCP **同一命令表** | 中 | 在适配器里复制游戏规则 |
 
 模块内部分层仍遵 `architecture.md`：`domain`（纯）→ `application`（端口）→ `infrastructure`（SQLite 等）；对外只经模块 `index.ts`。
@@ -48,7 +48,7 @@ flowchart LR
 
 - [ ] **新题材** → 新模板 / 编目数据（或 prompt 种子），**不是**新 runtime 模块  
 - [ ] **新 AI 能力** → 新 adapter / use-case，挂在既有 port 后；状态写入只经 sessions / adventures / games 端口  
-- [ ] **新 effect / condition 种类** → 先改 `packages/contracts`，再同步 **story 与 open** 两边运行时，并写迁移策略；禁止只改 UI  
+- [ ] **新 effect / condition 种类** → schema/DTO 先改 `packages/contracts`，纯求值进 `packages/rules`，再同步 **story 与 open** 两边运行时包装，并写迁移策略；禁止只改 UI  
 - [ ] **端口优先**：新协作面落在 `modules/*/domain` + `application`；禁止 domain 导入 `platform/model` 或 React  
 - [ ] **版本戳**：内容带 `statTemplateId`（及同类戳记）；破坏性变更 **bump version**，禁止静默改名已发布变量  
 - [ ] **跨模块**只 import 对方 `index.ts`；禁止深入 `domain/` / `infrastructure/`  
@@ -89,14 +89,14 @@ flowchart LR
 
 ## 6. 当前风险（轻量审计 · 2026-10-27）
 
-扫描范围：`apps/server/src/modules/**/domain`、`apps/web/src`、`packages/contracts`、generation 对 session 的写入面。  
+扫描范围：`apps/server/src/modules/**/domain`、`apps/web/src`、`packages/contracts`、`packages/rules`、generation 对 session 的写入面。  
 本轮**不做大重构**；仅记录风险，并对安全的一处重复实现做了最小清理。
 
 | 风险 | 位置 | 严重度 | 处置 |
 |---|---|---|---|
-| Web 曾本地复制 `choiceAvailable`，与 contracts `reachability.choiceAvailable` 双份语义 | `apps/web/src/lib/play-overlay.ts` | 中 | **已修**：改为 `reachChoiceAvailable` 再导出，权威在 contracts |
-| `sessions` / `adventure-sessions` 纯条件·效果曾与 contracts 双份 | `story-variables.ts` · `rules.ts` vs contracts | 中 | **已修**：纯匹配/纯效果权威在 contracts；sessions 只包 worldbook cap/spend；adventures `matches` 委托 `matchesWorldConditions` |
-| 内置 Demo 曾本地实现 `canChoose` / effects（略宽于权威） | `apps/web/src/components/DemoPreview.tsx` | 低 | **已修**：改用 contracts `reachChoiceAvailable` / `reachApplyEffects` |
+| Web 曾本地复制 `choiceAvailable`，与 reachability 双份语义 | `apps/web/src/lib/play-overlay.ts` | 中 | **已修**：改为 `@novel-game/rules` 的 `reachChoiceAvailable` 再导出 |
+| `sessions` / `adventure-sessions` 纯条件·效果曾与引擎双份 | `story-variables.ts` · `rules.ts` | 中 | **已修**：纯匹配/纯效果权威在 `@novel-game/rules`；sessions 只包 worldbook cap/spend；adventures `matches` 委托 `matchesWorldConditions` |
+| 内置 Demo 曾本地实现 `canChoose` / effects（略宽于权威） | `apps/web/src/components/DemoPreview.tsx` | 低 | **已修**：改用 `@novel-game/rules` `reachChoiceAvailable` / `reachApplyEffects` |
 | `moveTarget(effects)` 曾在 web 两处同形 | `world-play-overlay.ts`、`world-graph.ts` | 低 | **已修**：抽到 `apps/web/src/lib/world-move.ts` |
 | edge-summary / ChoiceRulesEditor 按 type 分支展示文案 | web 展示层 | 可接受 | 种类闭集来自 contracts；新增种类必须先改 schema |
 | generation infrastructure 持有 SqliteDatabase | `generation/infrastructure/sqlite-job-repository.ts` | 可接受 | 在 infrastructure，非 domain；只管任务表 |
@@ -105,7 +105,7 @@ flowchart LR
 | generation 直接 mutate sessions / adventures | 扫描无命中（经草稿写入端口 / 组合根） | — | 保持 |
 | 跨模块深引用越过 index | architecture 脚本 + 抽查无新增违规 | — | 保持门禁 |
 
-**未做（刻意）**：合并 story 与 adventure 规则引擎；把 worldbook-aware effects 强行塞进 contracts（仅纯路径统一）；自定义用户模板库；旁白 visitCache 抽成跨进程 port（仍为单进程软缓存）。
+**未做（刻意）**：合并 story 与 adventure 规则引擎；条件/效果插件注册表；自定义用户模板库；旁白 visitCache 抽成跨进程 port（仍为单进程软缓存）。
 
 ---
 
@@ -113,10 +113,11 @@ flowchart LR
 
 按审核 Top 3 已落地：
 
-1. **纯条件/效果权威**：`packages/contracts`（`choiceAvailable` / `applyChoiceEffects` / `matchesWorldConditions`）；sessions 只包 worldbook cap/spend；adventures `matches` 委托 contracts。
+1. **纯条件/效果权威**：`packages/rules`（`choiceAvailable` / `applyChoiceEffects` / `matchesWorldConditions` / worldbook runtime）；sessions 只包 worldbook cap/spend 包装；adventures `matches` 委托 rules。schema 仍在 contracts。
 2. **模块公开面 + 门禁**：`sessions` / `adventure-sessions` index 导出 narrate·propose；`app/`·`adapters/` 禁止深引用模块内部（architecture-rules）；`Workbench.createPlayProvider()` 收拢 ChatCompletions 构造。
 3. **作者 UI 缝**：`useStoryCanvasPlay` / `useWorldCanvasPlay` + `StoryPlayInspector` / `WorldPlayInspector` 拆出画布试玩与 AI 辅助，DraftPanel/WorldsPanel 保留作者壳。
-4. **P2 低风险去重（续）**：DemoPreview 对齐 contracts；`moveTarget` 抽到 `world-move.ts`；AI 适配器落点 + visitCache 软缓存纪律写入本文。
+4. **P2 低风险去重（续）**：DemoPreview 对齐 rules；`moveTarget` 抽到 `world-move.ts`；AI 适配器落点 + visitCache 软缓存纪律写入本文。
+5. **contracts / rules 分包**：纯求值引擎迁入 `packages/rules`；contracts 只留 schema/DTO/编目。
 
 ## 6.2 AI 适配器落点（当前，轻量）
 
@@ -131,13 +132,25 @@ flowchart LR
 
 **旁白 `visitCache`**：`sessions` / `adventure-sessions` 的 `application/narrate.ts` 内各有一份 `Map`。这是**单进程软缓存**（不跨 worker、重启即丢、不落库）。多副本部署时各进程独立；需要共享缓存时再抽 port，本轮不抽。
 
+
+## 6.3 contracts vs rules（2026-10-27）
+
+| 包 | 职责 | 可依赖 |
+|---|---|---|
+| `@novel-game/contracts` | wire DTO、zod schema、闭集 condition/effect 种类、`STAT_TEMPLATES` 编目、世界书 **schema** 与作者校验 | 仅 `zod` |
+| `@novel-game/rules` | 纯求值引擎：reachability、playability、world-opening、世界书 runtime（match/block/cap/spend/takenTags） | 可依赖 contracts；**禁止** React / Express / SQL |
+
+依赖方向：**rules → contracts**，禁止反向。sessions / adventure-sessions 继续只包 worldbook 感知包装（cap/spend + AppError），不复制纯匹配。
+
+**TODO（未做）**：条件/效果 **插件注册表**（开放种类扩展）；当前仍为 contracts 闭集 + rules 硬编码分支。
+
 ## 7. 延伸路线图（纪律，非排期承诺）
 
 
 1. **Catalog 加厚**：题材包 = 模板 + 提示种子 + 可选可玩性权重；仍 compile-down。  
-2. **条件/效果种类扩展**：contracts → 双运行时 → 迁移文档 → UI；一次一种。  
+2. **条件/效果种类扩展**：contracts schema → rules 求值 → 双运行时包装 → 迁移文档 → UI；一次一种。  
 3. **AI 新能力**：一律「建议 / 映射 / 填文」，提交仍走 act 端口。  
-4. **作者面**：StatEditor / 画布 / HUD 只消费 contracts；不复制权威求值。  
+4. **作者面**：StatEditor / 画布 / HUD 消费 contracts（形状）+ rules（求值）；不复制权威求值。  
 5. **开放世界与分支故事**：共享命令与设计纪律；schema 分治，避免编辑器强绑。
 
 ---

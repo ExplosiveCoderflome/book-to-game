@@ -1,4 +1,5 @@
-import { assessOpeningActions, type CanvasLayout, type WorldContent } from '@novel-game/contracts';
+import {type CanvasLayout, type WorldContent} from '@novel-game/contracts';
+import {assessOpeningActions} from '@novel-game/rules';
 import { moveTarget } from './world-move';
 
 export interface WorldGraphNode {

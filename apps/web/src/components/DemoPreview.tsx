@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { reachApplyEffects, reachChoiceAvailable } from '@novel-game/contracts';
+import {reachApplyEffects, reachChoiceAvailable} from '@novel-game/rules';
 import { demoGame } from '../lib/demo';
 import { useI18n } from '../lib/i18n';
 

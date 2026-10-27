@@ -37,7 +37,7 @@ flowchart TD
 
 模块之间的业务协作由组合根注入结构化端口。生成器只能读取来源、调用模型、提交经过游戏服务校验的草稿。试玩只能读取固定发布版本；不能修改作者草稿。应用服务没有 Express Request/Response、MCP Context 或数据库连接。
 
-一个模块内，纯校验与状态转换在 domain；流程和仓储端口在 application；SQLite 实现在 infrastructure。每个模块只有 index.ts 对外导出，协议 DTO 位于 contracts。改变数据库、Agent 或模型调用方式时，尽量只替换适配器。
+一个模块内，纯校验与状态转换在 domain；流程和仓储端口在 application；SQLite 实现在 infrastructure。每个模块只有 index.ts 对外导出。协议 DTO / zod schema / 编目在 `@novel-game/contracts`；跨端共享的纯求值（可达性、可玩性、世界书 runtime、开局条件匹配）在 `@novel-game/rules`（可依赖 contracts，禁止 React/Express/SQL）。改变数据库、Agent 或模型调用方式时，尽量只替换适配器。
 
 共用命令表不是业务大服务，只完成输入结构校验和用例分发。模块不通过全局事件总线隐式调用，worker 与 API 不共享内存状态。增加功能先定义它负责的数据和公开操作，避免生成万能 service/repository/utils。
 
@@ -71,10 +71,10 @@ flowchart TD
 
 产品可能演进为「传统文字类型游戏 + AI」的完善开放类型游戏编辑器。五层分离、PR 检查清单、反模式与当前耦合风险见 **[extensibility.md](./extensibility.md)**。摘要：
 
-- **Substrate**（图 / variables / 条件效果 / 世界书 / 规则引擎）慢变、无题材 if、domain 不碰 LLM
+- **Substrate**（图 / variables / 条件效果 / 世界书 / `packages/rules` 引擎）慢变、无题材 if、domain 不碰 LLM
 - **Catalog**（数值模板等）只编译下行到 Substrate
 - **AI adapters** 可替换；只建议/映射，状态只经 sessions·adventures·games 端口提交
-- **Authoring UI** 只读 contracts，不发明并行状态语义
+- **Authoring UI** 读 contracts（形状）+ rules（求值），不发明并行状态语义
 - **Transport** 仅 HTTP/MCP 共用命令表
 
 相关：[`stat-templates.md`](./stat-templates.md)、[`if-editor-patterns.md`](./if-editor-patterns.md)。

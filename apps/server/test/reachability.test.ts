@@ -1,11 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import {
-  analyzeReachability,
-  annotatePlayability,
-  assessPlayability,
-  type GameContent,
-} from '@novel-game/contracts';
+import {type GameContent} from '@novel-game/contracts';
+import {analyzeReachability, annotatePlayability, assessPlayability} from '@novel-game/rules';
 import { validateGame } from '../src/modules/games/domain/validate-game.js';
 import { playableStory } from './helpers/playable-story.js';
 

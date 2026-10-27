@@ -12,7 +12,8 @@
   "dependencies": {
     "@novel-game/contracts": "*",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "@novel-game/rules": "*"
   },
   "devDependencies": {
     "@types/react": "^19.2.0",
