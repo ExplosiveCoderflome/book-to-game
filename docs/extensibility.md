@@ -4,7 +4,7 @@
 > **所有构建必须保证低耦合与高延伸性。**  
 > 本文是对 [`architecture.md`](./architecture.md) 模块边界的**演进约束**补充；日常 PR 以本文清单自检。
 
-相关文档：[`stat-templates.md`](./stat-templates.md)（数值模板编目）· [`if-editor-patterns.md`](./if-editor-patterns.md)（传统 IF 用法映射）。
+相关文档：[`stat-templates.md`](./stat-templates.md)（数值模板编目）· [`if-editor-patterns.md`](./if-editor-patterns.md)（传统 IF 用法映射）· [`world-map-editor.md`](./world-map-editor.md)（世界地图/地形/势力层设计）。
 
 ---
 
