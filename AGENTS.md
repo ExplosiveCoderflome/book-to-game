@@ -33,5 +33,6 @@ migrated only within the authorized task scope.
 ## UI layout
 
 - Prefer **content-first horizontal fill**: App shell and primary work surfaces (especially the infinite canvas) use nearly full viewport width with small consistent gutters (`--shell-gutter*`). Avoid large bilateral whitespace from `max-width` + `margin: auto` shells.
+- Prefer **density over stretch**: on wide viewports, use extra width to show more modules side-by-side (dual inspector panes, multi-column strips), not empty stretch.
 - Full rules: [docs/design-layout.md](docs/design-layout.md).
 
