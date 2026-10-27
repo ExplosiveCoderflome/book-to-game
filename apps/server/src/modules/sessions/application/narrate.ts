@@ -16,14 +16,15 @@ export interface StoryNarrateModel {
     choices: { id: string; label: string }[];
     variables: Record<string, string | number | boolean>;
     worldbookSnippets: { title: string; content: string; kind: string }[];
+    tiandaoCorrect?: boolean;
   }, signal: AbortSignal): Promise<{ narration: string }>;
 }
 
 /** In-memory cache: one narrate blob per session visit (session+scene+turn). */
 const visitCache = new Map<string, NarrateResult>();
 
-function visitKey(sessionId: string, sceneId: string, turn: number): string {
-  return `${sessionId}:${sceneId}:${turn}`;
+function visitKey(sessionId: string, sceneId: string, turn: number, tiandaoCorrect: boolean): string {
+  return `${sessionId}:${sceneId}:${turn}:td${tiandaoCorrect ? 1 : 0}`;
 }
 
 export function clearNarrateCache(): void {
@@ -57,7 +58,8 @@ export async function narrateSession(
   if (input.expectedTurn !== undefined && view.turn !== input.expectedTurn) {
     throw new AppError('STALE_TURN', '回合已变化，请刷新后再请求旁白。', 409, { expectedTurn: view.turn });
   }
-  const key = visitKey(sessionId, view.scene.id, view.turn);
+  const tiandaoCorrect = !!input.tiandaoCorrect;
+  const key = visitKey(sessionId, view.scene.id, view.turn, tiandaoCorrect);
   if (!input.force) {
     const hit = visitCache.get(key);
     if (hit) return { ...hit, cached: true };
@@ -69,6 +71,7 @@ export async function narrateSession(
       choices: view.scene.choices.map(c => ({ id: c.id, label: c.label })),
       variables: { ...(view.variables ?? {}) },
       worldbookSnippets: worldbookSnippetsFor(view, revisionReader),
+      tiandaoCorrect,
     }, signal);
     const text = modelOut.narration.trim().slice(0, 800);
     const result: NarrateResult = {

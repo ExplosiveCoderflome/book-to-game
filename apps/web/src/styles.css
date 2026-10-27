@@ -1613,6 +1613,11 @@ legend {
 .fill-direction-input { flex: 1 1 140px; min-width: 120px; max-width: 280px; }
 .fill-polish-title { display: inline-flex; gap: 6px; align-items: center; font-weight: 600; cursor: pointer; }
 .fill-scene-row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 0; }
+
+.tiandao-box { margin: 8px 0 4px; padding: 8px 12px; border: 1px solid color-mix(in srgb, #6b3d8b 35%, var(--line)); border-radius: 10px; background: color-mix(in srgb, #f6e8ff 65%, var(--paper)); }
+.tiandao-toolbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.tiandao-toggle { display: inline-flex; gap: 6px; align-items: center; font-weight: 600; cursor: pointer; }
+
 .narrate-box { margin: 10px 0 12px; padding: 10px 12px; border: 1px solid color-mix(in srgb, #8b6b3d 35%, var(--line)); border-radius: 10px; background: color-mix(in srgb, #fff6e8 70%, var(--paper)); }
 .narrate-toolbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
 .narrate-toggle { display: inline-flex; gap: 6px; align-items: center; font-weight: 600; cursor: pointer; }

@@ -13,6 +13,7 @@ export interface AdventureProposeModel {
     locationTitle: string;
     locationText: string;
     candidates: { id: string; label: string }[];
+    tiandaoCorrect?: boolean;
   }, signal: AbortSignal): Promise<{ actionId: string | 'none'; rationale?: string }>;
 }
 
@@ -52,6 +53,7 @@ export async function proposeActAdventure(
     locationTitle: view.location.title,
     locationText: view.location.text,
     candidates,
+    tiandaoCorrect: !!input.tiandaoCorrect,
   }, signal);
   const draft = finalizeAdventurePropose({
     proposed: modelOut.actionId,

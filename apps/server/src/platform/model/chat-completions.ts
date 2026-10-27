@@ -6,7 +6,7 @@ import { AppError } from '../../shared/errors.js';
 import type { Logger } from '../../shared/logger.js';
 import { schemaIssueMessage, schemaIssues } from '../../shared/schema-issues.js';
 import { extractJsonValue, JsonContentError } from './extract-json.js';
-import { ANALYSIS_SYSTEM, EXPAND_SYSTEM, EXTEND_SCENE_SYSTEM, FILL_SCENE_TEXT_SYSTEM, GAME_SYSTEM, NARRATE_SYSTEM, PROPOSE_ACT_SYSTEM, PROPOSE_ADVENTURE_SYSTEM, SKELETON_SYSTEM, compactForGame, skeletonUserPayload } from './prompts.js';
+import { ANALYSIS_SYSTEM, EXPAND_SYSTEM, EXTEND_SCENE_SYSTEM, FILL_SCENE_TEXT_SYSTEM, GAME_SYSTEM, NARRATE_SYSTEM, PROPOSE_ACT_SYSTEM, PROPOSE_ADVENTURE_SYSTEM, SKELETON_SYSTEM, compactForGame, skeletonUserPayload, withTiandaoCorrect } from './prompts.js';
 import { classifyStatus, parseRetryAfter, retryDelayMs } from './retry.js';
 import { sanitizeWorldCandidate } from './sanitize-world.js';
 import { WORLD_SYSTEM, compactWorldDossier } from './world-prompts.js';
@@ -58,12 +58,13 @@ export class ChatCompletionsProvider implements GenerationProvider {
   async generateWorld(analysis: AnalysisResult, options: WorldGenerationOptions, signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}): Promise<WorldContent> {
     return this.complete('generate_world', WORLD_SYSTEM, {plan: options, dossier: compactWorldDossier(analysis)}, signal, worldContentSchema, feedback?.errors ?? [], sanitizeWorldCandidate);
   }
-  async proposeAct(input: { text: string; sceneTitle: string; sceneText: string; candidates: ProposeCandidate[] }, signal: AbortSignal): Promise<ProposeActModelOutput> {
-    return this.complete('propose_act', PROPOSE_ACT_SYSTEM, {
+  async proposeAct(input: { text: string; sceneTitle: string; sceneText: string; candidates: ProposeCandidate[]; tiandaoCorrect?: boolean }, signal: AbortSignal): Promise<ProposeActModelOutput> {
+    return this.complete('propose_act', withTiandaoCorrect(PROPOSE_ACT_SYSTEM, input.tiandaoCorrect), {
       text: input.text,
       scene: { title: input.sceneTitle, text: input.sceneText.slice(0, 1200) },
       candidates: input.candidates,
       rule: 'choiceId 必须是 candidates 中的 id，或 none',
+      tiandaoCorrect: !!input.tiandaoCorrect,
     }, signal, proposeActModelOutputSchema, []);
   }
 
@@ -105,22 +106,25 @@ export class ChatCompletionsProvider implements GenerationProvider {
     choices: { id: string; label: string }[];
     variables: Record<string, string | number | boolean>;
     worldbookSnippets: { title: string; content: string; kind: string }[];
+    tiandaoCorrect?: boolean;
   }, signal: AbortSignal): Promise<NarrateModelOutput> {
-    return this.complete('narrate', NARRATE_SYSTEM, {
+    return this.complete('narrate', withTiandaoCorrect(NARRATE_SYSTEM, input.tiandaoCorrect), {
       scene: { title: input.sceneTitle, text: input.sceneText.slice(0, 1200) },
       choices: input.choices,
       variables: input.variables,
       worldbookSnippets: input.worldbookSnippets,
       rule: '只输出旁白 narration；禁止新选项、新状态、新边',
+      tiandaoCorrect: !!input.tiandaoCorrect,
     }, signal, narrateModelOutputSchema, []);
   }
 
-  async proposeAdventureAct(input: { text: string; locationTitle: string; locationText: string; candidates: ProposeCandidate[] }, signal: AbortSignal): Promise<ProposeAdventureModelOutput> {
-    return this.complete('propose_adventure_act', PROPOSE_ADVENTURE_SYSTEM, {
+  async proposeAdventureAct(input: { text: string; locationTitle: string; locationText: string; candidates: ProposeCandidate[]; tiandaoCorrect?: boolean }, signal: AbortSignal): Promise<ProposeAdventureModelOutput> {
+    return this.complete('propose_adventure_act', withTiandaoCorrect(PROPOSE_ADVENTURE_SYSTEM, input.tiandaoCorrect), {
       text: input.text,
       location: { title: input.locationTitle, text: input.locationText.slice(0, 1200) },
       candidates: input.candidates,
       rule: 'actionId 必须是 candidates 中的 id，或 none',
+      tiandaoCorrect: !!input.tiandaoCorrect,
     }, signal, proposeAdventureModelOutputSchema, []);
   }
 

@@ -18,14 +18,15 @@ export interface AdventureNarrateModel {
     choices: { id: string; label: string }[];
     variables: Record<string, string | number | boolean>;
     worldbookSnippets: { title: string; content: string; kind: string }[];
+    tiandaoCorrect?: boolean;
   }, signal: AbortSignal): Promise<{ narration: string }>;
 }
 
 /** In-memory cache: one narrate blob per adventure visit (adventure+location+turn). */
 const visitCache = new Map<string, NarrateResult>();
 
-function visitKey(adventureId: string, locationId: string, turn: number): string {
-  return `adv:${adventureId}:${locationId}:${turn}`;
+function visitKey(adventureId: string, locationId: string, turn: number, tiandaoCorrect: boolean): string {
+  return `adv:${adventureId}:${locationId}:${turn}:td${tiandaoCorrect ? 1 : 0}`;
 }
 
 export function clearAdventureNarrateCache(): void {
@@ -71,7 +72,8 @@ export async function narrateAdventure(
   if (input.expectedTurn !== undefined && view.turn !== input.expectedTurn) {
     throw new AppError('STALE_TURN', '回合已变化，请刷新后再请求旁白。', 409, { expectedTurn: view.turn });
   }
-  const key = visitKey(adventureId, view.location.id, view.turn);
+  const tiandaoCorrect = !!input.tiandaoCorrect;
+  const key = visitKey(adventureId, view.location.id, view.turn, tiandaoCorrect);
   if (!input.force) {
     const hit = visitCache.get(key);
     if (hit) return { ...hit, cached: true };
@@ -83,6 +85,7 @@ export async function narrateAdventure(
       choices: view.actions.map(a => ({ id: a.id, label: a.label })),
       variables: variablesFromView(view),
       worldbookSnippets: worldbookSnippetsFor(view, revisionReader),
+      tiandaoCorrect,
     }, signal);
     const text = modelOut.narration.trim().slice(0, 800);
     const result: NarrateResult = {

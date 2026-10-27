@@ -40,5 +40,6 @@ migrated only within the authorized task scope.
 
 - **L1 narrate (play-time, optional, default OFF):** flavor旁白 via `POST /api/sessions/:id/narrate` (story) and `POST /api/adventures/:id/narrate` (open adventure). Same NarrateInput/Result; adventure `sceneId` = location id. Must not mutate graph/state, variables/facts, or invent choices/actions.
 - **L2 propose-act (play-time):** free text mapped only onto currently visible/worldbook-filtered edges; rule engine still advances state.
+- **天道修正 (play-time, optional, default OFF):** when ON, narrate / propose-act (story + adventure) append a soft system-prompt block so the model stays in worldbook/graph scope and replies with in-world「天道修正」tone if the player tries to rewrite rules via language. Phase 1 is prompt-only (no classifier); never mutates engine state.
 - **L3 author-time:** graph growth (generate / extend). Node/graph + variables remain the hard source of truth; worldbook constrains agency.
 - **Fill scene text (author-time):** `POST /api/drafts/:id/fill-scene-text` deepens one scene body only; client applies as dirty local edit (no topology change).

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { gameContentSchema, type CanvasLayout, type Draft, type GameContent, type GameRevision, type GenerationJob, type RuntimeInfo, type ScanDepth, type FillSceneTextResult, type NarrateResult, type ProposeActResult, type SessionView, type SourceDocument, type SourceSummary, type ValidationResult } from '@novel-game/contracts';
 import { errorMessage, request, RequestError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
+import { readTiandaoCorrect } from '../lib/tiandao';
 import { relevantStoryJob } from '../lib/job-on-canvas';
 import { shouldShowSkeletonPlaceholder, skeletonToCanvasContent } from '../lib/skeleton-placeholder';
 import { playOverlayFromSession } from '../lib/play-overlay';
@@ -15,6 +16,7 @@ import { SceneEditor } from './SceneEditor';
 import { StoryVariablesEditor } from './StoryVariablesEditor';
 import { WorldbookEditor } from './WorldbookEditor';
 import { NarrateBox } from './NarrateBox';
+import { TiandaoToggle } from './TiandaoToggle';
 import { ProposeActBox } from './ProposeActBox';
 
 const blankContent = (): GameContent => ({ title: '', mode: 'story', premise: '', adaptationNotes: '', startSceneId: '', scenes: [] });
@@ -467,7 +469,7 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
   const narrateOnCanvas = useCallback(async (force: boolean): Promise<NarrateResult> => {
     if (!playSession) throw new Error('no session');
     return request<NarrateResult>(token, `/sessions/${playSession.id}/narrate`, 'POST', {
-      expectedTurn: playSession.turn, force,
+      expectedTurn: playSession.turn, force, tiandaoCorrect: readTiandaoCorrect(),
     });
   }, [playSession, token]);
 
@@ -514,7 +516,7 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
     setPlayBusy(true); setError(null);
     try {
       const result = await request<ProposeActResult>(token, `/sessions/${playSession.id}/propose-act`, 'POST', {
-        text, expectedTurn: playSession.turn, requestId: crypto.randomUUID(), autoAct: true,
+        text, expectedTurn: playSession.turn, requestId: crypto.randomUUID(), autoAct: true, tiandaoCorrect: readTiandaoCorrect(),
       });
       if (result.status === 'acted' && result.session) {
         setProposeNote(result.label ? `已映射并执行：${result.label}` : '已映射并执行');
@@ -675,6 +677,7 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
                     <h4>{playSession.scene.title}</h4>
                     {proposeNote && <Notice kind="success" text={proposeNote} />}
                     <div className="reader-text">{playSession.scene.text.split(/\n+/).map((text, i) => <p key={i}>{text}</p>)}</div>
+                    <TiandaoToggle disabled={playBusy} />
                     <NarrateBox visitKey={`${playSession.id}:${playSession.scene.id}:${playSession.turn}`} disabled={playBusy} onNarrate={narrateOnCanvas} />
                     {Object.keys(playSession.variables ?? {}).length > 0 && <details open><summary>{t('当前故事变量')}</summary><dl>{Object.entries(playSession.variables ?? {}).map(([name, value]) => <div className="field-row" key={name}><dt>{name}</dt><dd>{typeof value === 'boolean' ? t(value ? '真' : '假') : String(value)}</dd></div>)}</dl></details>}
                     {playSession.ended && <div className="ending"><p className="eyebrow">{t('故事抵达了一个结局')}</p><p>{playSession.scene.ending ?? t('旅程告一段落。')}</p></div>}

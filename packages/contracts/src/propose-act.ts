@@ -20,6 +20,8 @@ export const proposeActInputSchema = z.object({
   requestId: z.string().uuid(),
   /** When true (default), a validated choiceId advances the session via act. */
   autoAct: z.boolean().optional().default(true),
+  /** Optional play-time「天道修正」system-prompt injection (phase 1: prompt-only). */
+  tiandaoCorrect: z.boolean().optional(),
 });
 export type ProposeActInput = z.infer<typeof proposeActInputSchema>;
 
@@ -46,6 +48,8 @@ export const proposeAdventureActInputSchema = z.object({
   expectedTurn: z.number().int().nonnegative(),
   requestId: z.string().uuid(),
   autoAct: z.boolean().optional().default(true),
+  /** Optional play-time「天道修正」system-prompt injection (phase 1: prompt-only). */
+  tiandaoCorrect: z.boolean().optional(),
 });
 export type ProposeAdventureActInput = z.infer<typeof proposeAdventureActInputSchema>;
 

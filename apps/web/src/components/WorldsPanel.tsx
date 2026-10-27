@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SYSTEM_WAIT_ACTION_ID, worldContentSchema, type AdventureView, type CanvasLayout, type NarrateResult, type ProposeAdventureActResult, type SourceSummary, type WorldContent, type WorldDraft, type WorldRevision, type ValidationResult } from '@novel-game/contracts';
 import { request, RequestError, errorMessage } from '../lib/api';
 import { useI18n } from '../lib/i18n';
+import { readTiandaoCorrect } from '../lib/tiandao';
 import { openingActionDensity } from '../lib/world-graph';
 import { worldPlayOverlayFromAdventure } from '../lib/world-play-overlay';
 import { Notice, Empty } from './Notice';
@@ -9,6 +10,7 @@ import { WorldGraphCanvas } from './WorldGraphCanvas';
 import { WorldOverview } from './WorldOverview';
 import { WorldbookEditor } from './WorldbookEditor';
 import { NarrateBox } from './NarrateBox';
+import { TiandaoToggle } from './TiandaoToggle';
 import { ProposeActBox } from './ProposeActBox';
 
 const blank = (): WorldContent => ({
@@ -134,7 +136,7 @@ export function WorldsPanel({
     setPlayBusy(true); setError(null);
     try {
       const result = await request<ProposeAdventureActResult>(token, `/adventures/${playSession.id}/propose-act`, 'POST', {
-        text, expectedTurn: playSession.turn, requestId: crypto.randomUUID(), autoAct: true,
+        text, expectedTurn: playSession.turn, requestId: crypto.randomUUID(), autoAct: true, tiandaoCorrect: readTiandaoCorrect(),
       });
       if (result.status === 'acted' && result.adventure) {
         setProposeNote(result.label ? `已映射并执行：${result.label}` : '已映射并执行');
@@ -157,7 +159,7 @@ export function WorldsPanel({
   const narrateOnCanvas = useCallback(async (force: boolean): Promise<NarrateResult> => {
     if (!playSession) throw new Error('no session');
     return request<NarrateResult>(token, `/adventures/${playSession.id}/narrate`, 'POST', {
-      expectedTurn: playSession.turn, force,
+      expectedTurn: playSession.turn, force, tiandaoCorrect: readTiandaoCorrect(),
     });
   }, [playSession, token]);
 
@@ -332,6 +334,7 @@ export function WorldsPanel({
                           <p className="hint" data-testid="play-resources">{t('资源：')}{Object.entries(playSession.resources).map(([k, v]) => `${k}=${v}`).join(' · ')}</p>
                         )}
                         <div className="reader-text">{playSession.location.text.split(/\n+/).map((text, i) => <p key={i}>{text}</p>)}</div>
+                        <TiandaoToggle disabled={playBusy} />
                         <NarrateBox visitKey={`${playSession.id}:${playSession.location.id}:${playSession.turn}`} disabled={playBusy} onNarrate={narrateOnCanvas} />
                         {playSession.ending && <div className="ending"><p className="eyebrow">{t('冒险结局')}</p><h4>{playSession.ending.title}</h4><p>{playSession.ending.text}</p></div>}
                         {!playSession.ended && <div className="adventure-actions">

@@ -11,6 +11,8 @@ export const narrateInputSchema = z.object({
   expectedTurn: z.number().int().nonnegative().optional(),
   /** Bypass per-visit cache and call the model again. */
   force: z.boolean().optional(),
+  /** Optional play-time「天道修正」system-prompt injection (phase 1: prompt-only). */
+  tiandaoCorrect: z.boolean().optional(),
 });
 export type NarrateInput = z.infer<typeof narrateInputSchema>;
 

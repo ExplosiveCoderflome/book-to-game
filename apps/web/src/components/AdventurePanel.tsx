@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SYSTEM_WAIT_ACTION_ID, type AdventureView, type NarrateResult, type WorldRevision } from '@novel-game/contracts';
 import { errorMessage, request, RequestError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
+import { readTiandaoCorrect } from '../lib/tiandao';
 import { adventurePendingKey, PendingAdventure, restoreAdventure } from '../lib/pending-adventure';
 import { worldPlayOverlayFromAdventure } from '../lib/world-play-overlay';
 import { Empty, Notice, dateLabel } from './Notice';
 import { NarrateBox } from './NarrateBox';
+import { TiandaoToggle } from './TiandaoToggle';
 import { WorldGraphCanvas } from './WorldGraphCanvas';
 
 interface Props {
@@ -61,7 +63,7 @@ export function AdventurePanel({ token, revisions, adventures, revisionId, selec
   const narrate = useCallback(async (force: boolean): Promise<NarrateResult> => {
     if (!session) throw new Error('no session');
     return request<NarrateResult>(token, `/adventures/${session.id}/narrate`, 'POST', {
-      expectedTurn: session.turn, force,
+      expectedTurn: session.turn, force, tiandaoCorrect: readTiandaoCorrect(),
     });
   }, [session, token]);
 
@@ -122,6 +124,7 @@ export function AdventurePanel({ token, revisions, adventures, revisionId, selec
           </div>
           <h3>{session.location.title}</h3>
           <div className="reader-text">{session.location.text.split(/\n+/).map((text, i) => <p key={i}>{text}</p>)}</div>
+          <TiandaoToggle disabled={busy || uncertain} />
           <NarrateBox visitKey={`${session.id}:${session.location.id}:${session.turn}`} disabled={busy || uncertain} onNarrate={narrate} />
           {session.turn > 0 && <section className="adventure-result" aria-live="polite"><p className="eyebrow">{t('刚刚发生')}</p>{session.history.at(-1)?.text.split(/\n+/).map((text, i) => <p key={i}>{text}</p>)}</section>}
           <div className="world-grid">

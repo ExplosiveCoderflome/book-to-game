@@ -42,8 +42,12 @@ export const storyTranslations: Record<string, string> = {
   '无条件与效果': 'No conditions or effects',
   '当前变量下未解锁': 'Locked under current variables',
 
+  '天道修正': 'Heavenly Dao correction',
+  '可选；默认关闭。开启后玩时 AI 会注入天道约束提示词，越界或改规则时以修正口吻回应（本阶段无额外检测）。': 'Optional; off by default. When on, play-time AI gets a Heavenly Dao system-prompt block that redirects rule-breaking / out-of-world language (prompt-only this phase).',
+
   'L1 表演旁白': 'L1 performance narration',
   '可选；默认关闭。只生成风味文案，不改选项与变量。': 'Optional; off by default. Flavor text only — does not change choices or variables.',
+  '可选；默认关闭。只生成风味文案，不改选项/行动与变量。': 'Optional; off by default. Flavor text only — does not change choices/actions or variables.',
   '旁白生成中…': 'Generating narration…',
   '刷新旁白': 'Refresh narration',
   '旁白': 'Narration',

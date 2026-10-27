@@ -14,6 +14,7 @@ export interface StoryProposeModel {
     sceneTitle: string;
     sceneText: string;
     candidates: { id: string; label: string }[];
+    tiandaoCorrect?: boolean;
   }, signal: AbortSignal): Promise<{ choiceId: string | 'none'; rationale?: string }>;
 }
 
@@ -53,6 +54,7 @@ export async function proposeActSession(
     sceneTitle: view.scene.title,
     sceneText: view.scene.text,
     candidates,
+    tiandaoCorrect: !!input.tiandaoCorrect,
   }, signal);
   const draft = finalizeStoryPropose({
     proposed: modelOut.choiceId,
