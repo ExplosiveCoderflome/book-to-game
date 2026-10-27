@@ -1372,6 +1372,35 @@ legend {
   display: grid; gap: 10px; justify-items: center;
 }
 .branch-canvas-empty-card p { margin: 0; color: var(--muted); }
+
+.branch-canvas-banner {
+  padding: 10px 14px;
+  border-bottom: 1px solid color-mix(in srgb, #c44 35%, var(--line));
+  background: color-mix(in srgb, #c44 10%, var(--paper));
+  color: var(--ink);
+  font-size: 13px;
+}
+.branch-canvas-banner strong { display: block; margin-bottom: 4px; color: #a33; }
+.branch-canvas-banner ul { margin: 0; padding-left: 18px; color: var(--muted); }
+.branch-canvas-banner li { margin: 2px 0; }
+.branch-edge.flagged line { stroke: #c44; stroke-width: 2.2; }
+.branch-edge.flagged text { fill: #a33; font-weight: 600; }
+.branch-node.flagged rect {
+  stroke: #c44;
+  stroke-width: 2.2;
+  fill: color-mix(in srgb, #c44 12%, var(--paper));
+}
+.branch-node.connecting rect {
+  stroke: #2f6fed;
+  stroke-width: 2.6;
+  stroke-dasharray: 5 3;
+}
+.branch-canvas-viewport.connecting { cursor: crosshair; }
+.branch-canvas-toolbar button.active {
+  border-color: #2f6fed;
+  color: #2f6fed;
+  background: color-mix(in srgb, #2f6fed 12%, var(--paper));
+}
 @media (max-width: 980px) {
   .draft-canvas-stage,
   .draft-canvas-stage.with-inspector {

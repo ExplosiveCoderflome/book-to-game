@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { gameContentSchema, type Draft, type GameContent, type GameRevision, type SourceSummary, type ValidationResult } from '@novel-game/contracts';
+import { gameContentSchema, type CanvasLayout, type Draft, type GameContent, type GameRevision, type SourceSummary, type ValidationResult } from '@novel-game/contracts';
 import { errorMessage, request, RequestError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { Empty, Notice } from './Notice';
@@ -48,10 +48,36 @@ export function DraftPanel({ token, drafts, sources, selectedId, select, refresh
   }
   function addScene() {
     const id = `scene-${crypto.randomUUID().slice(0, 8)}`;
-    change({ ...content, scenes: [...content.scenes, { id, title: '', text: '', origin: 'adapted', evidence: [], choices: [] }], startSceneId: content.startSceneId || id });
+    const selected = content.scenes[sceneIndex];
+    const anchor = selected ? content.canvasLayout?.[selected.id] : undefined;
+    const x = (anchor?.x ?? (content.scenes.length * 40)) + 220;
+    const y = (anchor?.y ?? (content.scenes.length * 40)) + (selected ? 0 : 80);
+    const canvasLayout: CanvasLayout = { ...(content.canvasLayout ?? {}), [id]: { x, y } };
+    change({
+      ...content,
+      scenes: [...content.scenes, { id, title: '', text: '', origin: 'adapted', evidence: [], choices: [] }],
+      startSceneId: content.startSceneId || id,
+      canvasLayout,
+    });
     setSceneIndex(content.scenes.length);
     setInspectorTab('scene');
     setInspectorOpen(true);
+  }
+  function updateLayout(layout: CanvasLayout) {
+    change({ ...content, canvasLayout: layout });
+  }
+  function connectScenes(fromId: string, toId: string) {
+    const scenes = content.scenes.map(scene => {
+      if (scene.id !== fromId) return scene;
+      if (scene.ending) return scene;
+      if (scene.choices.some(c => c.targetSceneId === toId)) return scene;
+      if (scene.choices.length >= 8) return scene;
+      const choiceId = `choice-${crypto.randomUUID().slice(0, 6)}`;
+      return { ...scene, choices: [...scene.choices, { id: choiceId, label: '新连线', targetSceneId: toId }] };
+    });
+    change({ ...content, scenes });
+    const index = scenes.findIndex(s => s.id === fromId);
+    if (index >= 0) { setSceneIndex(index); setInspectorTab('scene'); setInspectorOpen(true); }
   }
   function applyJson() {
     try {
@@ -112,6 +138,9 @@ export function DraftPanel({ token, drafts, sources, selectedId, select, refresh
             selectedSceneId={inspectorOpen ? scene?.id : undefined}
             onSelectScene={selectScene}
             onAddScene={addScene}
+            onLayoutChange={updateLayout}
+            onConnectScenes={connectScenes}
+            playabilityMode="publish"
           />
           {inspectorOpen && <aside className="draft-inspector" aria-label={t('场景检视器')}>
             <div className="draft-inspector-header">
