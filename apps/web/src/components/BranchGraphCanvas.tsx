@@ -289,6 +289,7 @@ export function BranchGraphCanvas({
             <li key={`${issue.code}-${index}`}>{issue.message}</li>
           ))}
         </ul>
+        <p className="branch-canvas-banner-hint">{t('对照评分表：开局密度、分支代价、结局差异、反走廊、节奏')}</p>
       </div>
     )}
     <div

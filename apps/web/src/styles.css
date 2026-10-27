@@ -1400,6 +1400,7 @@ legend {
 .branch-canvas-banner strong { display: block; margin-bottom: 4px; color: #a33; }
 .branch-canvas-banner ul { margin: 0; padding-left: 18px; color: var(--muted); }
 .branch-canvas-banner li { margin: 2px 0; }
+.branch-canvas-banner-hint { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
 .branch-edge.flagged .branch-edge-stroke { stroke: #c44; stroke-width: 2.2; }
 .branch-edge.flagged text { fill: #a33; font-weight: 600; }
 .branch-edge.trail .branch-edge-stroke { stroke: #1a7a4c; stroke-width: 2.6; }
