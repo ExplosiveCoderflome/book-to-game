@@ -9,6 +9,7 @@ import { Empty, Notice, dateLabel } from './Notice';
 import { NarrateBox } from './NarrateBox';
 import { TiandaoToggle } from './TiandaoToggle';
 import { WorldGraphCanvas } from './WorldGraphCanvas';
+import { PlayMapPanel } from './play/PlayMapPanel';
 
 interface Props {
   token: string; revisions: WorldRevision[]; adventures: AdventureView[];
@@ -84,7 +85,7 @@ export function AdventurePanel({ token, revisions, adventures, revisionId, selec
     </div>
     <Notice text={error} />
     <Notice kind="info" text={uncertain ? t('上一行动结果尚未确认。请重试原请求；重试使用相同存档与请求标识，不会重复耗时。') : null} />
-    <div className="play-layout">
+    <div className={`play-layout${session?.map && revision ? ' with-map' : ''}`}>
       <aside className="panel stack">
         <h3>{t('发布世界')}</h3>
         <label>{t('选择世界版本')}
@@ -153,6 +154,7 @@ export function AdventurePanel({ token, revisions, adventures, revisionId, selec
           </div>}
         </>}
       </article>
+      {session?.map && revision && <aside className="play-map-column"><PlayMapPanel content={revision.content} session={session} /></aside>}
     </div>
   </section>;
 }

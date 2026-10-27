@@ -27,6 +27,20 @@ const Lines = memo(function Lines({ segs, width, dash }: { segs: BorderSeg[]; wi
   return <>{segs.map((e, i) => <line key={i} x1={e.a.x} y1={e.a.y} x2={e.b.x} y2={e.b.y} stroke={e.color} strokeWidth={width} strokeDasharray={dash} strokeLinecap="round" />)}</>;
 });
 
+/** Play overlay: fog veil, reachable rings, player marker. Purely presentational. */
+const PlayLayer = memo(function PlayLayer({ topo, play, size }: { topo: HexTopology; play: NonNullable<HexRendererProps['state']['play']>; size: number }) {
+  const player = play.playerCell ? topo.byKey.get(play.playerCell) : undefined;
+  return <g className="map-play" pointerEvents="none" data-testid="map-play-layer">
+    {play.hiddenCells && <g className="map-fog" data-testid="map-fog">{topo.cells.filter(c => play.hiddenCells!.has(c.key)).map(c => <polygon key={c.key} data-fog={c.key} points={c.points} fill="#1d1f24" fillOpacity={0.86} stroke="#1d1f24" strokeWidth={1} />)}</g>}
+    {play.reachableCells.map(k => { const c = topo.byKey.get(k); return c ? <polygon key={k} data-reachable={k} points={c.points} fill="#f5c542" fillOpacity={0.18} stroke="#d99a00" strokeWidth={3} strokeDasharray="5 3" /> : null; })}
+    {player && <g data-testid="map-player" data-cell={player.key} transform={`translate(${player.c.x} ${player.c.y})`}>
+      <circle r={size * 0.62} fill="none" stroke="#e5484d" strokeWidth={3} opacity={0.5} />
+      <path d={`M0 ${-size * 0.95} L${size * 0.32} ${-size * 0.45} L0 ${-size * 0.3} L${-size * 0.32} ${-size * 0.45} Z`} fill="#e5484d" stroke="#fff" strokeWidth={1.5} />
+      <circle r={size * 0.2} fill="#e5484d" stroke="#fff" strokeWidth={2} />
+    </g>}
+  </g>;
+});
+
 /** SVG fallback/test renderer (jsdom-friendly, DOM-inspectable). */
 export const SvgHexRenderer = memo(forwardRef<HexRendererHandle, HexRendererProps>(function SvgHexRenderer({ state, view }, ref) {
   const { map, topo, mode } = state; const g = map.geometry;
@@ -67,6 +81,7 @@ export const SvgHexRenderer = memo(forwardRef<HexRendererHandle, HexRendererProp
       {brush.length > 0 && <g className="map-brush-preview" pointerEvents="none">{brush.map(p => <polygon key={p} points={p} />)}</g>}
       <g className={layerMode ? 'pois-passive' : ''}>
         {map.pois.map(p => {
+          if (state.play?.hiddenCells?.has(p.anchor.cell)) return null;
           const a = parseCellKey(p.anchor.cell); if (!a) return null;
           const c = hexToPixel(g, a); const label = p.label ?? state.titles.get(p.locationId) ?? p.locationId;
           return <g key={p.locationId} data-poi={p.locationId} data-cell={p.anchor.cell}
@@ -77,6 +92,13 @@ export const SvgHexRenderer = memo(forwardRef<HexRendererHandle, HexRendererProp
           </g>;
         })}
       </g>
+      {state.npcMarkers && state.npcMarkers.length > 0 && <g className="map-npcs" pointerEvents="none" data-testid="map-npcs">
+        {state.npcMarkers.map((n, i) => { const a = parseCellKey(n.cell); if (!a || state.play?.hiddenCells?.has(n.cell)) return null; const c = hexToPixel(g, a);
+          const dx = g.size * 0.42 + (i % 3) * 6; return <g key={`${n.cell}-${i}`} data-npc-marker={n.label} transform={`translate(${c.x + dx} ${c.y - g.size * 0.35})`}>
+            <rect x={-3} y={-9} width={Math.min(84, 10 + n.label.length * 11)} height={16} rx={8} fill={n.color ?? '#2d2a26'} opacity={0.9} />
+            <text x={4} y={3} fill="#fff" style={{ fontSize: 11, fontWeight: 600 }}>{n.label}</text></g>; })}
+      </g>}
+      {state.play && <PlayLayer topo={topo} play={state.play} size={g.size} />}
     </g>
   </svg>;
 }));

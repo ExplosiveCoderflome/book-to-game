@@ -19,6 +19,17 @@ export interface HexRenderState {
   dropCell: string | null;
   /** Brush footprint preview. */
   brushCells: string[];
+  /** Read-only play overlay (play viewer only; editors never set it). */
+  play?: HexPlayOverlay;
+  /** Session/era territory overlay already folded into `map` by the caller (renderers stay dumb). */
+  npcMarkers?: { cell: string; label: string; color?: string }[];
+}
+
+export interface HexPlayOverlay {
+  playerCell?: string;
+  reachableCells: string[];
+  /** Cells hidden by fog (undefined = no fog). */
+  hiddenCells?: Set<string>;
 }
 
 /** Imperative handle: the controller owns pan/zoom outside React state and pushes it here. */

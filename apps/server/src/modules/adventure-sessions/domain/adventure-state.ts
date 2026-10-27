@@ -9,6 +9,8 @@ export interface AdventureState {
   takenTags: string[];
   npcs: Record<string, {locationId: string; knownFactIds: string[]}>;
   performedActionIds: string[]; triggeredEventIds: string[];
+  /** Fog of war: explored cells per map id (session-only; authored maps never change). */
+  explored?: Record<string, string[]>;
   ending?: {id: string; title: string; text: string};
   history: AdventureHistory[]; createdAt: string; updatedAt: string;
 }

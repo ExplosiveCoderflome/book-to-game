@@ -60,6 +60,11 @@ export const WORLD_MAP_KINDS = ['hex'] as const;
 export type WorldMapKind = (typeof WORLD_MAP_KINDS)[number];
 
 export const worldMapSchema = z.object({
+  /** Map id. Optional for the root map (implicit "root"); required on sub-maps. */
+  id: id.optional(),
+  name: z.string().min(1).max(80).optional(),
+  /** Sub-map link: the location (on the parent map) that owns this map. */
+  parent: z.object({ mapId: id, locationId: id }).optional(),
   mapSchemaVersion: z.literal(WORLD_MAP_SCHEMA_VERSION),
   geometry: worldMapGeometrySchema,
   /** Optional layers, all sparse by cell key; absent layer = not authored. */
@@ -67,6 +72,8 @@ export const worldMapSchema = z.object({
   pois: z.array(worldMapPoiSchema).max(200),
   venueTypes: z.array(venueTypeSchema).max(64).optional(),
   /** Authoring metadata: which genre map template seeded this map (never read by rules). */
+  /** Play-time fog of war: only explored cells (visited locations + radius 1) are revealed. Session-only state. */
+  fog: z.boolean().optional(),
   mapTemplate: z.object({ mapTemplateId: z.string().min(1).max(40), mapTemplateVersion: z.number().int().positive() }).optional(),
 });
 

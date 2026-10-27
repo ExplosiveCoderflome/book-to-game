@@ -13,10 +13,24 @@ export interface MapEditorProps {
   historyKey?: string;
 }
 
+/** Read-only viewer (play view / previews). Overlays are session-derived and never written back. */
+export interface MapViewerProps {
+  map: WorldMap;
+  content: WorldContent;
+  playerLocationId?: string;
+  reachableLocationIds?: string[];
+  /** Explored cells; when provided, all other cells are fogged. */
+  exploredCells?: string[];
+  npcMarkers?: { locationId: string; label: string; color?: string }[];
+  onSelectLocation?: (locationId: string) => void;
+  height?: number;
+}
+
 export interface MapKindEditor {
   kind: WorldMapKind;
   label: string;
   Editor: ComponentType<MapEditorProps>;
+  Viewer?: ComponentType<MapViewerProps>;
 }
 
 const editors = new Map<WorldMapKind, MapKindEditor>();

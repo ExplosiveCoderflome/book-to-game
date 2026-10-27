@@ -1,10 +1,11 @@
 import {type WorldContent, type WorldCondition, type WorldEffect} from '@novel-game/contracts';
-import {locationSpatial, matchesWorldConditions, mergeTakenTags, worldbookBlockReason, worldbookIncrementCap, worldbookSpendsForChoice} from '@novel-game/rules';
+import {exploreLocation, locationMap, locationSpatial, matchesWorldConditions, mergeTakenTags, worldbookBlockReason, worldbookIncrementCap, worldbookSpendsForChoice} from '@novel-game/rules';
 import type { AdventureState } from './adventure-state.js';
 
 /** Pure WorldCondition match — authority lives in @novel-game/rules (world-opening). */
 export function matches(conditions: WorldCondition[], state: AdventureState, world?: WorldContent): boolean {
-  return matchesWorldConditions(conditions, world?.map ? { ...state, map: world.map } : state);
+  const map = world ? locationMap(world, state.locationId) : undefined;
+  return matchesWorldConditions(conditions, map ? { ...state, map } : state);
 }
 function addOnce(items: string[], id: string): void { if (!items.includes(id)) items.push(id); }
 
@@ -46,7 +47,7 @@ export function blockedReason(action: WorldContent['actions'][number], world: Wo
     world.worldbook,
     state.takenTags ?? [],
     'location',
-    {regionIds: locationSpatial(world.map, state.locationId).regionIds},
+    {regionIds: locationSpatial(locationMap(world, state.locationId), state.locationId).regionIds},
   );
   if (wb) return wb;
   return undefined;
@@ -59,7 +60,7 @@ export function applyWorldbookSpends(
   state: AdventureState,
 ): void {
   if (!state.resources) state.resources = { ...(world.resources ?? {}) };
-  for (const spend of worldbookSpendsForChoice(action, state.locationId, world.worldbook, 'location', {regionIds: locationSpatial(world.map, state.locationId).regionIds})) {
+  for (const spend of worldbookSpendsForChoice(action, state.locationId, world.worldbook, 'location', {regionIds: locationSpatial(locationMap(world, state.locationId), state.locationId).regionIds})) {
     const previous = state.resources[spend.variable] ?? 0;
     state.resources[spend.variable] = previous - spend.amount;
   }
@@ -84,6 +85,7 @@ export function settle(world: WorldContent, state: AdventureState): string[] {
       if (event.visibility === 'public' && event.text) narration.push(event.text);
     }
   }
+  state.explored = exploreLocation(state.explored, world, state.locationId);
   const ending = world.endings.find(candidate => matches(candidate.when, state, world));
   if (ending) state.ending = {id: ending.id, title: ending.title, text: ending.text};
   else if (state.elapsed >= world.timeLimit) state.ending = {id: 'timeout', title: '时间已到', text: world.timeoutEnding};

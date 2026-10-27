@@ -135,6 +135,7 @@ export function HexMapEditor(props: MapEditorProps) {
         <select className="small" style={{ width: "auto" }} data-testid="map-renderer" value={rendererId} title={t('地图渲染器')} onChange={e => { const v = e.target.value as HexRendererId; setPreferredHexRenderer(v); setRendererId(v); }}>
           <option value="pixi" disabled={!webglAvailable()}>WebGL</option><option value="svg">SVG</option>
         </select>
+        <label className="inline small map-fog-toggle" title={t('试玩时只显示已探索格（到访地点及周围一圈）')}><input type="checkbox" data-testid="map-fog-toggle" checked={map.fog === true} disabled={readOnly} onChange={e => commit({ ...map, fog: e.target.checked || undefined })} />{t('试玩迷雾')}</label>
         <button type="button" className={`small${autoFit ? ' active' : ''}`} data-testid="map-fit" title="F" onClick={fit}>⤢ {t('适配')}</button>
         <button type="button" className="small quiet" disabled={readOnly} onClick={() => { if (window.confirm(t('删除地图图层？地点与行动不受影响。（可撤销）'))) commit(undefined); }}>{t('删除地图')}</button>
       </div>

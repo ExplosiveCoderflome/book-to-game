@@ -56,6 +56,8 @@ export const worldContentSchema = z.object({
   canvasLayout: z.record(z.string().min(1).max(80), z.object({ x: z.number().finite(), y: z.number().finite() })).optional(),
   /** Optional spatial map layer (hex v1). Never creates movement edges; absent = no map. */
   map: worldMapSchema.optional(),
+  /** Child maps (city/district/interior). Each must carry an `id` and a `parent` link. */
+  subMaps: z.array(worldMapSchema).max(32).optional(),
 });
 export type WorldContent = z.infer<typeof worldContentSchema>;
 export type WorldCondition = z.infer<typeof worldConditionSchema>;
@@ -73,4 +75,18 @@ export interface AdventureView {
   npcs: {id: string; name: string; description: string}[];
   actions: {id: string; label: string; description: string; timeCost: number; risk: string; enabled: boolean; blockedReason?: string}[];
   ending?: {id: string; title: string; text: string}; history: AdventureHistory[]; createdAt: string; updatedAt: string;
+  /** Spatial status for the play map (absent when the world has no map). Session-derived, read-only. */
+  map?: AdventureMapView;
+}
+export interface AdventureMapView {
+  mapId: string;
+  cell?: string;
+  terrain?: {id: string; label: string};
+  faction?: {id: string; name: string};
+  regions: {id: string; name: string}[];
+  /** Move destinations offered by currently visible actions. */
+  reachable: {locationId: string; actionId: string; enabled: boolean}[];
+  fog: boolean;
+  /** Explored cells on this map (only when fog is on). */
+  explored?: string[];
 }

@@ -60,3 +60,6 @@ export {
   geometryFor, registerGeometryKind, registeredGeometryKinds, locationSpatial, locationDistance,
   type GeometryAdapter, type LocationSpatial,
 } from './map-geometry.js';
+export {
+  ROOT_MAP_ID, mapIdOf, worldMaps, findMap, locationMap, revealAround, exploreLocation,
+} from './map-session.js';

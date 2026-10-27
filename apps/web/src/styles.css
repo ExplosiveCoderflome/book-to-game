@@ -2962,3 +2962,27 @@ summary:focus:not(:focus-visible) {
 .map-edge { display: flex; align-items: center; gap: 4px; font-size: 12px; }
 .map-edge span { width: 18px; }
 .map-venue { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; font-size: 12px; }
+
+/* ---- Play map (P1) ---- */
+.play-layout.with-map { grid-template-columns: 280px minmax(0, 1fr) minmax(420px, 0.8fr); gap: 20px; }
+.play-map-column { align-self: start; position: sticky; top: 12px; }
+.play-map-panel { display: flex; flex-direction: column; gap: 10px; padding: 14px; }
+.play-map-panel .panel-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.play-map-panel h3 { margin: 0; font-size: 15px; }
+.play-map-hud { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 0; }
+.play-map-hud > div { background: var(--surface-2, #f4f1ea); border: 1px solid var(--line, #e2ddd2); border-radius: 8px; padding: 6px 8px; min-width: 0; }
+.play-map-hud dt { font-size: 11px; color: var(--muted, #7a746a); }
+.play-map-hud dd { margin: 2px 0 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.faction-chip { display: inline-flex; align-items: center; gap: 4px; }
+.faction-chip::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--chip, #888); }
+.map-viewer { position: relative; border: 1px solid var(--line, #e2ddd2); border-radius: 10px; overflow: hidden; background: #f3efe6; }
+.map-viewer svg { display: block; }
+.play-map-legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted, #7a746a); }
+.play-map-legend i { display: inline-block; width: 12px; height: 12px; margin-right: 5px; vertical-align: -2px; border-radius: 3px; }
+.lg-player { background: #e5484d; border-radius: 50% !important; }
+.lg-reach { background: rgba(245, 197, 66, .35); border: 2px dashed #d99a00; }
+.lg-fog { background: #1d1f24; }
+.play-map-dests { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; }
+.play-map-dests li { padding: 3px 8px; border-radius: 999px; background: #fff6d8; border: 1px solid #f0d58a; }
+.play-map-dests li.disabled { opacity: .55; background: #f1f1f1; border-color: #ddd; }
+@media (max-width: 1280px) { .play-layout.with-map { grid-template-columns: 260px minmax(0, 1fr); } .play-map-column { grid-column: 1 / -1; position: static; } }
