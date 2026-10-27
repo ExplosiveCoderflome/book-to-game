@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { gameContentSchema, type CanvasLayout, type Draft, type GameContent, type GameRevision, type GenerationJob, type RuntimeInfo, type ScanDepth, type FillSceneTextResult, type NarrateResult, type ProposeActResult, type SessionView, type SourceDocument, type SourceSummary, type ValidationResult } from '@novel-game/contracts';
+import { StatTemplateSelect, type StatTemplateSelectValue } from './StatTemplateSelect';
 import { errorMessage, request, RequestError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { readTiandaoCorrect } from '../lib/tiandao';
@@ -68,6 +69,7 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
   const [fillDirection, setFillDirection] = useState('');
   const [fillPolishTitle, setFillPolishTitle] = useState(false);
   const [scanDepth, setScanDepth] = useState<ScanDepth>('medium');
+  const [scanStatTemplateId, setScanStatTemplateId] = useState<StatTemplateSelectValue>('');
   const [scanDirection, setScanDirection] = useState(() => t('尊重原作世界规则，设计一次有明确选择后果的短篇冒险'));
   const [scanBusy, setScanBusy] = useState(false);
   const [extendFailedSceneId, setExtendFailedSceneId] = useState<string | null>(null);
@@ -359,6 +361,7 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
         mode: 'story',
         scanDepth,
         chapterIds,
+        ...(scanStatTemplateId ? {statTemplateId: scanStatTemplateId} : {}),
         requestId: crypto.randomUUID(),
       });
       setMessage(t('已提交扫描任务（{depth} · {chapters} 章）。骨架生成后会落到画布。', {
@@ -607,6 +610,13 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
                 <button key={value} type="button" className={`small${scanDepth === value ? ' active' : ''}`} disabled={scanBusy} onClick={() => setScanDepth(value)}>{t(label)}</button>
               ))}
             </div>
+            <StatTemplateSelect
+              compact
+              value={scanStatTemplateId}
+              onChange={setScanStatTemplateId}
+              disabled={scanBusy}
+              testId="empty-scan-stat-template"
+            />
             <div className="empty-scan-scope" data-testid="empty-scan-scope">
               <div className="scan-depth-row" role="group" aria-label={t('章节范围')}>
                 <button type="button" className={`small${chapterScope === 'all' ? ' active' : ''}`} disabled={scanBusy || !scanDocument} onClick={() => { setChapterScope('all'); if (scanDocument) setScanChapterIds(scanDocument.chapters.map(c => c.id)); }}>{t('全书')}</button>

@@ -2,7 +2,7 @@
 
 > 源文档：题材数值骨架如何叠在**统一引擎基底**上，避免「开放文字游戏」塌成多选题。  
 > 实现入口：`packages/contracts/src/stat-templates.ts`  
-> 状态：v1 设计已定稿；玩时 HUD / 生成 UI 可后续跟进。
+> 状态：v1 设计已定稿；改编桌 / 空图画布 / 变量编辑器可选模板；玩时 HUD delta 可后续精修。
 
 ---
 
@@ -172,7 +172,7 @@
 
 1. 新题材：只加目录条目 + 文档表；跑 `statTemplateSchema.parse`。  
 2. 新 role：先改本文论证，再改 enum 与校验。  
-3. 生成 UI：在改编桌加下拉即可；契约已预留 `statTemplateId`。  
+3. 生成 UI：改编桌 / 空图画布已有下拉；单局编辑走变量编辑器「套用数值模板」。用户自定义全局模板目录仍非 v1 目标。  
 4. HUD：用 `displayLabelForVariable(name, content.statTemplateId, content.statTemplateVersion)`；缺省回退裸名。
 
 ---
@@ -184,6 +184,23 @@
 | 目录 + zod + 编译为 variables | 已接 |
 | `skeletonUserPayload` 注入 | 已接（可选） |
 | runner 戳记 id/version | 已接 |
-| 改编桌下拉选择模板 | 待接（契约已预留） |
+| 改编桌下拉选择模板 | 已接（`GenerationPanel` · `statTemplateId` 进任务，含 pending 重试） |
+| 空图画布扫描模板 | 已接（`DraftPanel` empty-scan） |
+| 变量编辑器套用模板 | 已接（`StoryVariablesEditor` → `applyStatTemplateVariables`，不覆盖已有键） |
 | 玩时状态条 / delta | WIP / 跟进（非本设计阻断项） |
+
+---
+
+## 14. 下一步 / 已完成（UI）
+
+| 项 | 状态 |
+|---|---|
+| 改编桌「数值模板」下拉 → `GenerationInput.statTemplateId` | 已完成 |
+| 空图画布扫描同款下拉 | 已完成 |
+| 变量编辑器「套用数值模板」（灌初值 + 戳记，不覆盖已有键） | 已完成 |
+| 单局增删改变量 | 已有 `StoryVariablesEditor` |
+| 选项条件/效果 | 已有场景/`ChoiceRulesEditor` |
+| 用户自建全局模板目录 / CRUD | **非目标（v1）** |
+| 题材自动推断 | 非目标（v1） |
+| 模板版本自动迁移工具 | 非目标（v1） |
 

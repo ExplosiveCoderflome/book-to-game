@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import type { GameContent, VariableValue } from '@novel-game/contracts';
+import { applyStatTemplateVariables, getStatTemplate, type GameContent, type VariableValue } from '@novel-game/contracts';
 import { useI18n } from '../lib/i18n';
 import { defaultVariableValue, parseStoryValue, removeStoryVariable, renameStoryVariable, variableIsReferenced, variableNameError, type VariableType } from '../lib/story-editor';
 import { Notice } from './Notice';
+import { StatTemplateSelect, type StatTemplateSelectValue } from './StatTemplateSelect';
 
 export function StoryValueInput({ value, type = typeof value as VariableType, onChange, label }: { value: VariableValue; type?: VariableType; onChange: (value: VariableValue) => void; label: string }) {
   const { t } = useI18n();
@@ -51,7 +52,32 @@ export function StoryVariablesEditor({ content, update }: { content: GameContent
   const [type, setType] = useState<VariableType>('number');
   const [initialValue, setInitialValue] = useState<VariableValue>(0);
   const [error, setError] = useState<string | null>(null);
+  const [applyTemplateId, setApplyTemplateId] = useState<StatTemplateSelectValue>(
+    (content.statTemplateId as StatTemplateSelectValue | undefined) ?? '',
+  );
+  function applyTemplate() {
+    const template = getStatTemplate(applyTemplateId);
+    if (!template) { setError('请先选择要套用的数值模板。'); return; }
+    const nextVars = applyStatTemplateVariables(template, content.variables ?? {});
+    update({
+      ...content,
+      variables: nextVars,
+      statTemplateId: template.id,
+      statTemplateVersion: template.version,
+    });
+    setError(null);
+  }
   return <fieldset><legend>{t('故事变量')}</legend><p className="hint">{t('设置数值、文本或布尔变量，让选择产生不同后果。重命名会同步更新规则引用。')}</p>
+    <div className="stat-template-apply" data-testid="stat-template-apply">
+      <StatTemplateSelect
+        value={applyTemplateId}
+        onChange={setApplyTemplateId}
+        testId="variables-stat-template"
+      />
+      <button type="button" className="small" data-testid="apply-stat-template" disabled={!applyTemplateId} onClick={applyTemplate}>{t('套用数值模板')}</button>
+      <p className="hint">{t('模板只灌初值；已有同名变量不会被覆盖。之后用本编辑器增删改；选项条件/效果在场景编辑器。')}</p>
+      {content.statTemplateId && <p className="hint">{t('当前戳记：{id} · v{version}', { id: content.statTemplateId, version: content.statTemplateVersion ?? '—' })}</p>}
+    </div>
     <Notice text={error ? t(error) : null} />
     {Object.entries(content.variables ?? {}).map(([name, value]) => <VariableRow key={name} name={name} value={value} content={content} update={update} report={setError} />)}
     <div className="field-row"><label>{t('新变量名')}<input value={name} maxLength={80} onChange={e => setName(e.target.value)} placeholder={t('例如 trust')} /></label>

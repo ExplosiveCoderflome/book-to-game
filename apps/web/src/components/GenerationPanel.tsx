@@ -1,6 +1,7 @@
 import { useI18n } from '../lib/i18n';
 import { useEffect, useRef, useState } from 'react';
-import { generationInputSchema, type GenerationInput, type GenerationJob, type RuntimeInfo, type ScanDepth, type SourceSummary, type SourceDocument } from '@novel-game/contracts';
+import { generationInputSchema, type GenerationInput, type GenerationJob, type RuntimeInfo, type ScanDepth, type SourceSummary, type SourceDocument, type StatTemplateId } from '@novel-game/contracts';
+import { StatTemplateSelect, type StatTemplateSelectValue } from './StatTemplateSelect';
 import { selectedChapters } from '../lib/generation-scope';
 import { errorMessage, request, RequestError } from '../lib/api';
 import { Empty, Notice, dateLabel } from './Notice';
@@ -28,6 +29,7 @@ export function GenerationPanel({ token, runtime, sources, selectedId, select, j
   const [document, setDocument] = useState<SourceDocument | null>(null);
   const [chapterIds, setChapterIds] = useState<string[]>([]);
   const [scanDepth, setScanDepth] = useState<ScanDepth>('medium');
+  const [statTemplateId, setStatTemplateId] = useState<StatTemplateSelectValue>('');
   useEffect(() => {
     let active = true; setDocument(null); setChapterIds([]);
     if (selectedId) request<SourceDocument>(token, `/sources/${selectedId}`).then(value => {
@@ -40,7 +42,7 @@ export function GenerationPanel({ token, runtime, sources, selectedId, select, j
     let input: GenerationInput;
     try {
       if (!pending.current && !document) throw new Error('请等待原文章节载入。');
-      input = pending.current ?? {sourceId: selectedId, direction, mode, chapterIds: selectedChapters(document!.chapters, chapterIds), ...(mode === 'open' ? {playerRole, canonPolicy} : {scanDepth}), requestId: crypto.randomUUID()};
+      input = pending.current ?? {sourceId: selectedId, direction, mode, chapterIds: selectedChapters(document!.chapters, chapterIds), ...(mode === 'open' ? {playerRole, canonPolicy} : {scanDepth}), ...(statTemplateId ? {statTemplateId} : {}), requestId: crypto.randomUUID()};
       if (input.mode === 'open' && !input.playerRole?.trim()) throw new Error('请填写玩家身份。');
     } catch (e) {setError(errorMessage(e)); return;}
     setBusy('new');
@@ -90,6 +92,16 @@ export function GenerationPanel({ token, runtime, sources, selectedId, select, j
           <p className="hint">{t('空图首次扫描按粒度生成节点；之后可在画布对任一节点「延申节点」。')}</p>
         </fieldset>
       )}
+      <fieldset disabled={uncertain || busy !== null} data-testid="stat-template-fieldset">
+        <legend>{t('数值模板')}</legend>
+        <StatTemplateSelect
+          hideLabel
+          value={uncertain ? ((pending.current?.statTemplateId as StatTemplateId | undefined) ?? '') : statTemplateId}
+          onChange={setStatTemplateId}
+          disabled={uncertain || busy !== null}
+          testId="generation-stat-template"
+        />
+      </fieldset>
       <p className="hint">{t("开放冒险以建议行动推进，支持不同策略、时间压力与持续后果。")}</p>
       <p className="hint">{t("生成时会把分块正文发送至你配置的模型服务。")}</p>
       <button className="primary" disabled={!(uncertain ? pending.current?.sourceId : selectedId) || (!uncertain && (!document || !chapterIds.length)) || !runtime.providerConfigured || busy !== null}>{busy === 'new' ? t("正在提交…") : uncertain ? t("确认并重试同一生成请求") : t("开始分析与生成")}</button>
