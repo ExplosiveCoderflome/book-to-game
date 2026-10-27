@@ -1,4 +1,5 @@
-import { assessOpeningActions, type CanvasLayout, type WorldContent, type WorldEffect } from '@novel-game/contracts';
+import { assessOpeningActions, type CanvasLayout, type WorldContent } from '@novel-game/contracts';
+import { moveTarget } from './world-move';
 
 export interface WorldGraphNode {
   id: string;
@@ -30,10 +31,6 @@ const NODE_H = 72;
 const COL_GAP = 260;
 const ROW_GAP = 140;
 
-function moveTarget(effects: WorldEffect[]): string | null {
-  const move = effects.find(e => e.kind === 'move');
-  return move && move.kind === 'move' ? move.locationId : null;
-}
 
 export function openingActionDensity(content: WorldContent): { count: number; warning: string | null; error: string | null } {
   if (!content.initialLocationId) return { count: 0, warning: null, error: null };

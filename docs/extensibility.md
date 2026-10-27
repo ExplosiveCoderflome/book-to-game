@@ -96,8 +96,8 @@ flowchart LR
 |---|---|---|---|
 | Web 曾本地复制 `choiceAvailable`，与 contracts `reachability.choiceAvailable` 双份语义 | `apps/web/src/lib/play-overlay.ts` | 中 | **已修**：改为 `reachChoiceAvailable` 再导出，权威在 contracts |
 | `sessions` / `adventure-sessions` 纯条件·效果曾与 contracts 双份 | `story-variables.ts` · `rules.ts` vs contracts | 中 | **已修**：纯匹配/纯效果权威在 contracts；sessions 只包 worldbook cap/spend；adventures `matches` 委托 `matchesWorldConditions` |
-| 内置 Demo 本地实现 `canChoose` / 应用 effects（略宽于权威：缺 `Object.hasOwn`） | `apps/web/src/components/DemoPreview.tsx` | 低 | 文档记录；Demo 离线示意，真试玩走 API；有空再切到 contracts |
-| `moveTarget(effects)` 在 web 两处同形 | `world-play-overlay.ts`、`world-graph.ts` | 低 | 仅展示拓扑，不提交状态；可抽小 helper，非本轮 |
+| 内置 Demo 曾本地实现 `canChoose` / effects（略宽于权威） | `apps/web/src/components/DemoPreview.tsx` | 低 | **已修**：改用 contracts `reachChoiceAvailable` / `reachApplyEffects` |
+| `moveTarget(effects)` 曾在 web 两处同形 | `world-play-overlay.ts`、`world-graph.ts` | 低 | **已修**：抽到 `apps/web/src/lib/world-move.ts` |
 | edge-summary / ChoiceRulesEditor 按 type 分支展示文案 | web 展示层 | 可接受 | 种类闭集来自 contracts；新增种类必须先改 schema |
 | generation infrastructure 持有 SqliteDatabase | `generation/infrastructure/sqlite-job-repository.ts` | 可接受 | 在 infrastructure，非 domain；只管任务表 |
 | domain 导入 LLM / React / Express | 扫描无命中 | — | 保持；由 architecture 脚本守卫 |
@@ -105,7 +105,7 @@ flowchart LR
 | generation 直接 mutate sessions / adventures | 扫描无命中（经草稿写入端口 / 组合根） | — | 保持 |
 | 跨模块深引用越过 index | architecture 脚本 + 抽查无新增违规 | — | 保持门禁 |
 
-**未做（刻意）**：合并 story 与 adventure 规则引擎；把 worldbook-aware effects 强行塞进 contracts（仅纯路径统一）；自定义用户模板库；大挪移 DemoPreview。
+**未做（刻意）**：合并 story 与 adventure 规则引擎；把 worldbook-aware effects 强行塞进 contracts（仅纯路径统一）；自定义用户模板库；旁白 visitCache 抽成跨进程 port（仍为单进程软缓存）。
 
 ---
 
@@ -116,8 +116,23 @@ flowchart LR
 1. **纯条件/效果权威**：`packages/contracts`（`choiceAvailable` / `applyChoiceEffects` / `matchesWorldConditions`）；sessions 只包 worldbook cap/spend；adventures `matches` 委托 contracts。
 2. **模块公开面 + 门禁**：`sessions` / `adventure-sessions` index 导出 narrate·propose；`app/`·`adapters/` 禁止深引用模块内部（architecture-rules）；`Workbench.createPlayProvider()` 收拢 ChatCompletions 构造。
 3. **作者 UI 缝**：`useStoryCanvasPlay` / `useWorldCanvasPlay` + `StoryPlayInspector` / `WorldPlayInspector` 拆出画布试玩与 AI 辅助，DraftPanel/WorldsPanel 保留作者壳。
+4. **P2 低风险去重（续）**：DemoPreview 对齐 contracts；`moveTarget` 抽到 `world-move.ts`；AI 适配器落点 + visitCache 软缓存纪律写入本文。
+
+## 6.2 AI 适配器落点（当前，轻量）
+
+换模型商 / 加旁白能力时，按这条缝走，不要在 domain 里长出第二个 LLM 客户端：
+
+| 职责 | 当前位置 |
+|---|---|
+| Prompt / ChatCompletions / JSON 抽取 | `apps/server/src/platform/model/*` |
+| 旁白 / 提案用例（不改状态） | `sessions` · `adventure-sessions` 模块 **公开 API**（`index.ts` 导出 `narrateSession` / `proposeAct` 等） |
+| Provider 构造 | 组合根 `Workbench.createPlayProvider()`（及 generation 组合根）；`app/` 禁止深引模块内部 |
+| 传输 | HTTP / MCP 共用命令表 |
+
+**旁白 `visitCache`**：`sessions` / `adventure-sessions` 的 `application/narrate.ts` 内各有一份 `Map`。这是**单进程软缓存**（不跨 worker、重启即丢、不落库）。多副本部署时各进程独立；需要共享缓存时再抽 port，本轮不抽。
 
 ## 7. 延伸路线图（纪律，非排期承诺）
+
 
 1. **Catalog 加厚**：题材包 = 模板 + 提示种子 + 可选可玩性权重；仍 compile-down。  
 2. **条件/效果种类扩展**：contracts → 双运行时 → 迁移文档 → UI；一次一种。  

@@ -1,4 +1,5 @@
-import type { AdventureView, WorldContent, WorldEffect } from '@novel-game/contracts';
+import type { AdventureView, WorldContent } from '@novel-game/contracts';
+import { moveTarget } from './world-move';
 
 export interface WorldPlayOverlayState {
   currentLocationId: string;
@@ -7,11 +8,6 @@ export interface WorldPlayOverlayState {
   blockedEdgeKeys: string[];
   /** Local (non-move) actions at the current location that session marks disabled. */
   blockedActionIds: string[];
-}
-
-function moveTarget(effects: WorldEffect[]): string | null {
-  const move = effects.find(e => e.kind === 'move');
-  return move && move.kind === 'move' ? move.locationId : null;
 }
 
 /** Reconstruct move edges from adventure history labels against the published world. */

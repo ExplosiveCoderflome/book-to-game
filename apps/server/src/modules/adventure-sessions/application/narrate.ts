@@ -22,7 +22,8 @@ export interface AdventureNarrateModel {
   }, signal: AbortSignal): Promise<{ narration: string }>;
 }
 
-/** In-memory cache: one narrate blob per adventure visit (adventure+location+turn). */
+/** Single-process soft cache only — not shared across workers/replicas; lost on restart.
+ *  One narrate blob per adventure visit (adventure+location+turn). Do not treat as durable storage. */
 const visitCache = new Map<string, NarrateResult>();
 
 function visitKey(adventureId: string, locationId: string, turn: number, tiandaoCorrect: boolean): string {

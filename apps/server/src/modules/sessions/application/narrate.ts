@@ -20,7 +20,8 @@ export interface StoryNarrateModel {
   }, signal: AbortSignal): Promise<{ narration: string }>;
 }
 
-/** In-memory cache: one narrate blob per session visit (session+scene+turn). */
+/** Single-process soft cache only — not shared across workers/replicas; lost on restart.
+ *  One narrate blob per session visit (session+scene+turn). Do not treat as durable storage. */
 const visitCache = new Map<string, NarrateResult>();
 
 function visitKey(sessionId: string, sceneId: string, turn: number, tiandaoCorrect: boolean): string {
