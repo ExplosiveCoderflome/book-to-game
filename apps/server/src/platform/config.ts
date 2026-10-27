@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
-import type { ModelConfig } from './model/chat-completions.js';
+import { DEFAULT_MAX_ATTEMPTS, DEFAULT_REPAIR_ATTEMPTS, DEFAULT_RETRY_BASE_MS, DEFAULT_RETRY_MAX_MS, type ModelConfig } from './model/chat-completions.js';
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   const port = Number(env.PORT || 4317);
@@ -15,7 +15,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   }
   const timeoutMs = Number(env.LLM_TIMEOUT_MS || 90000);
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 300000) throw new Error('LLM_TIMEOUT_MS 必须在 1000–300000 毫秒之间');
-  const provider: ModelConfig = {baseUrl, model: env.LLM_MODEL?.trim() || '', apiKey: env.LLM_API_KEY?.trim() || '', timeoutMs};
+  const maxAttempts = readInt(env, 'LLM_MAX_ATTEMPTS', DEFAULT_MAX_ATTEMPTS, 1, 8);
+  const retryBaseMs = readInt(env, 'LLM_RETRY_BASE_MS', DEFAULT_RETRY_BASE_MS, 0, 60_000);
+  const retryMaxMs = readInt(env, 'LLM_RETRY_MAX_MS', DEFAULT_RETRY_MAX_MS, 0, 120_000);
+  if (retryMaxMs < retryBaseMs) throw new Error('LLM_RETRY_MAX_MS 不能小于 LLM_RETRY_BASE_MS');
+  const repairAttempts = readInt(env, 'LLM_REPAIR_ATTEMPTS', DEFAULT_REPAIR_ATTEMPTS, 1, 6);
+  const provider: ModelConfig = {baseUrl, model: env.LLM_MODEL?.trim() || '', apiKey: env.LLM_API_KEY?.trim() || '', timeoutMs,
+    maxAttempts, retryBaseMs, retryMaxMs, repairAttempts};
   const localProvider = ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname);
   const allowedOrigins = [`http://127.0.0.1:${port}`, `http://localhost:${port}`, 'http://127.0.0.1:5173', 'http://localhost:5173', 'http://127.0.0.1:5174', 'http://localhost:5174'];
   return {port, dataDir, databasePath: path.join(dataDir, 'workbench.sqlite'), allowedOrigins, provider,
@@ -40,4 +46,11 @@ export function loadAccessToken(dataDir: string, supplied: string | undefined): 
     throw error;
   }
   return token;
+}
+function readInt(env: NodeJS.ProcessEnv, key: string, fallback: number, min: number, max: number): number {
+  const raw = env[key];
+  if (raw === undefined || raw.trim() === '') return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < min || value > max) throw new Error(`${key} 必须是 ${min}–${max} 的整数`);
+  return value;
 }

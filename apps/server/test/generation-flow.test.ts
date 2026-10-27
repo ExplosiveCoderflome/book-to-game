@@ -42,7 +42,7 @@ test('novel → model HTTP → persisted checkpoint → restart retry → valid 
   const databasePath = path.join(dir, 'test.sqlite');
   let db = openDatabase(databasePath);
   try {
-    const defaults = {baseUrl: `http://127.0.0.1:${(mockProvider.address() as {port: number}).port}/v1`, apiKey: '', model: 'integration-test', timeoutMs: 2000};
+    const defaults = {baseUrl: `http://127.0.0.1:${(mockProvider.address() as {port: number}).port}/v1`, apiKey: '', model: 'integration-test', timeoutMs: 2000, maxAttempts: 3, retryBaseMs: 0, retryMaxMs: 0, repairAttempts: 1};
     const model = new ChatCompletionsProvider(defaults);
     let w = createWorkbench(db, createModelSettings(db, dir, defaults));
     const source = w.sources.importFile({title: '雾渡', filename: 'source.txt', bytes: Buffer.from('第一章 渡口\n渡口有两条船，一条向城，一条向山。')});
@@ -56,7 +56,7 @@ test('novel → model HTTP → persisted checkpoint → restart retry → valid 
     await w.createRunner(model).runOnce();
     const finished = w.jobs.get(job.id);
     assert.equal(finished.status, 'succeeded');
-    assert.equal(analyzeCalls, 1); assert.equal(gameCalls, 2);
+    assert.equal(analyzeCalls, 1); assert.equal(gameCalls, 4);
     const draft = w.games.get(finished.draftId!);
     assert.deepEqual(draft.content.variables, {trust: 0});
     assert.equal(w.games.validate(draft.id).valid, true);

@@ -73,11 +73,15 @@ export const analysisSchema = z.object({
 export type Analysis = z.infer<typeof analysisSchema>;
 export interface AnalysisResult extends Analysis { coverage: {chapterIds: string[]; totalChapters: number} }
 export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+export interface JobFailure {
+  code: string; message: string; path?: string; step: string; attempt: number; requestId: string;
+}
 export interface GenerationJob {
   id: string; sourceId: string; status: JobStatus; stage: string; progress: number;
   completedChunks: number; totalChunks: number; error: string | null; draftId: string | null;
   analysis: AnalysisResult | null; createdAt: string; updatedAt: string;
   mode?: 'story' | 'open'; chapterIds?: string[]; playerRole?: string; canonPolicy?: 'faithful' | 'divergent'; direction?: string;
+  failure?: JobFailure | null;
 }
 export const generationInputSchema = z.object({
   sourceId: z.string().min(1), requestId: z.string().uuid(),

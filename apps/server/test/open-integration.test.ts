@@ -88,7 +88,7 @@ test('selected novel chapters traverse real model HTTP, recover generation failu
     f.settings.save({baseUrl: `http://127.0.0.1:${(provider.address() as {port: number}).port}/v1`, model: 'test-world', timeoutMs: 2000, expectedRevision: 0});
     const job = await f.request('/api/jobs', 'POST', {sourceId: source.id, requestId: crypto.randomUUID(), mode: 'open',
       chapterIds: selected.chapters.map(c => c.id), playerRole: '护送证人的抄写员', canonPolicy: 'faithful', direction: '三种策略过河'});
-    const runner = f.w.createRunner(new ChatCompletionsProvider(f.settings.resolve()));
+    const runner = f.w.createRunner(new ChatCompletionsProvider({...f.settings.resolve(), maxAttempts: 3, retryBaseMs: 0, retryMaxMs: 0, repairAttempts: 1}));
     await runner.runOnce(); assert.equal(f.w.jobs.get(job.id).status, 'failed');
     assert.equal(f.w.worlds.list().length, 0); failWorld = false;
     await f.request(`/api/jobs/${job.id}/retry`, 'POST', {}); await runner.runOnce();

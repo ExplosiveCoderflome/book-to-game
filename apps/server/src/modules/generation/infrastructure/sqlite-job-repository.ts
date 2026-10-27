@@ -1,7 +1,8 @@
 import type { SqliteDatabase } from '../../../platform/database.js';
 import { randomUUID } from 'node:crypto';
-import type { Analysis, AnalysisResult, GenerationInput } from '@novel-game/contracts';
+import type { Analysis, AnalysisResult, GenerationInput, JobFailure } from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
+import { formatJobError } from '../domain/failure.js';
 import type { JobRepository, StoredJob } from '../domain/ports.js';
 
 interface Row {id: string; status: string; owner: string | null; lease_until: number; payload: string}
@@ -52,7 +53,7 @@ export class SqliteJobRepository implements JobRepository {
       const row = this.row(id); const job: StoredJob = JSON.parse(row.payload);
       if (operation === 'retry') {
         if (!['failed', 'cancelled'].includes(job.status)) throw new AppError('JOB_STATE_CONFLICT', '只有失败或取消的任务可以重试', 409);
-        job.status = 'queued'; job.error = null; job.stage = '等待恢复';
+        job.status = 'queued'; job.error = null; job.failure = null; job.stage = '等待恢复';
       } else {
         if (job.status === 'succeeded') throw new AppError('JOB_STATE_CONFLICT', '任务已完成，无法取消', 409);
         job.status = 'cancelled'; job.stage = '已取消';
@@ -96,10 +97,14 @@ export class SqliteJobRepository implements JobRepository {
   }
   completeWith(id: string, owner: string, createDraft: () => string): boolean {
     return this.owned(id, owner, job => {
-      job.draftId = createDraft(); job.status = 'succeeded'; job.stage = '草稿已生成'; job.progress = 1; job.error = null;
+      job.draftId = createDraft(); job.status = 'succeeded'; job.stage = '草稿已生成'; job.progress = 1; job.error = null; job.failure = null;
     });
   }
-  fail(id: string, owner: string, message: string): void {
-    this.owned(id, owner, job => {job.status = 'failed'; job.error = message; job.stage = '等待重试';});
+  fail(id: string, owner: string, failure: string | JobFailure): void {
+    this.owned(id, owner, job => {
+      job.status = 'failed'; job.stage = '等待重试';
+      if (typeof failure === 'string') {job.error = failure; job.failure = null; return;}
+      job.failure = failure; job.error = formatJobError(failure);
+    });
   }
 }

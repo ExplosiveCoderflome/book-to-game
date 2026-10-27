@@ -1,4 +1,4 @@
-import type { Analysis, AnalysisResult, GameContent, GenerationInput, GenerationJob, SourceDocument, WorldContent } from '@novel-game/contracts';
+import type { Analysis, AnalysisResult, GameContent, GenerationInput, GenerationJob, JobFailure, SourceDocument, WorldContent } from '@novel-game/contracts';
 
 export interface SourceReader { get(id: string): SourceDocument }
 export interface SourceChunk {
@@ -19,12 +19,14 @@ export interface JobRepository {
   saveChunk(id: string, owner: string, index: number, analysis: Analysis): boolean;
   saveAnalysis(id: string, owner: string, analysis: AnalysisResult): boolean;
   completeWith(id: string, owner: string, createDraft: () => string): boolean;
-  fail(id: string, owner: string, message: string): void;
+  fail(id: string, owner: string, failure: string | JobFailure): void;
 }
+export interface ModelRepairIssue {code: string; message: string; path?: string}
+export interface ModelRepairFeedback {errors: ModelRepairIssue[]}
 export interface GenerationProvider {
-  analyze(chunk: SourceChunk, signal: AbortSignal): Promise<Analysis>;
-  generate(analysis: AnalysisResult, direction: string, signal: AbortSignal): Promise<GameContent>;
-  generateWorld?(analysis: AnalysisResult, options: WorldGenerationOptions, signal: AbortSignal): Promise<WorldContent>;
+  analyze(chunk: SourceChunk, signal: AbortSignal, feedback?: ModelRepairFeedback): Promise<Analysis>;
+  generate(analysis: AnalysisResult, direction: string, signal: AbortSignal, feedback?: ModelRepairFeedback): Promise<GameContent>;
+  generateWorld?(analysis: AnalysisResult, options: WorldGenerationOptions, signal: AbortSignal, feedback?: ModelRepairFeedback): Promise<WorldContent>;
 }
 export type DraftWriter = (input: {sourceId: string; content: GameContent}) => {id: string};
 export interface WorldGenerationOptions {direction: string; chapterIds: string[]; playerRole: string; canonPolicy: 'faithful' | 'divergent'}

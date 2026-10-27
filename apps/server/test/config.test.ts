@@ -19,5 +19,13 @@ test('local access token survives restart and absent provider stays disabled', (
     assert.throws(() => loadConfig({PORT: 'NaN'}), /PORT/);
     assert.throws(() => loadConfig({LLM_BASE_URL: 'file:///secret'}), /HTTP/);
     assert.equal(loadConfig({LLM_BASE_URL: 'http://127.0.0.1:8080/v1', LLM_MODEL: 'local-model'}).providerConfigured, true);
+    assert.equal(config.provider.maxAttempts, 3);
+    assert.equal(config.provider.retryBaseMs, 500);
+    assert.equal(config.provider.repairAttempts, 3);
+    const tuned = loadConfig({LLM_MAX_ATTEMPTS: '2', LLM_RETRY_BASE_MS: '0', LLM_RETRY_MAX_MS: '1000', LLM_REPAIR_ATTEMPTS: '4'});
+    assert.deepEqual({maxAttempts: tuned.provider.maxAttempts, retryBaseMs: tuned.provider.retryBaseMs, repairAttempts: tuned.provider.repairAttempts},
+      {maxAttempts: 2, retryBaseMs: 0, repairAttempts: 4});
+    assert.throws(() => loadConfig({LLM_MAX_ATTEMPTS: '0'}), /LLM_MAX_ATTEMPTS/);
+    assert.throws(() => loadConfig({LLM_RETRY_BASE_MS: '1000', LLM_RETRY_MAX_MS: '10'}), /LLM_RETRY_MAX_MS/);
   } finally {rmSync(dir, {recursive: true, force: true});}
 });

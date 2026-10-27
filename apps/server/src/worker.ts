@@ -10,7 +10,7 @@ const config = loadConfig();
 const db = openDatabase(config.databasePath);
 const settings = createModelSettings(db, config.dataDir, config.provider);
 const logger = createLogger(config.dataDir, 'worker');
-const workbench = createWorkbench(db, settings, logger);
+const workbench = createWorkbench(db, settings, logger, {repairAttempts: config.provider.repairAttempts ?? 3});
 const shutdown = new AbortController();
 process.on('SIGINT', () => shutdown.abort()); process.on('SIGTERM', () => shutdown.abort());
 logger.info('worker.started');
@@ -19,8 +19,15 @@ try {
   while (!shutdown.signal.aborted) {
     try {
       // Each execution uses one configuration snapshot; the next run sees saved changes.
+      const endpoint = settings.resolve();
       const worked = settings.get().configured && await workbench
-        .createRunner(new ChatCompletionsProvider(settings.resolve(), logger)).runOnce(shutdown.signal);
+        .createRunner(new ChatCompletionsProvider({
+          ...endpoint,
+          maxAttempts: config.provider.maxAttempts,
+          retryBaseMs: config.provider.retryBaseMs,
+          retryMaxMs: config.provider.retryMaxMs,
+          repairAttempts: config.provider.repairAttempts,
+        }, logger)).runOnce(shutdown.signal);
       if (!worked) await wait(1000, undefined, {signal: shutdown.signal});
     } catch (error) {
       if (!shutdown.signal.aborted) {

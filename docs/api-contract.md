@@ -52,7 +52,7 @@ DTO 来自 packages/contracts/src/index.ts。客户端请求超时或失败不�
 
 旧草稿、固定发布版本与存档不重写；缺少变量状态的旧存档按空变量处理。网页语言选择仅影响界面，HTTP/MCP 游戏合同和作者内容不随 locale 改变。
 
-GenerationJob.progress 的范围为 0..1。任务失败或取消后均可 retry；get_job 的 analysis.coverage 明确记录实际有正文被分析的章节。MCP 工具返回成功结构 `{result: DTO}`，失败返回 `{error:{code,message,...}}` 并标记 isError。
+GenerationJob.progress 的范围为 0..1。任务失败或取消后均可 retry；get_job 的 analysis.coverage 明确记录实际有正文被分析的章节。失败时 `error` 是给作者看的说明，`failure` 为 `{code,message,path?,step,attempt,requestId}`，路径指向未通过校验的字段；日志与该对象都不包含小说正文或模型密钥。MCP 工具返回成功结构 `{result: DTO}`，失败返回 `{error:{code,message,...}}` 并标记 isError。
 
 GenerationInput 为 `{sourceId,direction,requestId,mode?,chapterIds?,playerRole?,canonPolicy?}`。mode 为 story/open，省略时保留旧接口 story 行为；网页默认 open。chapterIds 省略则选择全部，显式传入必须非空、不重复且属于来源，服务按原文顺序归一化。canonPolicy 为 faithful/divergent。返回任务保留改编计划，open 成功后的 draftId 指向 `/api/worlds/drafts/:id`，story 指向 `/api/drafts/:id`，客户端必须按 mode 分流。相同 requestId 改变计划返回冲突。
 

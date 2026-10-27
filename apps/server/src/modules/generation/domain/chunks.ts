@@ -31,9 +31,20 @@ export function chunkSource(source: SourceDocument): SourceChunk[] {
 export function validateAnalysis(input: Analysis, chunk: SourceChunk): Analysis {
   const result = analysisSchema.parse(input);
   const refs = new Set(chunk.paragraphs.map(p => `${p.chapterId}/${p.paragraphId}`));
-  for (const fact of [...result.characters, ...result.locations, ...result.worldRules]) {
-    if (!fact.evidence.length || fact.evidence.some(e => !refs.has(`${e.chapterId}/${e.paragraphId}`))) {
-      throw new AppError('INVALID_EVIDENCE', '模型分析的证据没有指向当前文本块中的真实段落');
+  const groups = [
+    ['characters', result.characters],
+    ['locations', result.locations],
+    ['worldRules', result.worldRules],
+  ] as const;
+  for (const [bucket, facts] of groups) {
+    for (let index = 0; index < facts.length; index++) {
+      const fact = facts[index];
+      if (!fact.evidence.length || fact.evidence.some(e => !refs.has(`${e.chapterId}/${e.paragraphId}`))) {
+        const path = `${bucket}.${index}.evidence`;
+        throw new AppError('INVALID_EVIDENCE', `模型分析的证据没有指向当前文本块中的真实段落（${path}）`, 422, {
+          path, issues: [{path, message: '证据必须引用当前文本块中的 chapterId 与 paragraphId'}],
+        });
+      }
     }
   }
   return result;

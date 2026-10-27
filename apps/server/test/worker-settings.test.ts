@@ -27,7 +27,8 @@ test('already-running worker reads new model and encrypted key on save and retry
   const w = createWorkbench(db, settings);
   const worker = spawn(process.execPath, ['--import', 'tsx', 'apps/server/src/worker.ts'], {
     cwd: fileURLToPath(new URL('../../..', import.meta.url)),
-    env: {...process.env, DATA_DIR: dir, LLM_MODEL: '', LLM_API_KEY: '', LLM_BASE_URL: 'https://api.example.test/v1', LLM_TIMEOUT_MS: '2000'},
+    env: {...process.env, DATA_DIR: dir, LLM_MODEL: '', LLM_API_KEY: '', LLM_BASE_URL: 'https://api.example.test/v1', LLM_TIMEOUT_MS: '2000',
+      LLM_MAX_ATTEMPTS: '3', LLM_RETRY_BASE_MS: '0', LLM_RETRY_MAX_MS: '0', LLM_REPAIR_ATTEMPTS: '1'},
     stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
   });
   let output = ''; worker.stdout.on('data', part => {output += part;}); worker.stderr.on('data', part => {output += part;});
@@ -46,9 +47,10 @@ test('already-running worker reads new model and encrypted key on save and retry
     settings.save({...input, model: 'second-model', apiKey: 'second-test-key', expectedRevision: 1});
     w.jobs.retry(job.id);
     await until(() => w.jobs.get(job.id).status === 'failed');
+    const attempt = (model: string, authorization: string) => ({model, authorization});
     assert.deepEqual(requests, [
-      {model: 'first-model', authorization: 'Bearer first-test-key'},
-      {model: 'second-model', authorization: 'Bearer second-test-key'},
+      ...Array.from({length: 3}, () => attempt('first-model', 'Bearer first-test-key')),
+      ...Array.from({length: 3}, () => attempt('second-model', 'Bearer second-test-key')),
     ]);
   } finally {
     worker.kill(); await exited; db.close();
