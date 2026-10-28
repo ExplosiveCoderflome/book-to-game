@@ -5,8 +5,9 @@ import { StatTemplateSelect, type StatTemplateSelectValue } from './StatTemplate
 import { selectedChapters } from '../lib/generation-scope';
 import { errorMessage, request, RequestError } from '../lib/api';
 import { Empty, Notice, dateLabel } from './Notice';
+import { ProductionPanel } from './production/ProductionPanel';
 
-const statuses: Record<GenerationJob['status'], string> = { queued: '等待处理', running: '正在生成', succeeded: '已完成', failed: '失败', cancelled: '已取消' };
+const statuses: Record<GenerationJob['status'], string> = { queued: '等待处理', running: '正在生成', awaiting_review: '待审阅规划', succeeded: '已完成', failed: '失败', cancelled: '已取消' };
 const pendingKey = 'novel-game.pending-generation';
 function restoreGeneration(): GenerationInput | null {
   try {
@@ -18,6 +19,8 @@ interface Props { token: string; runtime: RuntimeInfo; sources: SourceSummary[];
 
 export function GenerationPanel({ token, runtime, sources, selectedId, select, jobs, refresh, openDraft, onConfigure }: Props) {
   const { t, locale } = useI18n();
+  const [workflow, setWorkflow] = useState<'production' | 'adaptation'>('production');
+  const adaptationJobs = jobs.filter(job => !job.productionBrief);
   const [direction, setDirection] = useState(() => t('尊重原作世界规则，设计一次有明确选择后果的短篇冒险'));
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +61,12 @@ export function GenerationPanel({ token, runtime, sources, selectedId, select, j
     catch (e) { setError(errorMessage(e)); } finally { setBusy(null); }
   }
   return <section className="work-section">
-    <div className="section-heading"><div><p className="eyebrow">{t("02 / 改编桌")}</p><h2>{t("为原作打开另一条路")}</h2><p>{t("选择章节与玩家身份，生成可审阅的世界或分支故事。")}</p></div><span className="edition">ADAPTATION DESK</span></div>
+    <div className="section-heading"><div><p className="eyebrow">{t("02 / 改编桌")}</p><h2>{t(workflow === 'production' ? '为角色设计一局游戏' : '为原作打开另一条路')}</h2><p>{t(workflow === 'production' ? '先规划行动、关系和结局，再分段写作与试玩。' : '选择章节与玩家身份，生成可审阅的世界或分支故事。')}</p></div><span className="edition">ADAPTATION DESK</span></div>
+    <div className="actions production-workflow" role="group" aria-label={t('生成方式')}>
+      <button type="button" className={workflow === 'production' ? 'primary' : 'quiet'} aria-pressed={workflow === 'production'} onClick={() => setWorkflow('production')}>{t('制作角色扮演游戏')}</button>
+      <button type="button" className={workflow === 'adaptation' ? 'primary' : 'quiet'} aria-pressed={workflow === 'adaptation'} onClick={() => setWorkflow('adaptation')}>{t('原作快速改编')}</button>
+    </div>
+    {workflow === 'production' ? <ProductionPanel token={token} configured={runtime.providerConfigured} sources={sources} jobs={jobs} refresh={refresh} openDraft={openDraft} onConfigure={onConfigure} /> : <>
     <Notice text={error} /><Notice kind="info" text={!runtime.providerConfigured ? t("尚未配置模型服务。前往“模型设置”填写并保存后即可生成，无需重启。也可在草稿页手动提交内容。") : null} />
     {!runtime.providerConfigured && <p><button onClick={onConfigure}>{t("前往模型设置 →")}</button></p>}
     <div className="generation-layout"><form className="panel stack" onSubmit={generate}>
@@ -108,7 +116,7 @@ export function GenerationPanel({ token, runtime, sources, selectedId, select, j
       {uncertain && <p className="hint">{t("请求结果未确认，重试会使用同一任务标识与方向。")}</p>}
     </form>
     <div className="panel"><div className="panel-heading"><h3>{t("生成记录")}</h3><span className="hint">{t("运行中自动刷新")}</span></div>
-      {jobs.length === 0 ? <Empty>{t("生成任务会保存在这里。关闭网页后，可回来查看进度。")}</Empty> : <ul className="job-list">{jobs.map(job => <li key={job.id}>
+      {adaptationJobs.length === 0 ? <Empty>{t("生成任务会保存在这里。关闭网页后，可回来查看进度。")}</Empty> : <ul className="job-list">{adaptationJobs.map(job => <li key={job.id}>
         <div className="job-heading"><strong>{sources.find(s => s.id === job.sourceId)?.title ?? t("原作任务")}</strong><span className={`status ${job.status}`}>{t(statuses[job.status])}</span></div>
         <p>{job.mode === 'open' ? t("开放冒险") : t("分支故事")} · {job.stage.startsWith('分析小说 ') ? t('分析小说 {completed}/{total}', {completed: job.completedChunks, total: job.totalChunks}) : t(job.stage || '准备中')} <span className="hint">· {t('{completed} / {total} 块', {completed: job.completedChunks, total: job.totalChunks})}</span></p>
         <progress max={1} value={Math.min(1, Math.max(0, job.progress))} aria-label={t("生成进度")} /><div className="job-meta"><small>{dateLabel(job.updatedAt, locale)}</small><small>{Math.round(job.progress * 100)}%</small></div>
@@ -117,5 +125,6 @@ export function GenerationPanel({ token, runtime, sources, selectedId, select, j
         <div className="actions">{job.draftId && <button className="primary small" onClick={() => openDraft(job.draftId!, job.mode ?? 'story')}>{t("打开草稿 →")}</button>}{(job.status === 'failed' || job.status === 'cancelled') && <button disabled={busy !== null} onClick={() => operate(job.id, 'retry')}>{t("重试任务")}</button>}{(job.status === 'queued' || job.status === 'running') && <button className="quiet" disabled={busy !== null} onClick={() => operate(job.id, 'cancel')}>{t("取消任务")}</button>}</div>
       </li>)}</ul>}
     </div></div>
+    </>}
   </section>;
 }

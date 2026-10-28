@@ -49,7 +49,7 @@ const check = (id: string, label: string, line: string, measured: string, pass: 
 export function lintWorld(world: WorldContent, opts: LintOptions = {}): LintReport {
   const c = new Collector();
   const s1 = !!(world.resourceDefs || world.clock || world.storylets);
-  const tier = opts.tier ?? 'M';
+  const tier = opts.tier ?? world.production?.tier ?? 'M';
   const target = VOLUME_TIERS[tier];
   // Content delivered in batches: tier shortfalls are reported, not blocking, until the last batch.
   const partial = world.production?.complete === false;

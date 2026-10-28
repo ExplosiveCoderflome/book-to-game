@@ -46,7 +46,7 @@ export function EndingRateTable({ report }: { report: PlaytestReport }) {
           </tr>
         ))}
         <tr className="is-sub">
-          <td>{t('中位决策 / 字数 / 月')}</td>
+          <td>{t(report.timeUnit === 'turn' ? '中位决策 / 字数 / 行动耗时' : '中位决策 / 字数 / 月')}</td>
           {report.strategies.map(s => { const m = report.medians[s.id]; return <td key={s.id} className="num">{m ? `${m.decisions} / ${m.uniqueChars} / ${m.months}` : '—'}</td>; })}
         </tr>
       </tbody>

@@ -142,8 +142,8 @@ function merchantStrategy(world: WorldContent, money: string): Strategy['pick'] 
 export function defaultStrategies(world: WorldContent): Strategy[] {
   const defs = world.resourceDefs ?? {};
   const ids = Object.keys(defs).filter(id => defs[id]!.display !== 'hidden');
-  const prefer = (want: string, fallback: number) => (ids.includes(want) ? want : ids[fallback] ?? ids[0] ?? '');
-  const growth = prefer('xiuwei', 0); const money = prefer('lingshi', 1);
+  const prefer = (wanted: string[], fallback: number) => wanted.find(id => ids.includes(id)) ?? ids[fallback] ?? ids[0] ?? '';
+  const growth = prefer(['xiuwei', 'reputation', 'trust'], 0); const money = prefer(['lingshi', 'coin', 'gold', 'primary_coin'], 1);
   // 魔道: chase the resource whose max ends the game (xinmo in 《寿灯》).
   const dark = ids.includes('xinmo') ? 'xinmo' : ids.find(id => defs[id]!.onMax?.ending) ?? growth;
   const label = (id: string) => defs[id]?.label ?? id;
@@ -151,9 +151,9 @@ export function defaultStrategies(world: WorldContent): Strategy[] {
     {id: 'random', label: '随机', pick: (o, _v, r) => pickRandom(o, r)},
     {id: `greedy-${growth}`, label: `只顾${label(growth)}`, pick: greedy(growth)},
     {id: `greedy-${money}`, label: `只顾${label(money)}`, pick: greedy(money)},
-    {id: 'modao', label: '魔道优先', pick: greedy(dark)},
+    {id: 'modao', label: ids.includes('xinmo') ? '魔道优先' : `追求${label(dark)}`, pick: greedy(dark)},
     {id: 'merchant', label: `跑商（攒${label(money)}）`, pick: merchantStrategy(world, money)},
-    {id: 'lazy', label: '只修炼', pick: (options, _v, r) => {
+    {id: 'lazy', label: ids.includes('xiuwei') ? '只修炼' : '原地行动', pick: (options, _v, r) => {
       // Only cultivate in place: never move; prefer growth per month; wait when nothing grows.
       const stay = options.filter(o => !o.moves);
       const pool = stay.length ? stay : options;
@@ -280,14 +280,16 @@ export async function simulateWorld(revision: WorldRevision, opts: SimulateOptio
   const unreached = endings.filter(e => best(e.id) < 0.05);
   const randomMax = Math.max(0, ...Object.entries(endingRates.random ?? {}).map(([, v]) => v));
   const lazyTimeout = Object.entries(endingRates.lazy ?? {}).filter(([id]) => endings.find(e => e.id === id)?.kind === 'timeout' || id === 'timeout').reduce((n, [, v]) => n + v, 0);
+  const elapsedLabel = (n: number) => world.clock ? formatMonths(n) : `${n} 行动耗时`;
+  const lazyLabel = strategies.find(strategy => strategy.id === 'lazy')?.label ?? '原地行动';
   const checks: PassCheck[] = [
-    {id: 'G1', label: '时长', line: '「随机」首通中位数 ≥ 60 次决策且 ≥ 10,000 字不重复正文', measured: rnd ? `${rnd.decisions} 次决策 · ${rnd.uniqueChars} 字 · ${formatMonths(rnd.months)}` : '未运行「随机」', pass: !!rnd && rnd.decisions >= 60 && rnd.uniqueChars >= 10000},
+    {id: 'G1', label: '时长', line: '「随机」首通中位数 ≥ 60 次决策且 ≥ 10,000 字不重复正文', measured: rnd ? `${rnd.decisions} 次决策 · ${rnd.uniqueChars} 字 · ${elapsedLabel(rnd.months)}` : '未运行「随机」', pass: !!rnd && rnd.decisions >= 60 && rnd.uniqueChars >= 10000},
     {id: 'G2', label: '结局', line: '每个结局至少 1 种策略 ≥ 5%；「随机」任一结局 ≤ 60%', measured: `${endings.length - unreached.length}/${endings.length} 个结局达标${unreached.length ? `（未达：${unreached.map(e => e.title).join('、')}）` : ''} · 「随机」最高 ${pct(randomMax)}`, pass: !unreached.length && randomMax <= 0.6},
     {id: 'G4', label: '卡池', line: '连续两回合同一张 = 0 次；没有从未抽到的卡', measured: `连续重复 ${repeats} 次（${pct(consecutiveRepeatRate)}）· 从未抽到 ${neverDrawn.length} 张`, pass: repeats === 0 && neverDrawn.length === 0},
-    {id: 'G6', label: '时钟', line: '时限结局在「偷懒」策略下可达', measured: endingRates.lazy ? `「只修炼」（偷懒）时限结局 ${pct(lazyTimeout)}` : '未运行「只修炼」（偷懒）', pass: lazyTimeout > 0},
+    {id: 'G6', label: '时钟', line: '时限结局在原地策略下可达', measured: endingRates.lazy ? `「${lazyLabel}」时限结局 ${pct(lazyTimeout)}` : `未运行「${lazyLabel}」`, pass: lazyTimeout > 0},
     {id: 'G8', label: '取舍', line: '每回合可见选项里 ≥ 1 个有代价；0 死路', measured: `有代价回合 ${pct(steps ? costSteps / steps : 0)} · 死路 ${deadEnds} · 锁定选项 ${pct(visible ? locked / visible : 0)}`, pass: steps > 0 && costSteps === steps && deadEnds === 0},
   ];
-  return {...(opts.draftId ? {draftId: opts.draftId} : {}), draftVersion: opts.draftVersion ?? 0, createdAt: now, seeds, maxSteps,
+  return {...(opts.draftId ? {draftId: opts.draftId} : {}), draftVersion: opts.draftVersion ?? 0, createdAt: now, seeds, maxSteps, timeUnit: world.clock ? 'month' : 'turn',
     strategies: strategies.map(s => ({id: s.id, label: s.label, runs: seeds})), checks, endingRates, endings, medians, resourceBands,
     cards: {neverDrawn, drawRate, consecutiveRepeatRate}, deadEnds, lockedRatio: visible ? locked / visible : 0, pinnedRatio, gatesNeverMet,
     ...(world.recap?.length || world.endings.some(e => e.passages?.length) ? {endingExtras: {

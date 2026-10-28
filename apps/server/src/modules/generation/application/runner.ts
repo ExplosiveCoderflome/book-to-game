@@ -8,8 +8,9 @@ import { chunkSource, mergeAnalyses, validateAnalysis } from '../domain/chunks.j
 import { annotateFailure, failureCode, failurePath, feedbackFrom, toJobFailure } from '../domain/failure.js';
 import type { DraftWriter, GenerationProvider, JobRepository, ModelRepairFeedback, SourceReader, WorldDraftWriter } from '../domain/ports.js';
 import { selectChapters } from '../domain/selection.js';
+import { produceWorld } from './produce-world.js';
 
-const SEMANTIC_REPAIR = new Set(['INVALID_EVIDENCE', 'INVALID_GENERATED_GAME', 'INVALID_GENERATED_WORLD', 'WORLD_SCOPE_MISMATCH']);
+const SEMANTIC_REPAIR = new Set(['INVALID_EVIDENCE', 'INVALID_GENERATED_GAME', 'INVALID_GENERATED_WORLD', 'WORLD_SCOPE_MISMATCH', 'INVALID_PRODUCTION']);
 
 export class GenerationRunner {
   constructor(private readonly repository: JobRepository, private readonly sources: SourceReader,
@@ -59,6 +60,18 @@ export class GenerationRunner {
       signal.throwIfAborted();
 
       if (job.mode === 'open') {
+        if (job.productionBrief) {
+          if (!this.createWorld) throw new AppError('OPEN_PROVIDER_UNAVAILABLE', '当前工作台不支持开放世界草稿');
+          job.analysis = analysis;
+          const content = await produceWorld(job, owner, source, this.repository, this.provider, signal,
+            (name, run) => { step = name; return this.withRepair(name, signal, context, run); });
+          if (!content) return true;
+          signal.throwIfAborted();
+          const committed = this.repository.completeWith(job.id, owner, () => this.createWorld!({sourceId: job.sourceId,
+            content: {...content, provenance: generationProvenance(this.provider.modelName)}}).id, this.provider.modelName);
+          if (committed) this.logger?.info('generation.succeeded', {jobId: job.id, requestId: job.requestId, mode: 'open', production: true, durationMs: Math.round(performance.now() - startedAt)});
+          return true;
+        }
         step = 'generate_world';
         this.logger?.info('generation.output.started', {jobId: job.id, requestId: job.requestId, mode: 'open', step});
         const committed = await this.withRepair(step, signal, context, async feedback => {

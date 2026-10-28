@@ -4,7 +4,7 @@ import { GameService, SqliteGameRepository } from '../modules/games/index.js';
 import { SessionService, SqliteSessionRepository } from '../modules/sessions/index.js';
 import { GenerationRunner, JobService, JsonlModelLogReader, ProvenanceTracer, SqliteJobRepository, type GenerationProvider } from '../modules/generation/index.js';
 import { AppError } from '../shared/errors.js';
-import type { ModelListInput, ModelSettingsInput } from '@novel-game/contracts';
+import { productionInputSchema, type ModelListInput, type ModelSettingsInput, type ProductionInput } from '@novel-game/contracts';
 import type { ModelSettingsService } from '../modules/model-settings/index.js';
 import { BuildingImageService, BuildingLibraryService, SqliteBuildingLibraryRepository, createBuildingImageProvider } from '../modules/building-library/index.js';
 import { ItemCatalogService, SqliteItemCatalogRepository } from '../modules/item-catalog/index.js';
@@ -43,6 +43,20 @@ export function createWorkbench(db: SqliteDatabase, modelSettings: ModelSettings
   });
   const preflight = new PreflightService(new SqlitePreflightRepository(db), {world: id => worlds.get(id), story: id => games.get(id)});
   const jobs = new JobService(jobsRepository, sources, () => modelSettings.get().configured);
+  const createProductionJob = (input: ProductionInput) => {
+    const data = productionInputSchema.parse(input);
+    if (!modelSettings.get().configured) throw new AppError('MODEL_NOT_CONFIGURED', '请先在模型设置中配置生成模型', 503);
+    return db.transaction(() => {
+      const existing = jobsRepository.findByRequestId(data.requestId);
+      const brief = data.brief;
+      const sourceId = data.sourceId ?? existing?.sourceId ?? sources.importFile({
+        title: brief.title, filename: 'production-brief.txt', encoding: 'utf8',
+        bytes: Buffer.from(`${brief.title}\n\n${brief.setting}\n\n玩家身份：${brief.playerRole}\n创作目标：${brief.goal}\n基调：${brief.tone}`, 'utf8'),
+      }).id;
+      return jobs.create({sourceId, requestId: data.requestId, mode: 'open', playerRole: brief.playerRole,
+        canonPolicy: 'faithful', direction: brief.goal, productionBrief: brief});
+    }).immediate();
+  };
   const createRunner = (provider: GenerationProvider) => new GenerationRunner(jobsRepository, sources, provider, input => {
     const draft = games.create(input);
     const validation = games.validate(draft.id);
@@ -88,7 +102,7 @@ export function createWorkbench(db: SqliteDatabase, modelSettings: ModelSettings
     const n = provenanceBackfill.stories.length + provenanceBackfill.worlds.length;
     if (n) logger?.info('provenance.backfill', {stories: provenanceBackfill.stories.map(x => x.id), worlds: provenanceBackfill.worlds.map(x => x.id)});
   } catch (error) { logger?.error?.('provenance.backfill.failed', {message: error instanceof Error ? error.message : String(error)}); }
-  return {provenanceBackfill, backfillProvenance, sources, games, sessions, worlds, preflight, adventures, exporter, buildingLibrary, buildingImages, itemCatalog, jobs, createRunner, createPlayProvider, modelSettings, testModelConnection, listModels, mediaDir,
+  return {provenanceBackfill, backfillProvenance, sources, games, sessions, worlds, preflight, adventures, exporter, buildingLibrary, buildingImages, itemCatalog, jobs, createProductionJob, createRunner, createPlayProvider, modelSettings, testModelConnection, listModels, mediaDir,
     get providerConfigured() {return modelSettings.get().configured;}};
 }
 export type Workbench = ReturnType<typeof createWorkbench>;

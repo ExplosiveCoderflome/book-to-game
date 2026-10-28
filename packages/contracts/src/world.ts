@@ -209,7 +209,7 @@ export const worldContentSchema = z.object({
   storyletRules: z.object({handSize: z.number().int().min(1).max(5).optional(), refreshOn: z.array(z.enum(['move', 'clock'])).max(2).optional(),
     refreshEveryMonths: z.number().int().min(1).max(120).optional()}).optional(),
   /** S1: authoring progress. `complete: false` = content delivered in batches; lint reports tier shortfalls as warnings. */
-  production: z.object({batch: z.number().int().min(1).max(100).optional(), complete: z.boolean().optional(), note: z.string().max(2000).optional()}).optional(),
+  production: z.object({batch: z.number().int().min(1).max(100).optional(), complete: z.boolean().optional(), tier: z.enum(['S', 'M', 'L']).optional(), note: z.string().max(2000).optional()}).optional(),
   /** S1 acceptance ⑦: who produced this draft. `generator: 'mock'` = fixture model output; publishing it is refused outside tests. */
   provenance: z.object({generator: z.string().min(1).max(80), model: z.string().max(200).optional(),
     source: z.enum(['runner', 'backfill', 'copy']).optional(), copiedFrom: z.string().max(80).optional()}).optional(),

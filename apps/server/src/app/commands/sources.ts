@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { generationInputSchema } from '@novel-game/contracts';
+import { generationInputSchema, productionInputSchema, productionPlanSchema } from '@novel-game/contracts';
 import type { Workbench } from '../workbench.js';
 import { command, emptySchema, idSchema } from './definition.js';
 import { AppError } from '../../shared/errors.js';
@@ -28,6 +28,12 @@ export function sourceCommands(w: Workbench) {
         return {id, chapterId, title: chapter.title, paragraphs: chapter.paragraphs.slice(offset, offset + limit), total: chapter.paragraphs.length};
       }),
     command('create_generation_job', '按选择章节分析小说，mode=story生成分支草稿，mode=open生成局部世界草稿。可指定playerRole/canonPolicy，省略mode兼容story。返回任务ID；同一requestId相同输入重试。需要配置模型和运行worker。', generationInputSchema, false, input => w.jobs.create(input)),
+    command('create_production_job', '从创作简报或原作生成角色扮演游戏：先生成可审阅玩法规划，作者确认后逐段写作并体检。每段持久化，失败恢复复用已有内容；不是一次性生成整个世界。', productionInputSchema, false, input => w.createProductionJob(input)),
+    command('approve_production_plan', '确认角色扮演游戏的人物边界和玩法规划，然后排队生成正文。可先编辑plan；不发布游戏，不改已有存档。',
+      z.object({id: z.string().min(1), plan: productionPlanSchema}), false, ({id, plan}) => w.jobs.approveProduction(id, plan)),
+    command('rewrite_production_unit', '按作者意见只重写一个制作单元，复用其他已保存文案和已确认玩法，完成后创建新的修订草稿；旧草稿和发布版本保留。',
+      z.object({id: z.string().min(1), unitKey: z.string().min(1).max(160), direction: z.string().trim().min(5).max(2000)}), false,
+      ({id, unitKey, direction}) => w.jobs.rewriteProduction(id, unitKey, direction)),
     command('list_jobs', '查询持久化任务进度。', emptySchema, true, () => w.jobs.list()),
     command('get_job', '读取任务和完整分析；客户端断开后可用同一ID继续查询。', idSchema, true, ({id}) => w.jobs.get(id)),
     command('retry_job', '恢复失败或取消的任务，保留已完成的文本块。', idSchema, false, ({id}) => w.jobs.retry(id)),

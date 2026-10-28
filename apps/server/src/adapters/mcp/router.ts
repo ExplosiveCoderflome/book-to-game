@@ -10,7 +10,7 @@ function createServer(commands: Command[]) {
     server.registerTool(command.name, {
       description: command.description, inputSchema: command.inputSchema,
       annotations: {readOnlyHint: command.readOnly, destructiveHint: false,
-        openWorldHint: ['create_generation_job', 'retry_job', 'test_model_connection'].includes(command.name)},
+        openWorldHint: ['create_generation_job', 'create_production_job', 'approve_production_plan', 'rewrite_production_unit', 'retry_job', 'test_model_connection'].includes(command.name)},
     }, async input => {
       try {
         const result = await command.execute(input);

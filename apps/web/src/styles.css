@@ -44,6 +44,23 @@
 * {
   box-sizing: border-box;
 }
+.production-workflow { margin-block-end: 16px; }
+.production-stages { display: flex; gap: 12px 24px; flex-wrap: wrap; padding-inline-start: 20px; color: var(--muted); margin-block: 12px 20px; }
+.production-layout > *, .production-job { min-width: 0; }
+.production-records { align-self: start; }
+.production-layout .panel-heading { flex-wrap: wrap; gap: 8px; }
+.production-job { overflow-wrap: anywhere; }
+.production-plan { margin-block: 12px; }
+.production-plan > summary { cursor: pointer; font-weight: 600; color: var(--green); }
+.production-plan h4 { margin-block: 16px 6px; }
+.production-plan textarea { width: 100%; }
+.production-cast { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.production-cast dt { font-weight: 600; }
+.production-cast dd { margin: 4px 0 0; color: var(--muted); }
+@media (max-width: 760px) {
+  .production-cast { grid-template-columns: 1fr; }
+  .production-workflow button, .production-layout button { min-height: 44px; }
+}
 body {
   margin: 0;
   background: var(--bg);

@@ -223,6 +223,16 @@ Reuse tokens, quiet chrome, canvas primacy, and compact status strips. Do not re
 
 ## 14. Update policy
 
+### RPG production (白展堂验收入口)
+
+- Profile: App/Product UI. The production desk makes the author review a character and its consequences before prose is written; existing neutral/green tokens, system UI fonts and dense form/list patterns remain in use.
+- The existing generation page has two workflow buttons: role-playing production and quick adaptation. Production uses a brief form plus saved job records; a plain numbered row names the stages.
+- A review job shows identity boundaries, a compact relationship definition list and strategy/ending summaries. JSON editing stays in optional advanced details. Confirming the plan is the primary action; publishing remains in the existing draft flow.
+- Completed/failed writing jobs offer a collapsed single-unit revision form: native target select, author feedback and one action. Copy explains that mechanics and other text are reused and the previous draft is kept.
+- Empty, model-unconfigured, busy, unknown-request, failed/resumable, review and completed-with-quality-issues states are explicit. A body-writing counter reports persisted units, never fabricated progress.
+- No cover imagery, new palette, animation library or style family. At narrow widths the form/records and relationship columns stack; controls keep 44px touch targets.
+- Review found the records panel was stretching to match the long brief form; it now aligns to its own content height. The heading describes production instead of requiring a novel. Existing muted/white text contrast remains 5.35:1; no new colour pairs.
+
 If tokens or chrome patterns change, update this file, `docs/design-ui.md`, and `docs/design-layout.md` in the same change.
 
 ### Building library (建筑库)

@@ -1,8 +1,9 @@
 import type { SqliteDatabase } from '../../../platform/database.js';
 import { randomUUID } from 'node:crypto';
-import type { Analysis, AnalysisResult, BranchSkeleton, GenerationInput, JobFailure } from '@novel-game/contracts';
+import type { Analysis, AnalysisResult, BranchSkeleton, GenerationInput, JobFailure, ProductionPlan, ProductionUnit, ProductionNarrative, LintReport, PlaytestReport } from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
 import { formatJobError } from '../domain/failure.js';
+import { productionUnits } from '../domain/production.js';
 import type { JobRepository, StoredJob } from '../domain/ports.js';
 
 interface Row {id: string; status: string; owner: string | null; lease_until: number; payload: string}
@@ -29,7 +30,8 @@ export class SqliteJobRepository implements JobRepository {
         ...(input.mode !== undefined ? {mode: input.mode} : {}), ...(input.chapterIds ? {chapterIds: input.chapterIds} : {}),
         ...(input.playerRole !== undefined ? {playerRole: input.playerRole} : {}), ...(input.canonPolicy ? {canonPolicy: input.canonPolicy} : {}),
         ...(input.scanDepth ? {scanDepth: input.scanDepth} : {}),
-        ...(input.statTemplateId ? {statTemplateId: input.statTemplateId} : {})});
+        ...(input.statTemplateId ? {statTemplateId: input.statTemplateId} : {}),
+        ...(input.productionBrief ? {productionBrief: input.productionBrief} : {})});
       const existing = this.db.prepare('SELECT payload,fingerprint FROM generation_jobs WHERE request_id=?').get(input.requestId) as {payload: string; fingerprint: string} | undefined;
       if (existing) {
         if (existing.fingerprint !== fingerprint) throw new AppError('IDEMPOTENCY_CONFLICT', '请求 ID 重复且输入冲突', 409);
@@ -45,6 +47,10 @@ export class SqliteJobRepository implements JobRepository {
   }
   get(id: string): StoredJob | null {
     const row = this.db.prepare('SELECT payload FROM generation_jobs WHERE id=?').get(id) as {payload: string} | undefined;
+    return row ? JSON.parse(row.payload) : null;
+  }
+  findByRequestId(requestId: string): StoredJob | null {
+    const row = this.db.prepare('SELECT payload FROM generation_jobs WHERE request_id=?').get(requestId) as {payload: string} | undefined;
     return row ? JSON.parse(row.payload) : null;
   }
   list(): StoredJob[] {
@@ -90,12 +96,12 @@ export class SqliteJobRepository implements JobRepository {
     return this.owned(id, owner, job => {
       if (job.checkpoints.length !== index) throw new AppError('CHECKPOINT_CONFLICT', '任务断点序号冲突', 409);
       job.checkpoints.push(analysis); job.completedChunks = job.checkpoints.length;
-      job.progress = job.completedChunks / job.totalChunks * 0.8;
+      job.progress = job.completedChunks / job.totalChunks * (job.productionBrief ? 0.15 : 0.8);
       job.stage = `分析小说 ${job.completedChunks}/${job.totalChunks}`;
     });
   }
   saveAnalysis(id: string, owner: string, analysis: AnalysisResult): boolean {
-    return this.owned(id, owner, job => {job.analysis = analysis; job.progress = 0.85; job.stage = job.mode === 'open' ? '设计开放世界' : '设计分支冒险';});
+    return this.owned(id, owner, job => {job.analysis = analysis; job.progress = job.productionBrief ? Math.max(job.progress, 0.2) : 0.85; job.stage = job.mode === 'open' ? '设计开放世界' : '设计分支冒险';});
   }
   saveSkeleton(id: string, owner: string, skeleton: BranchSkeleton): boolean {
     return this.owned(id, owner, job => {
@@ -104,9 +110,52 @@ export class SqliteJobRepository implements JobRepository {
       job.stage = '骨架已锁定，正在写正文';
     });
   }
+  saveProductionPlan(id: string, owner: string, plan: ProductionPlan): boolean {
+    return this.owned(id, owner, job => {
+      job.productionState = {plan, approved: false, texts: {}};
+      job.status = 'awaiting_review'; job.stage = '请审阅人物与玩法规划'; job.progress = 0.25;
+    });
+  }
+  approveProduction(id: string, plan: ProductionPlan): StoredJob {
+    return this.db.transaction(() => {
+      const row = this.row(id); const job: StoredJob = JSON.parse(row.payload);
+      if (job.status !== 'awaiting_review') throw new AppError('JOB_STATE_CONFLICT', '只有待审阅的规划可以确认', 409);
+      job.productionState = {plan, approved: true, texts: {}};
+      job.status = 'queued'; job.stage = '规划已确认，等待逐段生成';
+      row.owner = null; row.lease_until = 0; this.write(row, job); return job;
+    }).immediate();
+  }
+  saveProductionText(id: string, owner: string, unit: ProductionUnit, text: ProductionNarrative, total: number): boolean {
+    return this.owned(id, owner, job => {
+      job.productionState!.texts[unit.key] = text;
+      const count = Object.keys(job.productionState!.texts).length;
+      job.progress = 0.25 + 0.7 * count / total;
+      job.stage = `内容写作 ${count}/${total} · ${unit.id}`;
+    });
+  }
+  rewriteProduction(id: string, unitKey: string, direction: string): StoredJob {
+    return this.db.transaction(() => {
+      const row = this.row(id); const job: StoredJob = JSON.parse(row.payload);
+      if (!['succeeded', 'failed'].includes(job.status) || !job.productionState?.approved) throw new AppError('JOB_STATE_CONFLICT', '完成或失败的内容写作任务才能修订单段', 409);
+      const state = job.productionState;
+      state.rewrite = {key: unitKey, direction, previousText: state.texts[unitKey] ?? (state.rewrite?.key === unitKey ? state.rewrite.previousText : undefined)};
+      delete state.texts[unitKey]; delete state.lint; delete state.playtest;
+      job.status = 'queued'; job.stage = '等待修订正文'; job.error = null; job.failure = null; job.draftId = null;
+      job.progress = 0.25 + 0.7 * Object.keys(state.texts).length / productionUnits(state.plan).length;
+      row.owner = null; row.lease_until = 0; this.write(row, job); return job;
+    }).immediate();
+  }
+  saveProductionLint(id: string, owner: string, lint: LintReport, playtest?: PlaytestReport): boolean {
+    return this.owned(id, owner, job => {
+      job.productionState!.lint = lint;
+      if (playtest) job.productionState!.playtest = playtest;
+      job.stage = '检查可玩内容'; job.progress = 0.98;
+    });
+  }
   completeWith(id: string, owner: string, createDraft: () => string, model?: string): boolean {
     return this.owned(id, owner, job => {
-      job.draftId = createDraft(); if (model) job.model = model.slice(0, 200); job.status = 'succeeded'; job.stage = '草稿已生成'; job.progress = 1; job.error = null; job.failure = null;
+      job.draftId = createDraft(); if (model) job.model = model.slice(0, 200); job.status = 'succeeded'; job.stage = job.productionState?.lint?.errors ? '内容已生成，体检问题待审改' : '草稿已生成'; job.progress = 1; job.error = null; job.failure = null;
+      if (job.productionState) delete job.productionState.rewrite;
     });
   }
   fail(id: string, owner: string, failure: string | JobFailure): void {

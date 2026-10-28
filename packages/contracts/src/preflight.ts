@@ -24,6 +24,7 @@ export interface PlaytestStrategyInfo {id: string; label: string; runs: number}
 export interface PlaytestReport {
   draftId?: string; draftVersion: number; createdAt: string;
   seeds: number; maxSteps: number;
+  timeUnit?: 'month' | 'turn';
   strategies: PlaytestStrategyInfo[];
   checks: PassCheck[];
   /** endingRates[strategyId][endingKey] = share of runs (0–1); endingKey = ending id or `(none)` for capped runs. */

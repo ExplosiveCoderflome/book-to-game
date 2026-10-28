@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { productionBriefSchema, type ProductionBrief, type ProductionState } from './production.js';
+export * from './production.js';
 export * from './world.js';
 export * from './world-map.js';
 export * from './map-templates.js';
@@ -117,7 +119,7 @@ export type Analysis = z.infer<typeof analysisSchema>;
 export interface AnalysisResult extends Analysis { coverage: {chapterIds: string[]; totalChapters: number} }
 export const scanDepthSchema = z.enum(['coarse', 'medium', 'fine']);
 export type ScanDepth = z.infer<typeof scanDepthSchema>;
-export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+export type JobStatus = 'queued' | 'running' | 'awaiting_review' | 'succeeded' | 'failed' | 'cancelled';
 export interface JobFailure {
   code: string; message: string; path?: string; step: string; attempt: number; requestId: string;
 }
@@ -133,6 +135,8 @@ export interface GenerationJob {
   /** Optional genre stat template for story skeleton variable seeding. */
   statTemplateId?: string;
   failure?: JobFailure | null;
+  productionBrief?: ProductionBrief;
+  productionState?: ProductionState;
 }
 export const generationInputSchema = z.object({
   sourceId: z.string().min(1), requestId: z.string().uuid(),
@@ -143,6 +147,7 @@ export const generationInputSchema = z.object({
   scanDepth: scanDepthSchema.optional(),
   /** Optional genre stat template id (story mode). Seeds preferred variables into skeleton prompt. */
   statTemplateId: z.string().min(1).max(40).optional(),
+  productionBrief: productionBriefSchema.optional(),
 });
 export type GenerationInput = z.infer<typeof generationInputSchema>;
 export interface RuntimeInfo { providerConfigured: boolean; supportedModes: ('story' | 'open')[]; version: string }

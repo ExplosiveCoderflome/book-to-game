@@ -1,6 +1,9 @@
 import { analysisSchema, branchSkeletonSchema, fillSceneTextModelOutputSchema, gameContentSchema, narrateModelOutputSchema, proposeActModelOutputSchema, proposeAdventureModelOutputSchema, sceneExtensionSchema, worldContentSchema, type Analysis, type AnalysisResult, type BranchSkeleton, type FillSceneTextModelOutput, type GameContent, type NarrateModelOutput, type ProposeActModelOutput, type ProposeAdventureModelOutput, type ProposeCandidate, type ScanDepth, type SceneExtension, type WorldContent } from '@novel-game/contracts';
 import { setTimeout as delay } from 'node:timers/promises';
-import type { ZodType } from 'zod';
+import { z, type ZodType } from 'zod';
+import { productionPlanSchema, productionNarrativeSchema, type ProductionBrief, type ProductionPlan, type ProductionUnit, type ProductionNarrative } from '@novel-game/contracts';
+import { productionTarget } from '../../modules/generation/index.js';
+import { PRODUCTION_PLAN_SYSTEM, PRODUCTION_TEXT_SYSTEM } from './production-prompts.js';
 import type { GenerationProvider, ModelRepairIssue, SourceChunk, WorldGenerationOptions } from '../../modules/generation/index.js';
 import { AppError } from '../../shared/errors.js';
 import type { Logger } from '../../shared/logger.js';
@@ -30,6 +33,19 @@ export class ChatCompletionsProvider implements GenerationProvider {
 
   async analyze(chunk: SourceChunk, signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}): Promise<Analysis> {
     return this.complete('analyze', ANALYSIS_SYSTEM, chunk, signal, analysisSchema, feedback?.errors ?? []);
+  }
+  async planProduction(analysis: AnalysisResult, brief: ProductionBrief, chapterIds: string[], signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}): Promise<ProductionPlan> {
+    return this.complete('plan_production', PRODUCTION_PLAN_SYSTEM, {
+      brief, chapterIds, dossier: compactWorldDossier(analysis),
+      schema: z.toJSONSchema(productionPlanSchema, {unrepresentable: 'any'}),
+    }, signal, productionPlanSchema, feedback?.errors ?? []);
+  }
+  async writeProductionUnit(plan: ProductionPlan, unit: ProductionUnit, previousTexts: ProductionNarrative[], signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}): Promise<ProductionNarrative> {
+    return this.complete('write_production_unit', PRODUCTION_TEXT_SYSTEM, {
+      bible: plan.bible, playerRole: plan.world.playerRole, goal: plan.world.goal, routes: plan.routes,
+      resources: plan.world.resourceDefs, facts: plan.world.facts, unit, target: productionTarget(plan, unit),
+      variants: unit.variants, nearbyWriting: previousTexts.map(text => text.texts[0]).slice(-2),
+    }, signal, productionNarrativeSchema, feedback?.errors ?? []);
   }
   async generateSkeleton(analysis: AnalysisResult, direction: string, signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}, scanDepth: ScanDepth = 'medium', options?: { statTemplateId?: string }): Promise<BranchSkeleton> {
     return this.complete('generate_skeleton', SKELETON_SYSTEM, skeletonUserPayload(analysis, direction, scanDepth, options), signal, branchSkeletonSchema, feedback?.errors ?? []);
@@ -194,7 +210,8 @@ export class ChatCompletionsProvider implements GenerationProvider {
     const maxMs = Math.max(baseMs, bound(this.config.retryMaxMs, DEFAULT_RETRY_MAX_MS, 0, 120_000));
     const messages = [{role: 'system', content: system}, {role: 'user', content: JSON.stringify(data)}];
     if (feedback.length) messages.push({role: 'user', content: repairPrompt(feedback)});
-    const body = JSON.stringify({model: this.config.model, response_format: {type: 'json_object'}, messages});
+    const body = JSON.stringify({model: this.config.model, response_format: {type: 'json_object'}, messages,
+      ...(operation === 'plan_production' ? {max_tokens: 20000} : operation === 'write_production_unit' ? {max_tokens: 4000} : {})});
     const requestBytes = Buffer.byteLength(body, 'utf8');
     let last: AppError | undefined;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
