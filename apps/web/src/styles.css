@@ -2828,6 +2828,22 @@ summary:focus:not(:focus-visible) {
 .world-map-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .world-map-title h4 { margin: 0; }
 .world-map-chip { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; background: var(--surface); }
+.world-map-chip.locked { color: #1f4fbf; border-color: color-mix(in srgb, #1f4fbf 45%, var(--line)); background: color-mix(in srgb, #1f4fbf 10%, var(--paper)); font-weight: 600; }
+.map-fill-form { display: flex; flex-direction: column; gap: 8px; }
+.map-fill-form label.inline { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); margin: 0; }
+.map-fill-form select, .map-fill-form input { width: 100%; }
+.map-fill-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.map-fill-list li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-sm); border: 1px solid transparent; font-size: 13px; cursor: pointer; }
+.map-fill-list li:hover { background: var(--surface-hover); }
+.map-fill-list li.selected { background: color-mix(in srgb, var(--green) 12%, var(--paper)); border-color: color-mix(in srgb, var(--green) 35%, var(--line)); }
+.map-fill-list li.empty { color: var(--muted); cursor: default; font-size: 12px; }
+.map-fill-kind { font-size: 11px; border-radius: 999px; padding: 1px 7px; background: #eef2ff; color: #31407b; flex: none; }
+.map-fill-kind.shop { background: #e8f5e9; color: #1b5e20; }
+.map-fill-kind.supply { background: #e3f2fd; color: #0d47a1; }
+.map-fill-kind.quest { background: #fff8e1; color: #e65100; }
+.map-fill-kind.encounter { background: #fce4ec; color: #880e4f; }
+.map-fill-kind.boss { background: #efebe9; color: #4e342e; }
+.map-write-block { color: var(--rust); max-width: 280px; }
 .world-map-chrome .branch-canvas-toolbar label.inline { display: inline-flex; flex-direction: row; margin: 0; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
 .world-map-chrome .branch-canvas-toolbar label.inline input { width: 64px; height: 30px; }
 .world-map-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 208px minmax(0, 1fr); }
@@ -2885,7 +2901,7 @@ summary:focus:not(:focus-visible) {
 .map-seg > button { border: 0; border-radius: 0; margin: 0; box-shadow: none; }
 .map-seg > button + button { border-left: 1px solid var(--line); }
 .map-seg > button.active { background: color-mix(in srgb, var(--green) 14%, var(--paper)); color: var(--ink); font-weight: 600; }
-.map-mode { display: grid; grid-template-columns: repeat(3, 1fr); }
+.map-mode { display: grid; grid-template-columns: repeat(5, 1fr); }
 .map-tools { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
 .map-tools button { justify-content: flex-start; display: inline-flex; align-items: center; gap: 6px; margin: 0; }
 .map-tools button.active { background: color-mix(in srgb, var(--green) 14%, var(--paper)); border-color: color-mix(in srgb, var(--green) 45%, var(--line)); font-weight: 600; }

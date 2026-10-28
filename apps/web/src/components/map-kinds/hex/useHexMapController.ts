@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent as ReactPointerEvent, type RefObject, type WheelEvent as ReactWheelEvent } from 'react';
 import type { WorldMap } from '@novel-game/contracts';
-import { cellKey, hexInBounds, parseCellKey } from '@novel-game/rules';
+import { assertMapWriteAllowed, cellKey, hexInBounds, parseCellKey } from '@novel-game/rules';
 import { cellsInRadius, floodFill, layerCells, layerPalette, paintCells, pixelToHex, pushHistory, redoHistory, undoHistory, type MapHistory, type MapLayerKind } from '../../../lib/world-map-edit';
 import { bindLocationToCell } from '../../../lib/world-map';
 import type { MapEditorProps } from '../registry';
@@ -64,8 +64,12 @@ export function useHexMapController({ content, selectedLocationId, onSelectLocat
     ro.observe(el); return () => ro.disconnect();
   }, [fit, autoFit, map !== undefined]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [writeBlock, setWriteBlock] = useState<string | null>(null);
   const commit = useCallback((next: WorldMap | undefined, coalesceKey?: string) => {
     if (next === live.current) return;
+    const gate = assertMapWriteAllowed(live.current, next);
+    if (!gate.ok) { setWriteBlock(gate.reason); return; }
+    setWriteBlock(null);
     const now = Date.now(); const lc = lastCoalesce.current;
     const merge = coalesceKey && lc && lc.key === coalesceKey && now - lc.at < 1200;
     if (!merge) setHist(h => pushHistory(h, live.current));
@@ -85,14 +89,14 @@ export function useHexMapController({ content, selectedLocationId, onSelectLocat
       if (mod) return;
       const k = e.key.toLowerCase();
       if (k === 'f') { fit(); return; }
-      if (mode === 'poi') return;
+      if (mode === 'poi' || mode === 'fill') return;
       if (k === 'b') setTool('brush'); else if (k === 'g') setTool('fill'); else if (k === 'e') setTool('erase'); else if (k === 'i') setTool('pick');
       else if (k === '[') setBrush(b => Math.max(1, b - 1)); else if (k === ']') setBrush(b => Math.min(3, b + 1));
     }
     window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey);
   }, [undo, redo, mode, fit]);
 
-  const layerMode = mode !== 'poi';
+  const layerMode = mode !== 'poi' && mode !== 'fill';
   const activeId = map && layerMode ? active[mode] ?? layerPalette(map, mode)[0]?.id ?? null : null;
 
   function cellAt(clientX: number, clientY: number): string | null {
@@ -113,14 +117,20 @@ export function useHexMapController({ content, selectedLocationId, onSelectLocat
   }
   function endStroke() {
     const s = stroke.current; if (!s) return; stroke.current = null; setStrokeMap(null);
-    if (s.map !== s.before) { setHist(h => pushHistory(h, s.before)); lastCoalesce.current = null; live.current = s.map; onMapChange(s.map); }
+    if (s.map !== s.before) {
+      const gate = assertMapWriteAllowed(s.before, s.map);
+      if (!gate.ok) { setWriteBlock(gate.reason); live.current = s.before; return; }
+      setWriteBlock(null);
+      setHist(h => pushHistory(h, s.before)); lastCoalesce.current = null; live.current = s.map; onMapChange(s.map);
+    }
   }
   function onPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
     if ((e.target as Element).closest('.world-map-legend,.world-map-status')) return;
     const wantsPan = e.button === 1 || e.altKey || e.button === 2;
     const key = cellAt(e.clientX, e.clientY);
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* synthetic pointer */ }
-    if (layerMode && !readOnly && !wantsPan && e.button === 0 && key) {
+    const canPaint = layerMode && !readOnly && !map?.structureLocked && !wantsPan && e.button === 0 && key;
+    if (canPaint) {
       if ((tool === 'brush' || tool === 'erase') && live.current) stroke.current = { before: live.current, map: live.current };
       applyTool(key); return;
     }
@@ -155,11 +165,11 @@ export function useHexMapController({ content, selectedLocationId, onSelectLocat
     applyView({ zoom: nz, x: mx - (mx - v.x) * (nz / v.zoom), y: my - (my - v.y) * (nz / v.zoom) }); setAutoFit(false);
   }
   const dropTarget = (e: DragEvent) => (e.target as Element | null)?.closest?.('[data-cell]')?.getAttribute('data-cell') ?? cellAt(e.clientX, e.clientY);
-  function onDragOver(e: DragEvent<HTMLDivElement>) { if (readOnly) return; const k = dropTarget(e); if (!k) return; e.preventDefault(); if (k !== dropCell) setDropCell(k); }
+  function onDragOver(e: DragEvent<HTMLDivElement>) { if (readOnly || map?.structureLocked) return; const k = dropTarget(e); if (!k) return; e.preventDefault(); if (k !== dropCell) setDropCell(k); }
   function onDrop(e: DragEvent<HTMLDivElement>) {
     e.preventDefault(); setDropCell(null);
     const id = e.dataTransfer.getData(DND_TYPE); const key = dropTarget(e);
-    if (!id || !key || readOnly || !map) return;
+    if (!id || !key || readOnly || map?.structureLocked || !map) return;
     commit(bindLocationToCell(map, id, key)); onSelectLocation(id); setSelectedCell(key);
   }
   const brushCells = useMemo(() => {
@@ -176,7 +186,7 @@ export function useHexMapController({ content, selectedLocationId, onSelectLocat
 
   return {
     map, shown, topo, mode, setMode, tool, setTool, brush, setBrush, active, setActive, activeId, hist, undo, redo, commit, fit, autoFit,
-    cursorCell, setCursorCell, selectedCell, selectedPoiCell, layerMode, renderState, view,
+    cursorCell, setCursorCell, selectedCell, selectedPoiCell, layerMode, renderState, view, writeBlock, setWriteBlock,
     handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp, onPointerLeave: () => setCursorCell(null), onWheel, onDragOver, onDragLeave: () => setDropCell(null), onDrop },
   };
 }

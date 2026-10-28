@@ -48,6 +48,7 @@ export {
 export {
   cellKey, parseCellKey, offsetToAxial, axialToOffset, hexInBounds, listHexCells, hexToPixel, hexCorners, hexDistance,
   validateWorldMap, type Axial, type WorldMapIssue, type WorldMapIssueCode,
+  isStructureLocked, structureFingerprint, lockMapStructure, unlockMapStructure, assertMapWriteAllowed, validateMapFill,
 } from './world-map.js';
 
 export { validateMapLayers } from './world-map.js';

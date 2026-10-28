@@ -2,7 +2,7 @@ import type { WorldMap } from '@novel-game/contracts';
 import type { MapLayerKind } from '../../../lib/world-map-edit';
 import type { HexTopology } from './topology';
 
-export type HexEditMode = 'poi' | MapLayerKind;
+export type HexEditMode = 'poi' | 'fill' | MapLayerKind;
 export interface HexView { x: number; y: number; zoom: number }
 
 /** Pure, presentational input for a hex renderer. All interaction lives in the controller hook. */

@@ -31,6 +31,7 @@ export function WorldOverview({ content: w, focusLocationId }: Props) {
     : e.kind === 'set_territory' ? t('{target}划归{faction}', { target: e.regionId ? (w.map?.layers?.regions?.regions.find(r => r.id === e.regionId)?.name ?? e.regionId) : (e.cells ?? []).join(' '), faction: e.factionId ? faction(e.factionId) : t('无主') })
     : e.kind === 'set_faction_relation' ? t('{a} 与 {b} 关系变化 {detail}', { a: faction(e.a), b: faction(e.b), detail: [e.stance ? t(STANCE_LABEL[e.stance]) : '', e.standing !== undefined ? `=${e.standing}` : '', e.standingDelta ? (e.standingDelta > 0 ? `+${e.standingDelta}` : String(e.standingDelta)) : ''].filter(Boolean).join(' ') })
     : e.kind === 'resource' ? t('资源 {id} {delta}', { id: e.resourceId, delta: e.delta > 0 ? `+${e.delta}` : String(e.delta) })
+    : e.kind === 'start_encounter' ? t('开始遭遇（桩）{label}', { label: e.label ? ` · ${e.label}` : (e.placementId ? ` · ${e.placementId}` : '') })
     : t('「{fact}」变为{value}', { fact: fact(e.factId), value: truth(e.value) });
   const provenance = (v: { origin: 'source' | 'adapted'; evidence: { chapterId: string; paragraphId: string }[] }) => <div className="hint">{t(v.origin === 'source' ? '依据原作' : '改编新增')} · {t('{count} 处证据', { count: v.evidence.length })}{v.evidence.length > 0 && <details><summary>{t('证据标识')}</summary>{v.evidence.map((e, i) => <div key={i}><code>{e.chapterId} / {e.paragraphId}</code></div>)}</details>}</div>;
 

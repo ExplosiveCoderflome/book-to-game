@@ -45,7 +45,8 @@ export function hexDistance(a: Axial, b: Axial): number {
 }
 
 export type WorldMapIssueCode = 'poi_unknown_venue' | 'poi_missing_location' | 'poi_out_of_bounds' | 'poi_duplicate_location' | 'poi_cell_shared' | 'location_unbound'
-  | 'layer_unknown_terrain' | 'layer_unknown_faction' | 'layer_unknown_region' | 'layer_cell_out_of_bounds' | 'layer_duplicate_id';
+  | 'layer_unknown_terrain' | 'layer_unknown_faction' | 'layer_unknown_region' | 'layer_cell_out_of_bounds' | 'layer_duplicate_id'
+  | 'fill_missing_location' | 'fill_unbound_location' | 'fill_duplicate_id' | 'fill_unbound_marker' | 'fill_marker_out_of_bounds' | 'fill_unknown_building';
 export interface WorldMapIssue { level: 'error' | 'warning'; code: WorldMapIssueCode; message: string; locationId?: string; cell?: CellKey }
 
 /** Validate POI bindings against the location graph. Map never adds edges; it only reports. */
@@ -69,6 +70,7 @@ export function validateWorldMap(map: WorldMap, locationIds: readonly string[]):
   const venues = new Set((map.venueTypes ?? []).map(v => v.id));
   for (const poi of map.pois) if (poi.venueType && !venues.has(poi.venueType)) issues.push({ level: 'error', code: 'poi_unknown_venue', locationId: poi.locationId, cell: poi.anchor.cell, message: `地图标记的场所类型未定义：${poi.locationId} → ${poi.venueType}` });
   for (const id of locationIds) if (!bound.has(id)) issues.push({ level: 'warning', code: 'location_unbound', locationId: id, message: `地点尚未放到地图上：${id}` });
+  issues.push(...validateMapFill(map, locationIds));
   return issues;
 }
 
@@ -94,5 +96,80 @@ export function validateMapLayers(map: WorldMap): WorldMapIssue[] {
   if (layers.terrain) check('terrain', layers.terrain.palette.map(p => p.id), layers.terrain.cells);
   if (layers.factions) check('faction', layers.factions.factions.map(f => f.id), layers.factions.cells);
   if (layers.regions) check('region', layers.regions.regions.map(r => r.id), layers.regions.cells);
+  return issues;
+}
+
+/** Structure lock + content-fill validation (M-fill-1). Pure; no IO. */
+
+export function isStructureLocked(map: WorldMap): boolean {
+  return map.structureLocked === true;
+}
+
+/** Fingerprint of hard-locked structure fields (size, POIs, terrain/region/faction ownership, venues, parent). */
+export function structureFingerprint(map: WorldMap): string {
+  return JSON.stringify({
+    geometry: map.geometry,
+    pois: map.pois,
+    layers: map.layers ?? {},
+    venueTypes: map.venueTypes ?? null,
+    mapTemplate: map.mapTemplate ?? null,
+    parent: map.parent ?? null,
+  });
+}
+
+export function lockMapStructure(map: WorldMap, at = new Date().toISOString()): WorldMap {
+  return { ...map, structureLocked: true, structureLockedAt: at };
+}
+
+export function unlockMapStructure(map: WorldMap): WorldMap {
+  const next: WorldMap = { ...map };
+  delete next.structureLocked;
+  delete next.structureLockedAt;
+  return next;
+}
+
+/**
+ * Gate for map writes when structure is locked.
+ * Allowed while locked: fill layer, fog, name, lock/unlock flags.
+ * Refused: geometry/POI/layer ownership changes, map deletion.
+ */
+export function assertMapWriteAllowed(
+  before: WorldMap | undefined,
+  after: WorldMap | undefined,
+): { ok: true } | { ok: false; reason: string } {
+  if (!before?.structureLocked) return { ok: true };
+  if (!after) return { ok: false, reason: '地图结构已锁定，请先解锁再删除地图' };
+  if (structureFingerprint(before) === structureFingerprint(after)) return { ok: true };
+  return { ok: false, reason: '地图结构已锁定：尺寸、地点绑定、地形/区域/势力归属不可改，请先解锁' };
+}
+
+export function validateMapFill(map: WorldMap, locationIds: readonly string[]): WorldMapIssue[] {
+  const issues: WorldMapIssue[] = [];
+  const fill = map.fill;
+  if (!fill) return issues;
+  const known = new Set(locationIds);
+  const bound = new Set(map.pois.map(p => p.locationId));
+  const seen = new Set<string>();
+  for (const p of fill.placements) {
+    if (seen.has(p.id)) issues.push({ level: 'error', code: 'fill_duplicate_id', message: `填充项 id 重复：${p.id}` });
+    seen.add(p.id);
+    if (!known.has(p.locationId)) {
+      issues.push({ level: 'error', code: 'fill_missing_location', locationId: p.locationId, message: `填充项指向不存在的地点：${p.id} → ${p.locationId}` });
+    } else if (!bound.has(p.locationId)) {
+      issues.push({ level: 'warning', code: 'fill_unbound_location', locationId: p.locationId, message: `填充项地点尚未放到地图上：${p.id} → ${p.locationId}` });
+    }
+    if (p.buildingAssetId) {
+      issues.push({ level: 'warning', code: 'fill_unknown_building', locationId: p.locationId, message: `填充项引用了建筑库资产（库尚未接入）：${p.id} → ${p.buildingAssetId}` });
+    }
+  }
+  for (const m of fill.cellMarkers ?? []) {
+    if (seen.has(m.id)) issues.push({ level: 'error', code: 'fill_duplicate_id', message: `填充标记 id 重复：${m.id}` });
+    seen.add(m.id);
+    const a = parseCellKey(m.cell);
+    if (!a || !hexInBounds(map.geometry, a)) {
+      issues.push({ level: 'warning', code: 'fill_marker_out_of_bounds', cell: m.cell, message: `格标记超出地图范围：${m.id} @ ${m.cell}` });
+    }
+    issues.push({ level: 'warning', code: 'fill_unbound_marker', cell: m.cell, message: `格标记未绑定地点（路上遇怪等预留）：${m.id}` });
+  }
   return issues;
 }

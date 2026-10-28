@@ -44,6 +44,12 @@ export const worldEffectSchema = z.discriminatedUnion('kind', [
   /** Session faction relation change: set stance and/or standing, or shift standing by delta (clamped ±100). */
   z.object({kind: z.literal('set_faction_relation'), a: id, b: id, stance: factionStanceSchema.optional(),
     standing: z.number().int().min(-100).max(100).optional(), standingDelta: z.number().int().min(-200).max(200).optional()}),
+  /**
+   * Combat stub (M-fill): start an encounter/boss fight later.
+   * Currently a no-op at play time — writes nothing to session beyond optional flag bookkeeping in later phases.
+   * Full combat runtime is out of scope.
+   */
+  z.object({kind: z.literal('start_encounter'), placementId: id.optional(), encounterId: id.optional(), label: z.string().max(80).optional()}),
 ]);
 export const worldContentSchema = z.object({
   schemaVersion: z.literal(1), mode: z.literal('open'), title: z.string().min(1).max(200),

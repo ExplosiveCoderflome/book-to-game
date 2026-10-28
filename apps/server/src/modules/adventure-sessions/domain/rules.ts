@@ -48,6 +48,9 @@ export function applyEffects(effects: WorldEffect[], state: AdventureState, worl
       case 'set_faction_relation':
         state.factionRelations = applySetFactionRelation(world ?? {}, state.factionRelations, effect);
         break;
+      case 'start_encounter':
+        // M-fill stub: no session mutation yet (combat runtime out of scope).
+        break;
     }
   }
 }

@@ -233,6 +233,12 @@ function registerBuiltins(): void {
       family: 'world.effect',
       label: '改变势力关系',
       description: '本局中设置两势力立场/好感，或按增量调整好感（±100 封顶）',
+    })
+    .register({
+      kind: 'start_encounter',
+      family: 'world.effect',
+      label: '开始遭遇（桩）',
+      description: '战斗桩效果：标记遭遇/Boss 开战；当前不改变会话状态，完整战斗引擎另立项',
     });
 }
 

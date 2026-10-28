@@ -65,6 +65,36 @@ export const regionLayerSchema = z.object({
 export const WORLD_MAP_KINDS = ['hex'] as const;
 export type WorldMapKind = (typeof WORLD_MAP_KINDS)[number];
 
+/** Content-fill kinds (M-fill): hung on locations after structure lock. Closed set in contracts. */
+export const MAP_FILL_KINDS = ['shop', 'supply', 'quest', 'encounter', 'boss'] as const;
+export type MapFillKind = (typeof MAP_FILL_KINDS)[number];
+export const mapFillKindSchema = z.enum(MAP_FILL_KINDS);
+export const MAP_FILL_KIND_LABEL: Record<MapFillKind, string> = {
+  shop: '商店', supply: '补给', quest: '任务点', encounter: '遭遇', boss: 'Boss',
+};
+
+/** One fill placement on a location (primary hang point). buildingAsset* reserved for M-fill-2 library. */
+export const mapFillPlacementSchema = z.object({
+  id,
+  kind: mapFillKindSchema,
+  locationId: id,
+  label: z.string().min(1).max(80).optional(),
+  buildingAssetId: id.optional(),
+  buildingAssetVersion: z.number().int().positive().optional(),
+  localOverrides: z.record(z.string(), z.unknown()).optional(),
+});
+/** Optional map-only cell marker (no location). Unbound → validation warning, not error. */
+export const mapCellMarkerSchema = z.object({
+  id,
+  kind: mapFillKindSchema,
+  cell: cellKeySchema,
+  label: z.string().min(1).max(80).optional(),
+});
+export const mapFillLayerSchema = z.object({
+  placements: z.array(mapFillPlacementSchema).max(200),
+  cellMarkers: z.array(mapCellMarkerSchema).max(200).optional(),
+});
+
 export const worldMapSchema = z.object({
   /** Map id. Optional for the root map (implicit "root"); required on sub-maps. */
   id: id.optional(),
@@ -81,6 +111,14 @@ export const worldMapSchema = z.object({
   /** Play-time fog of war: only explored cells (visited locations + radius 1) are revealed. Session-only state. */
   fog: z.boolean().optional(),
   mapTemplate: z.object({ mapTemplateId: z.string().min(1).max(40), mapTemplateVersion: z.number().int().positive() }).optional(),
+  /**
+   * Structure lock (M-fill-1): after author confirms the map, size / POI bindings / terrain·region·faction
+   * cell ownership are hard-locked. Fill layer remains editable. Unlock is an explicit author action.
+   */
+  structureLocked: z.boolean().optional(),
+  structureLockedAt: z.string().datetime({ offset: true }).optional(),
+  /** Content fill after lock: shops / supply / quest / encounter / boss hung primarily on locations. */
+  fill: mapFillLayerSchema.optional(),
 });
 
 export type HexGeometry = z.infer<typeof hexGeometrySchema>;
@@ -91,6 +129,9 @@ export type TerrainLayer = z.infer<typeof terrainLayerSchema>;
 export type FactionLayer = z.infer<typeof factionLayerSchema>;
 export type VenueType = z.infer<typeof venueTypeSchema>;
 export type RegionLayer = z.infer<typeof regionLayerSchema>;
+export type MapFillPlacement = z.infer<typeof mapFillPlacementSchema>;
+export type MapCellMarker = z.infer<typeof mapCellMarkerSchema>;
+export type MapFillLayer = z.infer<typeof mapFillLayerSchema>;
 
 /** Port for future image-generation adapters (AI layer). Input is the deterministic prompt + schematic reference. */
 export interface MapImageRequest { prompt: string; schematicSvg?: string; width: number; height: number; seed?: number }

@@ -1,7 +1,7 @@
 # 世界地图编辑器：调研与设计（地图 · 地形 · 势力分布）
 
 > 状态：M1+ 多期已落地（静态地图、地形/势力/区域、试玩迷雾、子地图、AI 结构草稿等）；§7 早期 M2–M4 表保留作历史对照。  
-> **§9 地图确认 → 内容填充 → 建筑库：仅规划（2026-10-28），无功能代码。**  
+> **§9 地图确认 → 内容填充 → 建筑库：M-fill-1 已落地（结构锁 + 填充骨架，2026-10-28）；M-fill-2+ 未做。**  
 > 约束来源：[`extensibility.md`](./extensibility.md)（五层分离）· [`architecture.md`](./architecture.md)。  
 > 核心原则：**地图是共享基底上的一层可选数据，不是新运行时**。没有地图的世界照常可玩。
 
@@ -186,9 +186,9 @@ WorldMap = {
 
 ---
 
-## 9. 地图确认 → 内容填充 → 建筑库（规划 · 未实现）
+## 9. 地图确认 → 内容填充 → 建筑库
 
-> 状态：**仅设计**（作者已口头认可流水线与建筑库方向，2026-10-28）。**无功能代码**。  
+> 状态：**M-fill-1 已落地**（`structureLocked`、填充 placement 骨架、确认/解锁 UX、校验；2026-10-28）。建筑库 / AI 填充 / 完整种类试玩图标仍按 §9.8 分期。  
 > 与 §7 M1–M4、题材地图模板、城市子地图正交：本段管的是「结构定稿之后」往地图上挂遭遇 / 商店 / 补给 / 任务等内容，以及跨城镇复用的**建筑库（Building Library）**编目。  
 > 纪律对齐 [`extensibility.md`](./extensibility.md)：Catalog 编译下行；AI 只出草稿；玩时只经 locations / conditions / effects。
 
@@ -316,7 +316,7 @@ BuildingLibrary = {
 
 | 阶段 | 内容 | 验收（规划） |
 |---|---|---|
-| **M-fill-1 确认锁 + 填充骨架** | `structureLocked`；结构写拒绝；填充 placement 挂地点；编辑器确认 / 解锁 UX；校验 warning/error | 未确认不能开填充层；锁定后改尺寸 / 绑定失败；无地图世界零回归 |
+| **M-fill-1 确认锁 + 填充骨架** ✅ | `structureLocked`；结构写拒绝；填充 placement 挂地点；编辑器确认 / 解锁 UX；校验 warning/error | 未确认不能开填充层；锁定后改尺寸 / 绑定失败；无地图世界零回归 |
 | **M-fill-2 建筑库 v1** | 工作区 `BuildingLibrary` CRUD；创建默认入库（可取消）；手动「加入库」；同名 → `· 2` 后缀；放置 = ref + overrides；显式「升格变体」 | 无静默覆盖；跨城镇引用同一资产；覆写不改库 |
 | **M-fill-3 种类与桩效果** | shop / supply / quest / encounter / boss 闭集；`start_encounter` 等桩 effect；试玩图标 + 迷雾 | 互动只经规则引擎；无独立战斗 runtime |
 | **M-fill-4 AI 填充草稿** | 确认后 `propose-map-fill`；分类审阅；默认入库勾选；不改结构 | AI 不写 session；拒绝后零残留；provenance 可追溯 |
