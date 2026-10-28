@@ -57,7 +57,11 @@ export const worldContentSchema = z.object({
   facts: z.array(z.object({id, label: z.string().min(1).max(120), description: z.string().max(1000),
     kind: z.enum(['clue', 'item', 'relationship', 'event']), initialValue: z.boolean(), playerKnown: z.boolean(), ...provenance})).max(80),
   npcs: z.array(z.object({id, name: z.string().min(1).max(120), description: z.string().max(1000),
-    goal: z.string().min(1).max(1000), initialLocationId: id, knownFactIds: z.array(id).max(80), ...provenance})).max(12),
+    goal: z.string().min(1).max(1000), initialLocationId: id, knownFactIds: z.array(id).max(80),
+    /** World layer (P4): affiliation, home, tags, bio and links into worldbook entries. Authoring metadata. */
+    factionId: id.optional(), homeLocationId: id.optional(), tags: z.array(z.string().min(1).max(40)).max(10).optional(),
+    bio: z.string().max(4000).optional(), worldbookEntryIds: z.array(z.string().min(1).max(80)).max(20).optional(),
+    ...provenance})).max(40),
   actions: z.array(z.object({id, label: z.string().min(1).max(200), description: z.string().max(1000), locationId: id,
     npcId: id.optional(), availableWhen: z.array(worldConditionSchema).max(20), requires: z.array(worldConditionSchema).max(20),
     blockedReason: z.string().min(1).max(500), risk: z.string().max(500), timeCost: z.number().int().min(1).max(5),
@@ -80,6 +84,9 @@ export const worldContentSchema = z.object({
   subMaps: z.array(worldMapSchema).max(32).optional(),
   /** Authored faction relation matrix (pairs; factions come from map faction layers). */
   factionRelations: z.array(factionRelationSchema).max(200).optional(),
+  /** Eras (P4): named periods with per-map territory snapshots (mapId → cell → faction id, '' = unclaimed). Authoring/preview. */
+  eras: z.array(z.object({id, name: z.string().min(1).max(80), description: z.string().max(1000).optional(),
+    territory: z.record(id, z.record(z.string().regex(/^-?\d{1,3},-?\d{1,3}$/), z.string().max(80)))})).max(12).optional(),
 });
 export type WorldContent = z.infer<typeof worldContentSchema>;
 export type WorldCondition = z.infer<typeof worldConditionSchema>;
@@ -94,7 +101,7 @@ export interface AdventureView {
   playerRole: string; goal: string; location: {id: string; title: string; text: string};
   facts: {id: string; label: string; description: string; kind: 'clue' | 'item' | 'relationship' | 'event'; value: boolean}[];
   resources?: Record<string, number>;
-  npcs: {id: string; name: string; description: string}[];
+  npcs: {id: string; name: string; description: string; factionId?: string; tags?: string[]}[];
   actions: {id: string; label: string; description: string; timeCost: number; risk: string; enabled: boolean; blockedReason?: string}[];
   ending?: {id: string; title: string; text: string}; history: AdventureHistory[]; createdAt: string; updatedAt: string;
   /** Spatial status for the play map (absent when the world has no map). Session-derived, read-only. */
@@ -115,4 +122,6 @@ export interface AdventureMapView {
   territory?: Record<string, string>;
   /** Effective faction relation table (authored + session). */
   relations?: FactionRelation[];
+  /** NPCs currently on this map (session positions), for map markers. */
+  npcs?: {id: string; name: string; locationId: string; cell: string; factionId?: string}[];
 }

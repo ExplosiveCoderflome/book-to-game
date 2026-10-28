@@ -21,7 +21,7 @@ export function projectAdventure(state: AdventureState, revision: WorldRevision)
     location: {id: location.id, title: location.title, text: location.text},
     facts: world.facts.filter(fact => state.knownFactIds.includes(fact.id)).map(fact => ({id: fact.id, label: fact.label, description: fact.description, kind: fact.kind, value: state.facts[fact.id]})),
     resources,
-    npcs: world.npcs.filter(npc => state.npcs[npc.id]?.locationId === state.locationId).map(npc => ({id: npc.id, name: npc.name, description: npc.description})),
+    npcs: world.npcs.filter(npc => state.npcs[npc.id]?.locationId === state.locationId).map(npc => ({id: npc.id, name: npc.name, description: npc.description, ...(npc.factionId ? {factionId: npc.factionId} : {}), ...(npc.tags?.length ? {tags: [...npc.tags]} : {})})),
     actions,
     ...(state.ending ? {ending: {...state.ending}} : {}),
     history: state.history.map(entry => ({...entry})), createdAt: state.createdAt, updatedAt: state.updatedAt,

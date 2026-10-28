@@ -24,10 +24,12 @@ export function PlayMapPanel({ content, session, overlayMap }: { content: WorldC
       <div><dt>{t('地形')}</dt><dd>{mv.terrain?.label ?? '—'}</dd></div>
       <div><dt>{t('势力')}</dt><dd>{mv.faction ? <span className="faction-chip" style={{ ['--chip' as string]: map.layers?.factions?.factions.find(f => f.id === mv.faction!.id)?.color }}>{mv.faction.name}</span> : '—'}</dd></div>
     </dl>
-    <WorldMapViewer map={map} content={content} playerLocationId={session.location.id} reachableLocationIds={reachable} exploredCells={explored} height={420} />
+    <WorldMapViewer map={map} content={content} playerLocationId={session.location.id} reachableLocationIds={reachable} exploredCells={explored} height={420}
+      npcMarkers={mv.npcs?.map(n => ({ locationId: n.locationId, label: n.name, ...(n.factionId && fname.get(n.factionId) ? { color: fname.get(n.factionId)!.color } : {}) }))} />
     <div className="play-map-legend">
       <span><i className="lg-player" />{t('你在这里')}</span><span><i className="lg-reach" />{t('可前往')}</span>{mv.fog && <span><i className="lg-fog" />{t('未探索')}</span>}
     </div>
+    {mv.npcs && mv.npcs.length > 0 && <div className="play-npcs" data-testid="play-npcs"><span className="hint">{t('图上人物')}</span>{mv.npcs.map(n => <span key={n.id} className="faction-chip" style={{ ['--chip' as string]: n.factionId ? fname.get(n.factionId)?.color : '#8a8378' }}>{n.name}<small> · {titles.get(n.locationId) ?? n.locationId}</small></span>)}</div>}
     {changed > 0 && <p className="hint" data-testid="play-territory-changed">{t('本局领土变化 {n} 格（只影响本存档）', { n: changed })}</p>}
     {mv.relations && mv.relations.length > 0 && <div className="play-relations" data-testid="play-relations">{mv.relations.map(r => <span key={`${r.a}|${r.b}`} className={`rel-pill st-${r.stance}`}>
       {fname.get(r.a)?.name ?? r.a} ↔ {fname.get(r.b)?.name ?? r.b} · {t(STANCE_LABEL[r.stance])} {r.standing > 0 ? '+' : ''}{r.standing}</span>)}</div>}

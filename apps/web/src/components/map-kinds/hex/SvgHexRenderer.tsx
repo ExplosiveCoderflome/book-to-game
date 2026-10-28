@@ -87,7 +87,10 @@ export const SvgHexRenderer = memo(forwardRef<HexRendererHandle, HexRendererProp
           return <g key={p.locationId} data-poi={p.locationId} data-cell={p.anchor.cell}
             className={`poi${p.locationId === state.selectedLocationId ? ' selected' : ''}${!state.titles.has(p.locationId) ? ' missing' : ''}${p.locationId === state.initialLocationId ? ' start' : ''}`}
             transform={`translate(${c.x} ${c.y})`}>
-            <circle r={g.size * 0.38} />
+            {p.feature === 'stronghold'
+              ? <path className="stronghold-keep" data-stronghold={p.factionId ?? ''} style={{ fill: map.layers?.factions?.factions.find(f => f.id === p.factionId)?.color }}
+                  d={(() => { const s = g.size * 0.36, t = s * 0.4; return `M${-s},${s} L${-s},${-s} L${-s + t},${-s} L${-s + t},${-s + t} L${-t / 2},${-s + t} L${-t / 2},${-s} L${t / 2},${-s} L${t / 2},${-s + t} L${s - t},${-s + t} L${s - t},${-s} L${s},${-s} L${s},${s} Z`; })()} />
+              : <circle r={g.size * 0.38} />}
             <text y={g.size * 0.38 + 1} dy="1em" textAnchor="middle" style={{ fontSize: 'var(--map-label)', strokeWidth: 'calc(var(--map-label) / 4)' }}>{label.length > 8 ? `${label.slice(0, 8)}…` : label}</text>
           </g>;
         })}

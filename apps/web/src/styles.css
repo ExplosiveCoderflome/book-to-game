@@ -3014,3 +3014,25 @@ summary:focus:not(:focus-visible) {
 .crumb:hover { background: #efebe2; } .crumb.current { font-weight: 700; color: #1f1c17; background: #efebe2; }
 .crumb-sep { margin: 0 2px; color: #b3ada0; }
 .map-breadcrumb-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+/* P4 world layer */
+.world-layer-editor { display: flex; flex-direction: column; gap: 8px; }
+.wl-issues { margin: 0; padding: 6px 10px; list-style: none; font-size: 12px; background: #fff6ec; border: 1px solid #f0d6b8; border-radius: 6px; }
+.wl-issues li.error { color: #b3261e; } .wl-issues li.warning { color: #8a5a00; }
+.npc-roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px; }
+.npc-card { border: 1px solid #e4dfd6; border-left: 4px solid var(--chip); border-radius: 6px; background: #fff; }
+.npc-card.open { grid-column: 1 / -1; }
+.npc-card header { display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: pointer; }
+.npc-avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--chip); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 13px; flex: none; }
+.npc-head { display: flex; flex-direction: column; min-width: 0; } .npc-head small { color: #8a8378; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.npc-tags { margin-left: auto; display: flex; gap: 3px; flex-wrap: wrap; justify-content: flex-end; }
+.npc-tags .tag { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: #f1ede6; color: #5c564d; }
+.npc-body { padding: 4px 10px 10px; display: flex; flex-direction: column; gap: 6px; }
+.npc-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; } .npc-grid label, .npc-bio { display: flex; flex-direction: column; font-size: 11px; color: #6b655c; gap: 2px; }
+.npc-links { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.chip-toggle.on { background: #2d2a26; color: #fff; }
+.stronghold-table { width: 100%; font-size: 12px; border-collapse: collapse; } .stronghold-table td { padding: 3px 6px; border-bottom: 1px solid #efebe4; }
+.era-list { display: flex; flex-direction: column; gap: 4px; } .era-row { display: flex; gap: 6px; align-items: center; } .era-row input { flex: 1; }
+.era-switch { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; }
+.stronghold-keep { stroke: #2d2a26; stroke-width: 1.5; fill: #8a8378; }
+.poi.selected .stronghold-keep { stroke: #d9480f; stroke-width: 2.5; }
+.play-npcs { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 6px; }

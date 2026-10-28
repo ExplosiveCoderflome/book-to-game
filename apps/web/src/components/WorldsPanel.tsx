@@ -10,6 +10,8 @@ import { WorldMapCanvas } from './WorldMapCanvas';
 import { withMap } from '../lib/world-map';
 import type { WorldMap } from '@novel-game/contracts';
 import { FactionRelationsEditor } from './FactionRelationsEditor';
+import { WorldLayerEditor } from './WorldLayerEditor';
+import { eraMap } from '@novel-game/rules';
 import { WorldOverview } from './WorldOverview';
 import { WorldActionRulesEditor } from './WorldActionRulesEditor';
 import { WorldbookEditor } from './WorldbookEditor';
@@ -46,7 +48,15 @@ export function WorldsPanel({
   const [conflict, setConflict] = useState(false);
   const [reload, setReload] = useState(0);
   const [inspectorOpen, setInspectorOpen] = useState(false);
-  const [inspectorTab, setInspectorTab] = useState<'location' | 'meta' | 'all' | 'worldbook' | 'factions'>('location');
+  const [inspectorTab, setInspectorTab] = useState<'location' | 'meta' | 'all' | 'worldbook' | 'factions' | 'layer'>('location');
+  const [eraId, setEraId] = useState('');
+  const activeEra = content?.eras?.some(e => e.id === eraId) ? eraId : '';
+  const eraProps = content?.eras?.length ? {
+    ...(activeEra ? { previewMap: (m: WorldMap) => eraMap(content, m, activeEra) } : {}),
+    toolbarExtra: <label className="era-switch" data-testid="era-switch">{t('时代')}<select value={activeEra} onChange={e => setEraId(e.target.value)}>
+      <option value="">{t('当前（可编辑）')}</option>{content.eras.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select>
+      {activeEra && <span className="hint">{t('预览中 · 只读')}</span>}</label>,
+  } : {};
   const [selectedLocationId, setSelectedLocationId] = useState<string | undefined>();
   const [metaOpen, setMetaOpen] = useState(false);
   const [canvasMode, setCanvasMode] = useState<'edit' | 'play'>('edit');
@@ -261,9 +271,9 @@ export function WorldsPanel({
                   playOverlay={canvasMode === 'play' ? playOverlay : null}
                   readOnly={canvasMode === 'play'}
                 />
-              ) : canvasView === 'map' ? <WorldMapCanvas content={content} selectedLocationId={selectedLocationId} onSelectLocation={selectLocationLinked} onMapChange={updateMap} onContentChange={change} historyKey={draft?.id ?? 'new-world'} /> : (
+              ) : canvasView === 'map' ? <WorldMapCanvas content={content} selectedLocationId={selectedLocationId} onSelectLocation={selectLocationLinked} onMapChange={updateMap} onContentChange={change} historyKey={draft?.id ?? 'new-world'} {...eraProps} /> : (
                 <div className="world-split" data-testid="world-split">
-                  <WorldMapCanvas content={content} selectedLocationId={selectedLocationId} onSelectLocation={selectLocationLinked} onMapChange={updateMap} onContentChange={change} historyKey={draft?.id ?? 'new-world'} />
+                  <WorldMapCanvas content={content} selectedLocationId={selectedLocationId} onSelectLocation={selectLocationLinked} onMapChange={updateMap} onContentChange={change} historyKey={draft?.id ?? 'new-world'} {...eraProps} />
                 <WorldGraphCanvas
                   primary
                   content={canvasMode === 'play' && latestRevision ? latestRevision.content : content}
@@ -296,6 +306,7 @@ export function WorldsPanel({
                       <button type="button" className={inspectorTab === 'meta' ? 'active' : ''} onClick={() => setInspectorTab('meta')}>{t('信息')}</button>
                       <button type="button" className={inspectorTab === 'worldbook' ? 'active' : ''} data-testid="inspector-worldbook-tab" onClick={() => setInspectorTab('worldbook')}>{t('世界书')}</button>
                       <button type="button" className={inspectorTab === 'factions' ? 'active' : ''} data-testid="inspector-factions-tab" onClick={() => setInspectorTab('factions')}>{t('势力')}</button>
+                      <button type="button" className={inspectorTab === 'layer' ? 'active' : ''} data-testid="inspector-layer-tab" onClick={() => setInspectorTab('layer')}>{t('人物·时代')}</button>
                       <button type="button" className={inspectorTab === 'all' ? 'active' : ''} onClick={() => setInspectorTab('all')}>{t('全览')}</button>
                     </div>
                     <button type="button" className="quiet small" onClick={() => setInspectorOpen(false)} aria-label={t('关闭侧栏')}>{t('关闭')}</button>
@@ -329,6 +340,7 @@ export function WorldsPanel({
                       placeScopeType="locations"
                       regions={content.map?.layers?.regions?.regions.map(r => ({ id: r.id, name: r.name, color: r.color }))} />}
                     {inspectorTab === 'factions' && <FactionRelationsEditor content={content} onChange={change} />}
+                    {inspectorTab === 'layer' && <WorldLayerEditor content={content} onChange={change} />}
                     {inspectorTab === 'all' && <WorldOverview content={content} />}
                   </div>
                 </aside>

@@ -1,5 +1,5 @@
 import type { AdventureMapView, WorldContent } from '@novel-game/contracts';
-import { applyTerritoryOverlay, locationMap, locationSpatial, mapIdOf, relationTable, worldFactions } from '@novel-game/rules';
+import { applyTerritoryOverlay, locationMap, locationSpatial, mapIdOf, npcsOnMap, relationTable, worldFactions } from '@novel-game/rules';
 import type { AdventureState } from './adventure-state.js';
 
 type ActionView = { id: string; enabled: boolean };
@@ -19,12 +19,14 @@ export function projectAdventureMap(world: WorldContent, state: AdventureState, 
   const terrain = sp.terrainId ? layers.terrain?.palette.find(p => p.id === sp.terrainId) : undefined;
   const faction = sp.factionId ? layers.factions?.factions.find(f => f.id === sp.factionId) : undefined;
   const fog = map.fog === true; const mapId = mapIdOf(map);
+  const seen = new Set(state.explored?.[mapId] ?? []);
+  const npcs = npcsOnMap(world, map, Object.fromEntries(Object.entries(state.npcs).map(([id, n]) => [id, n.locationId]))).filter(n => !fog || seen.has(n.cell));
   return {
     mapId, ...(sp.cell ? { cell: sp.cell } : {}),
     ...(terrain ? { terrain: { id: terrain.id, label: terrain.label } } : {}),
     ...(faction ? { faction: { id: faction.id, name: faction.name } } : {}),
     regions: sp.regionIds.flatMap(id => { const r = layers.regions?.regions.find(x => x.id === id); return r ? [{ id, name: r.name }] : []; }),
-    reachable, fog,
+    reachable, fog, ...(npcs.length ? { npcs } : {}),
     ...(overlay && Object.keys(overlay).length ? { territory: { ...overlay } } : {}),
     relations: relationTable(world, state.factionRelations, worldFactions(world).map(f => f.id)), ...(fog ? { explored: [...(state.explored?.[mapId] ?? [])] } : {}),
   };

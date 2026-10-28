@@ -30,6 +30,10 @@ export const worldMapPoiSchema = z.object({
   label: z.string().min(1).max(120).optional(),
   /** Optional venue/POI type id (e.g. hospital, safehouse); must exist in map.venueTypes. Authoring metadata. */
   venueType: id.optional(),
+  /** Feature kind: ordinary POI or a faction stronghold (drawn as a keep). */
+  feature: z.enum(['poi', 'stronghold']).optional(),
+  /** Owning faction for strongholds (must exist in the faction layer). */
+  factionId: id.optional(),
 });
 /** Venue/POI type vocabulary (author-defined; templates may seed it). */
 export const venueTypeSchema = z.object({ id, label: z.string().min(1).max(60), tags: z.array(z.string().min(1).max(40)).max(10).optional() });
