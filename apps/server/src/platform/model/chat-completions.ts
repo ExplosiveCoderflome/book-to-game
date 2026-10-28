@@ -9,8 +9,8 @@ import { extractJsonValue, JsonContentError } from './extract-json.js';
 import { ANALYSIS_SYSTEM, EXPAND_SYSTEM, EXTEND_SCENE_SYSTEM, FILL_SCENE_TEXT_SYSTEM, GAME_SYSTEM, NARRATE_SYSTEM, PROPOSE_ACT_SYSTEM, PROPOSE_ADVENTURE_SYSTEM, SKELETON_SYSTEM, compactForGame, skeletonUserPayload, withTiandaoCorrect } from './prompts.js';
 import { classifyStatus, parseRetryAfter, retryDelayMs } from './retry.js';
 import { sanitizeWorldCandidate } from './sanitize-world.js';
-import { MAP_DRAFT_SYSTEM, WORLD_SYSTEM, compactWorldDossier } from './world-prompts.js';
-import { mapDraftModelOutputSchema, type MapDraftModelOutput } from '@novel-game/contracts';
+import { BUILDING_DRAFT_SYSTEM, ITEM_DRAFT_SYSTEM, LOOT_DRAFT_SYSTEM, MAP_DRAFT_SYSTEM, SHELF_DRAFT_SYSTEM, WORLD_SYSTEM, compactWorldDossier } from './world-prompts.js';
+import { buildingDraftModelOutputSchema, itemDraftModelOutputSchema, lootDraftModelOutputSchema, mapDraftModelOutputSchema, shelfDraftModelOutputSchema, type BuildingDraftModelOutput, type ItemDraftModelOutput, type LootDraftModelOutput, type MapDraftModelOutput, type ShelfDraftModelOutput } from '@novel-game/contracts';
 
 export const DEFAULT_MAX_ATTEMPTS = 3;
 export const DEFAULT_RETRY_BASE_MS = 500;
@@ -132,6 +132,37 @@ export class ChatCompletionsProvider implements GenerationProvider {
   /** P5: novel → map draft proposal (validated by schema; placement happens in rules, review in the UI). */
   async extractMapDraft(input: { text: string; existingLocations: string[]; existingFactions: string[] }, signal: AbortSignal): Promise<MapDraftModelOutput> {
     return this.complete('extract_map_draft', MAP_DRAFT_SYSTEM, input, signal, mapDraftModelOutputSchema, []);
+  }
+
+  /** Author-time: propose reusable building-library assets. Does not write the catalog. */
+  async proposeBuildings(input: {
+    prompt: string; kinds?: string[]; genre?: string; context?: string; count: number; existingLabels: string[];
+  }, signal: AbortSignal): Promise<BuildingDraftModelOutput> {
+    return this.complete('propose_buildings', BUILDING_DRAFT_SYSTEM, input, signal, buildingDraftModelOutputSchema, []);
+  }
+
+  /** Author-time: propose Item Catalog drafts. Soft price hints only; no world resourceId required. */
+  async proposeItems(input: {
+    prompt: string; categories?: string[]; genre?: string; context?: string; count: number;
+    existingLabels: string[]; categoryLabels: Record<string, string>;
+  }, signal: AbortSignal): Promise<ItemDraftModelOutput> {
+    return this.complete('propose_items', ITEM_DRAFT_SYSTEM, input, signal, itemDraftModelOutputSchema, []);
+  }
+
+  /** Author-time: propose shop shelf rows referencing existing Catalog itemIds only. */
+  async proposeShelfRows(input: {
+    prompt: string; genre?: string; context?: string; count: number;
+    catalogItems: Array<{ id: string; label: string; category: string }>; categoryFilters?: string[];
+  }, signal: AbortSignal): Promise<ShelfDraftModelOutput> {
+    return this.complete('propose_shelf_rows', SHELF_DRAFT_SYSTEM, input, signal, shelfDraftModelOutputSchema, []);
+  }
+
+  /** Author-time: propose encounter loot rows referencing existing Catalog itemIds only. */
+  async proposeLootRows(input: {
+    prompt: string; genre?: string; context?: string; count: number;
+    catalogItems: Array<{ id: string; label: string; category: string }>;
+  }, signal: AbortSignal): Promise<LootDraftModelOutput> {
+    return this.complete('propose_loot_rows', LOOT_DRAFT_SYSTEM, input, signal, lootDraftModelOutputSchema, []);
   }
 
   get modelName(): string { return this.config.model; }

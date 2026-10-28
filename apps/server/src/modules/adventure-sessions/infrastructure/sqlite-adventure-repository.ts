@@ -2,7 +2,7 @@ import type { SqliteDatabase } from '../../../platform/database.js';
 import type { AdventureActInput, AdventureView } from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
 import type { AdventureRepository } from '../application/ports.js';
-import type { AdventureState } from '../domain/adventure-state.js';
+import type { AdventureState } from '@novel-game/play-runtime';
 export class SqliteAdventureRepository implements AdventureRepository {
   constructor(private readonly db: SqliteDatabase) {
     db.exec(`

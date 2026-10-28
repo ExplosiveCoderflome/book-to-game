@@ -11,6 +11,10 @@ export interface MapEditorProps {
   readOnly?: boolean;
   /** Stable per-world key; undo history is kept across editor remounts under this key. */
   historyKey?: string;
+  /** Workspace access token for catalog APIs (building library). */
+  token?: string;
+  /** Jump to the dedicated building-library workspace from the fill tray. */
+  onOpenBuildingLibrary?: () => void;
 }
 
 /** Read-only viewer (play view / previews). Overlays are session-derived and never written back. */

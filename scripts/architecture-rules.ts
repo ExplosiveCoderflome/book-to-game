@@ -27,6 +27,15 @@ export function checkImports(files: FileImports[]): string[] {
       if (file.startsWith('packages/contracts/') && (specifier === '@novel-game/rules' || /packages\/rules\//.test(target))) {
         errors.push(`${file}: contracts 禁止依赖 rules（schema 不得反向依赖求值引擎）`);
       }
+      // play-runtime ships inside the offline HTML package: browser-safe, no node:* at all.
+      if (file.startsWith('packages/play-runtime/') && /^node:/.test(specifier)) {
+        errors.push(`${file}: play-runtime 禁止依赖 ${specifier}（需在离线包浏览器内运行）`);
+      }
+      // Layering: contracts/rules sit below the play engine.
+      if ((file.startsWith('packages/contracts/') || file.startsWith('packages/rules/'))
+        && (specifier === '@novel-game/play-runtime' || /packages\/play-runtime\//.test(target))) {
+        errors.push(`${file}: contracts/rules 禁止反向依赖 play-runtime`);
+      }
       const other = moduleOf(target);
       if (own && other && own !== other) {
         if (!/\/index\.(js|ts)$/.test(target)) errors.push(`${file}: 禁止引用模块 ${other} 内部 ${specifier}`);

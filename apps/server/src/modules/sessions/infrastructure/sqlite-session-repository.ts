@@ -2,7 +2,7 @@ import type { SqliteDatabase } from '../../../platform/database.js';
 import type { ActInput, SessionView } from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
 import type { SessionRepository } from '../application/ports.js';
-import type { SessionState } from '../domain/session-state.js';
+import type { SessionState } from '@novel-game/play-runtime';
 
 export class SqliteSessionRepository implements SessionRepository {
   constructor(private readonly db: SqliteDatabase) {

@@ -3,10 +3,14 @@ import { test } from 'node:test';
 import type { Choice } from '@novel-game/contracts';
 import {
   choiceCostHint,
+  diffOptionSets,
+  diffResources,
   diffVariables,
   formatDeltaSummary,
   formatVariableValue,
   meterFillPercent,
+  resourceLabelFnFromWorld,
+  toneForDelta,
 } from '../src/lib/variable-delta.ts';
 
 test('formatVariableValue maps booleans to 真/假', () => {
@@ -77,4 +81,41 @@ test('meterFillPercent: 0..100 exact; else soft absolute cap at 100', () => {
   assert.equal(meterFillPercent(100), 100);
   assert.equal(meterFillPercent(150), 100);
   assert.equal(meterFillPercent(-3), 3);
+});
+
+
+test('diffResources mirrors numeric variable diffs with labels', () => {
+  const deltas = diffResources(
+    { primary_coin: 12, hp: 4 },
+    { primary_coin: 10, hp: 4 },
+    name => (name === 'primary_coin' ? '通货' : name),
+  );
+  assert.equal(deltas.length, 1);
+  assert.equal(deltas[0]!.line, '通货 -2');
+});
+
+test('toneForDelta: pressure up rust, resource down loss, flag on gain', () => {
+  assert.equal(toneForDelta({ name: 'risk', from: 1, to: 3 }, 'pressure'), 'pressure');
+  assert.equal(toneForDelta({ name: 'risk', from: 3, to: 1 }, 'pressure'), 'gain');
+  assert.equal(toneForDelta({ name: 'coin', from: 5, to: 2 }, 'resource'), 'loss');
+  assert.equal(toneForDelta({ name: 'coin', from: 2, to: 5 }, 'resource'), 'gain');
+  assert.equal(toneForDelta({ name: 'token', from: false, to: true }, 'flag'), 'gain');
+});
+
+test('diffOptionSets reports newly available and unavailable labels', () => {
+  const summary = diffOptionSets(
+    [{ id: 'a', label: '检查船体' }, { id: 'b', label: '等待' }],
+    [{ id: 'b', label: '等待' }, { id: 'c', label: '进关卡' }],
+  );
+  assert.deepEqual(summary.newlyAvailable, ['进关卡']);
+  assert.deepEqual(summary.newlyUnavailable, ['检查船体']);
+});
+
+test('resourceLabelFnFromWorld prefers faction stats then common ids', () => {
+  const fn = resourceLabelFnFromWorld({
+    map: { layers: { factions: { factions: [{ stats: [{ label: '兵力', resourceId: 'troop_power' }] }] } } },
+  } as never);
+  assert.equal(fn('troop_power'), '兵力');
+  assert.equal(fn('primary_coin'), '通货');
+  assert.equal(fn('custom_pool'), 'custom pool');
 });

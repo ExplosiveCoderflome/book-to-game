@@ -3,9 +3,9 @@ import { test } from 'node:test';
 import {gameContentSchema, validateWorldbookContent, type GameContent} from '@novel-game/contracts';
 import {worldbookBlockReason, worldbookIncrementCap} from '@novel-game/rules';
 import { validateGame } from '../src/modules/games/domain/validate-game.js';
-import { applyChoiceEffects, choiceAllowed } from '../src/modules/sessions/domain/story-variables.js';
-import { projectSession } from '../src/modules/sessions/domain/project-session.js';
-import type { SessionState } from '../src/modules/sessions/domain/session-state.js';
+import { applyChoiceEffects, choiceAllowed } from '@novel-game/play-runtime';
+import { projectSession } from '@novel-game/play-runtime';
+import type { SessionState } from '@novel-game/play-runtime';
 import type { SourceDocument } from '@novel-game/contracts';
 
 const source: SourceDocument = {
@@ -296,7 +296,7 @@ test('validateWorldbookContent catches spend and ladder variable errors', () => 
 });
 
 test('advanceSession applies spend and records takenTags for path lock', async () => {
-  const { advanceSession } = await import('../src/modules/sessions/domain/advance-session.js');
+  const { advanceSession } = await import('@novel-game/play-runtime');
   const game = baseGame({
     variables: { qi: 0, fame: 0, mana: 3 },
     worldbook: {

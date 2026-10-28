@@ -2,7 +2,13 @@ import { z } from 'zod';
 export * from './world.js';
 export * from './world-map.js';
 export * from './map-templates.js';
+export * from './building-library.js';
+export * from './building-draft.js';
+export * from './building-image.js';
+export * from './item-catalog.js';
+export * from './item-draft.js';
 export * from './map-draft.js';
+export type * from './preflight.js';
 export {
   worldbookSchema, worldbookEntrySchema, worldbookConstraintSchema, worldbookEntryKindSchema,
   worldbookScopeSchema, emptyWorldbook, validateWorldbookContent,
@@ -80,7 +86,11 @@ export type GameContent = z.infer<typeof gameContentSchema>;
 export type Scene = z.infer<typeof sceneSchema>;
 export interface Draft {
   id: string; sourceId: string; content: GameContent; version: number; createdAt: string; updatedAt: string;
+  /** S1 ⑦: who generated this story draft. Draft metadata only (never part of content or packages); sticky across edits. */
+  provenance?: DraftProvenance;
 }
+/** S1 ⑦ provenance. `source`: runner = stamped at generation; backfill = traced later from run records / logs; copy = inherited from an identical mock draft. */
+export interface DraftProvenance {generator: string; model?: string; source?: 'runner' | 'backfill' | 'copy'; copiedFrom?: string}
 export interface GameRevision {
   id: string; draftId: string; sourceId: string; version: number; content: GameContent; createdAt: string;
 }

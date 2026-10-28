@@ -51,7 +51,10 @@ Avoid cream paper fills, heavy inset seals, and multi-pastel “theater” boxes
 ## Play reader
 
 - Reader chrome matches the workbench (sans title, left-aligned scene title, quiet meta).
-- Choice buttons are plain list actions (muted surface + clear border), not brochure cards.
+- Choice / action rows are plain list actions (muted surface + clear border), not brochure cards; cost/risk sits on an 11px muted subline.
+- HUD is an instrument readout: outer left-green strip, dense divider rows (no card-in-card), signed delta chips (gain green / loss muted / pressure rust).
+- Goal strip and「刚刚发生」use `--surface-muted` + left green accent — no cream theater bars.
+- Ending uses shared `.play-ending` with final-state chips and replay CTA.
 - Body prose may keep serif for reading comfort; chrome around it stays sans.
 
 ## Checklist

@@ -9,9 +9,9 @@ import { createLogger } from './platform/logger.js';
 const config = loadConfig();
 const logger = createLogger(config.dataDir, 'api');
 const db = openDatabase(config.databasePath);
-const workbench = createWorkbench(db, createModelSettings(db, config.dataDir, config.provider));
 const token = loadAccessToken(config.dataDir, process.env.APP_ACCESS_TOKEN);
-const app = createApp(workbench, {token, allowedOrigins: config.allowedOrigins, staticDir: path.resolve('apps/web/dist'), logger});
+const workbench = createWorkbench(db, createModelSettings(db, config.dataDir, config.provider), logger, { dataDir: config.dataDir, exportSecrets: () => [token] });
+const app = createApp(workbench, {token, allowedOrigins: config.allowedOrigins, staticDir: path.resolve('apps/web/dist'), mediaDir: workbench.mediaDir, logger});
 const server = app.listen(config.port, '127.0.0.1', () => {
   logger.info('server.started', {port: config.port, mcpPath: `/mcp`});
   console.log(`小说游戏工作台: http://127.0.0.1:${config.port}`);

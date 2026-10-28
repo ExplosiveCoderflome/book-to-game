@@ -2,23 +2,46 @@ import type { SqliteDatabase } from '../platform/database.js';
 import { SourceService, SqliteSourceRepository } from '../modules/sources/index.js';
 import { GameService, SqliteGameRepository } from '../modules/games/index.js';
 import { SessionService, SqliteSessionRepository } from '../modules/sessions/index.js';
-import { GenerationRunner, JobService, SqliteJobRepository, type GenerationProvider } from '../modules/generation/index.js';
+import { GenerationRunner, JobService, JsonlModelLogReader, ProvenanceTracer, SqliteJobRepository, type GenerationProvider } from '../modules/generation/index.js';
 import { AppError } from '../shared/errors.js';
 import type { ModelListInput, ModelSettingsInput } from '@novel-game/contracts';
 import type { ModelSettingsService } from '../modules/model-settings/index.js';
+import { BuildingImageService, BuildingLibraryService, SqliteBuildingLibraryRepository, createBuildingImageProvider } from '../modules/building-library/index.js';
+import { ItemCatalogService, SqliteItemCatalogRepository } from '../modules/item-catalog/index.js';
+import path from 'node:path';
 import { ModelConnectionProbe } from '../platform/model/connection-probe.js';
 import { WorldService, SqliteWorldRepository } from '../modules/worlds/index.js';
+import { PreflightService, SqlitePreflightRepository } from '../modules/preflight/index.js';
 import { AdventureService, SqliteAdventureRepository } from '../modules/adventure-sessions/index.js';
 import type { Logger } from '../shared/logger.js';
 import { ChatCompletionsProvider } from '../platform/model/chat-completions.js';
+import { ExportService, FsMediaReader, FsPlayerTemplateReader, FsWindowsPlayerReader } from '../modules/exports/index.js';
 
-export function createWorkbench(db: SqliteDatabase, modelSettings: ModelSettingsService, logger?: Logger, options?: {repairAttempts?: number}) {
+export function createWorkbench(db: SqliteDatabase, modelSettings: ModelSettingsService, logger?: Logger, options?: {repairAttempts?: number; dataDir?: string; playerTemplatePath?: string; windowsPlayerPath?: string; exportSecrets?: () => string[]; exportMaxBytes?: number; allowMockPublish?: boolean}) {
   const sources = new SourceService(new SqliteSourceRepository(db));
-  const games = new GameService(new SqliteGameRepository(db), sources);
-  const sessions = new SessionService(new SqliteSessionRepository(db), games);
-  const worlds = new WorldService(new SqliteWorldRepository(db), sources);
-  const adventures = new AdventureService(new SqliteAdventureRepository(db), worlds);
+  const allowMockPublish = options?.allowMockPublish ?? allowMockPublishFromEnv();
   const jobsRepository = new SqliteJobRepository(db);
+  // S1 ⑦: legacy drafts without a stamp are traced from their generation run (job.model, else worker/api logs).
+  const tracer = new ProvenanceTracer(jobsRepository, new JsonlModelLogReader(path.join(options?.dataDir ?? 'data', 'logs')));
+  const traceProvenance = (draftId: string) => tracer.trace(draftId);
+  const games = new GameService(new SqliteGameRepository(db), sources, {allowMockPublish, traceProvenance});
+  const sessions = new SessionService(new SqliteSessionRepository(db), games);
+  let itemCatalogRef: ItemCatalogService | undefined;
+  const buildingLibrary = new BuildingLibraryService(
+    new SqliteBuildingLibraryRepository(db),
+    () => itemCatalogRef?.itemIds() ?? new Set(),
+  );
+  const itemCatalog = new ItemCatalogService(new SqliteItemCatalogRepository(db), () => buildingLibrary.get().library.assets);
+  itemCatalogRef = itemCatalog;
+  const mediaDir = path.join(options?.dataDir ?? 'data', 'building-images');
+  const imageProviders = createBuildingImageProvider(process.env);
+  const buildingImages = new BuildingImageService(buildingLibrary, imageProviders.provider, mediaDir, imageProviders.svg);
+  const worlds = new WorldService(new SqliteWorldRepository(db), sources, () => buildingLibrary.assetIds(), {allowMockPublish, traceProvenance});
+  const adventures = new AdventureService(new SqliteAdventureRepository(db), worlds, {
+    buildingLibrary: () => buildingLibrary.get().library,
+    itemCatalog: () => itemCatalog.get().catalog,
+  });
+  const preflight = new PreflightService(new SqlitePreflightRepository(db), {world: id => worlds.get(id), story: id => games.get(id)});
   const jobs = new JobService(jobsRepository, sources, () => modelSettings.get().configured);
   const createRunner = (provider: GenerationProvider) => new GenerationRunner(jobsRepository, sources, provider, input => {
     const draft = games.create(input);
@@ -26,7 +49,7 @@ export function createWorkbench(db: SqliteDatabase, modelSettings: ModelSettings
     if (!validation.valid) throw validationFailure('INVALID_GENERATED_GAME', '改编草稿未通过校验：', validation.errors);
     return draft;
   }, input => {
-    const draft = worlds.create(input);
+    const draft = worlds.create(input, {trusted: true});
     const validation = worlds.validate(draft.id);
     if (!validation.valid) throw validationFailure('INVALID_GENERATED_WORLD', '世界草案未通过校验：', validation.errors);
     return draft;
@@ -39,7 +62,33 @@ export function createWorkbench(db: SqliteDatabase, modelSettings: ModelSettings
     const endpoint = modelSettings.resolve();
     return new ChatCompletionsProvider({ ...endpoint, maxAttempts: 2, repairAttempts: 2 });
   };
-  return {sources, games, sessions, worlds, adventures, jobs, createRunner, createPlayProvider, modelSettings, testModelConnection, listModels,
+  /** M1b-1: single-file HTML play package. Same engine as /api play; template prebuilt by `npm run build:player`. */
+  const exporter = new ExportService({
+    getGameRevision: id => games.getRevision(id),
+    getWorldRevision: id => worlds.getRevision(id),
+    buildingLibrary: () => buildingLibrary.get().library,
+    itemCatalog: () => itemCatalog.get().catalog,
+  }, new FsMediaReader(options?.dataDir ?? 'data'),
+  new FsPlayerTemplateReader(options?.playerTemplatePath ?? process.env.BTG_PLAYER_TEMPLATE ?? path.resolve('apps/web/dist-player/btg-player-template.html')), {
+    appVersion: '0.2.0',
+    maxBytes: options?.exportMaxBytes,
+    secrets: () => {
+      const values = [process.env.LLM_API_KEY ?? '', process.env.APP_ACCESS_TOKEN ?? '', ...(options?.exportSecrets?.() ?? [])];
+      try { values.push(modelSettings.resolve().apiKey); } catch { /* no key configured / unreadable */ }
+      return values;
+    },
+  },
+  // M1b-2: prebuilt Windows player (CI / Windows build); export just appends bytes, no Rust here.
+  new FsWindowsPlayerReader(options?.windowsPlayerPath ?? process.env.BTG_WINDOWS_PLAYER ?? path.resolve('dist/player/btg-player-windows-x64.exe')));
+  /** S1 ⑦ (a): idempotent startup migration — mark legacy mock drafts (traced or byte-identical copies). Never touches non-mock drafts. */
+  const backfillProvenance = () => ({stories: games.backfillMockProvenance(), worlds: worlds.backfillMockProvenance()});
+  let provenanceBackfill: ReturnType<typeof backfillProvenance> = {stories: [], worlds: []};
+  try {
+    provenanceBackfill = backfillProvenance();
+    const n = provenanceBackfill.stories.length + provenanceBackfill.worlds.length;
+    if (n) logger?.info('provenance.backfill', {stories: provenanceBackfill.stories.map(x => x.id), worlds: provenanceBackfill.worlds.map(x => x.id)});
+  } catch (error) { logger?.error?.('provenance.backfill.failed', {message: error instanceof Error ? error.message : String(error)}); }
+  return {provenanceBackfill, backfillProvenance, sources, games, sessions, worlds, preflight, adventures, exporter, buildingLibrary, buildingImages, itemCatalog, jobs, createRunner, createPlayProvider, modelSettings, testModelConnection, listModels, mediaDir,
     get providerConfigured() {return modelSettings.get().configured;}};
 }
 export type Workbench = ReturnType<typeof createWorkbench>;
@@ -58,4 +107,9 @@ function validationPath(message: string): string {
   const scene = message.match(/场景 ([^\s：]+)/);
   if (scene) return `scenes.${scene[1]}`;
   return 'content';
+}
+
+/** S1 ⑦: tests (vitest / NODE_ENV=test) and explicit e2e fixtures (BTG_ALLOW_MOCK_PUBLISH=1) may publish mock drafts. */
+function allowMockPublishFromEnv(): boolean {
+  return process.env.NODE_ENV === 'test' || !!process.env.VITEST || !!process.env.NODE_TEST_CONTEXT || process.env.BTG_ALLOW_MOCK_PUBLISH === '1';
 }

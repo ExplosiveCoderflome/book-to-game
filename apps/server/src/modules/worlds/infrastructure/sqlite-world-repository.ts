@@ -1,5 +1,5 @@
 import type { SqliteDatabase } from '../../../platform/database.js';
-import type { WorldDraft, WorldRevision } from '@novel-game/contracts';
+import type { DraftProvenance, WorldDraft, WorldRevision } from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
 import type { WorldRepository } from '../application/ports.js';
 export class SqliteWorldRepository implements WorldRepository {
@@ -36,6 +36,14 @@ export class SqliteWorldRepository implements WorldRepository {
   updateDraft(draft: WorldDraft, expectedVersion: number): void {
     const result = this.db.prepare('UPDATE world_drafts SET version=?,data=?,updated_at=? WHERE id=? AND version=?').run(draft.version, JSON.stringify(draft), draft.updatedAt, draft.id, expectedVersion);
     if (!result.changes) throw new AppError('DRAFT_VERSION_CONFLICT', '草稿已更新，请刷新后编辑', 409);
+  }
+  setProvenanceIfMissing(id: string, provenance: DraftProvenance): boolean {
+    return this.db.transaction(() => {
+      const draft = this.getDraft(id);
+      if (!draft || draft.content.provenance) return false;
+      this.db.prepare('UPDATE world_drafts SET data=? WHERE id=?').run(JSON.stringify({...draft, content: {...draft.content, provenance}}), id);
+      return true;
+    }).immediate();
   }
   getRevision(id: string): WorldRevision | undefined {return parse<WorldRevision>(this.db.prepare('SELECT data FROM world_revisions WHERE id=?').get(id));}
   findRevision(draftId: string, version: number): WorldRevision | undefined {

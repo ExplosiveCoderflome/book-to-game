@@ -1,11 +1,14 @@
 import { lazy, Suspense, useMemo, useRef, useState, type DragEvent } from 'react';
-import { MAP_FILL_KINDS, MAP_FILL_KIND_LABEL, MAP_SIZE_PRESETS, MAP_TEMPLATES, getMapTemplate, mapSizePreset, type MapFillKind } from '@novel-game/contracts';
+import { MAP_FILL_KINDS, MAP_FILL_KIND_LABEL, MAP_SIZE_PRESETS, MAP_TEMPLATES, getMapTemplate, mapSizePreset, type BuildingLibrary, type MapFillKind } from '@novel-game/contracts';
 import { mapIdOf, parseCellKey, validateWorldMap, worldMaps } from '@novel-game/rules';
 import { useI18n } from '../../lib/i18n';
+import { RequestError } from '../../lib/api';
+import { createBuildingAsset, promoteBuildingVariant } from '../../lib/building-library-api';
 import { applyMapTemplate, createEmptyMap, resizeMap, resizeMapEdge, setPoiVenueType, unbindLocation, type MapEdge } from '../../lib/world-map';
-import { addFillPlacement, lockMapStructure, removeFillPlacement, unlockMapStructure } from '../../lib/world-map-fill';
+import { addFillPlacement, lockMapStructure, placeFromBuildingAsset, placementToBuildingDraft, removeFillPlacement, unlockMapStructure, updateFillPlacement } from '../../lib/world-map-fill';
 import { layerPalette } from '../../lib/world-map-edit';
 import { MapLayerPalette } from '../MapLayerPalette';
+import { BuildingLibraryPanel } from '../building-library/BuildingLibraryPanel';
 import type { MapEditorProps } from './registry';
 import { SvgHexRenderer } from './hex/SvgHexRenderer';
 import { preferredHexRenderer, setPreferredHexRenderer, webglAvailable, type HexRendererHandle, type HexRendererId } from './hex/renderer';
@@ -20,7 +23,7 @@ const EDGE_LABEL: Record<MapEdge, string> = { left: '左', right: '右', top: '�
 /** Optional hex map layer for a world. Spatial view only: never creates movement edges.
  *  Shell (chrome/tray/legend/status) + renderer-agnostic controller + swappable renderer (Pixi default, SVG fallback). */
 export function HexMapEditor(props: MapEditorProps) {
-  const { content, selectedLocationId, onSelectLocation, readOnly = false } = props;
+  const { content, selectedLocationId, onSelectLocation, readOnly = false, token = '', onOpenBuildingLibrary } = props;
   const { t } = useI18n();
   const [draftSize, setDraftSize] = useState({ cols: 16, rows: 10 });
   const [draftTemplate, setDraftTemplate] = useState('');
@@ -33,6 +36,12 @@ export function HexMapEditor(props: MapEditorProps) {
   const { map, mode, setMode, tool, setTool, brush, setBrush, setActive, activeId, hist, undo, redo, commit, fit, autoFit, cursorCell, selectedCell, selectedPoiCell, layerMode, renderState, writeBlock } = c;
   const [fillKind, setFillKind] = useState<MapFillKind>('shop');
   const [fillLabel, setFillLabel] = useState('');
+  const [addToLibraryOnCreate, setAddToLibraryOnCreate] = useState(true);
+  const [library, setLibrary] = useState<BuildingLibrary | null>(null);
+  const [libraryRevision, setLibraryRevision] = useState(0);
+  const [selectedAssetId, setSelectedAssetId] = useState<string | undefined>();
+  const [libBusy, setLibBusy] = useState(false);
+  const [libNote, setLibNote] = useState<string | null>(null);
   /** Locations already anchored on another map (root ↔ sub-maps) are not offered in this map's tray. */
   const placedElsewhere = useMemo(() => new Set(worldMaps(content).filter(m => mapIdOf(m) !== (map ? mapIdOf(map) : '')).flatMap(m => m.pois.map(p => p.locationId))), [content, map]);
   const titles = useMemo(() => new Map(content.locations.map(l => [l.id, l.title])), [content.locations]);
@@ -43,7 +52,8 @@ export function HexMapEditor(props: MapEditorProps) {
     for (const p of map?.pois ?? []) m.set(p.anchor.cell, [...(m.get(p.anchor.cell) ?? []), p.locationId]);
     return m;
   }, [map?.pois]);
-  const issues = useMemo(() => (map ? validateWorldMap(map, content.locations.map(l => l.id)) : []), [map, content.locations]);
+  const buildingIds = useMemo(() => new Set((library?.assets ?? []).map(a => a.id)), [library]);
+  const issues = useMemo(() => (map ? validateWorldMap(map, content.locations.map(l => l.id), library ? { buildingAssetIds: buildingIds } : undefined) : []), [map, content.locations, library, buildingIds]);
   const bound = useMemo(() => new Set(map?.pois.map(p => p.locationId) ?? []), [map?.pois]);
   const problemLocations = useMemo(() => new Set(issues.filter(i => i.level === 'error').map(i => i.locationId)), [issues]);
 
@@ -191,24 +201,136 @@ export function HexMapEditor(props: MapEditorProps) {
               <input data-testid="map-fill-label" disabled={fillReadOnly} value={fillLabel} maxLength={80}
                 placeholder={t('可选')} onChange={e => setFillLabel(e.target.value)} />
             </label>
-            <button type="button" className="small primary" data-testid="map-fill-add" disabled={fillReadOnly || !selectedLocationId || !bound.has(selectedLocationId)}
-              onClick={() => {
-                if (!selectedLocationId) return;
-                commit(addFillPlacement(map, { kind: fillKind, locationId: selectedLocationId, label: fillLabel || undefined }));
-                setFillLabel('');
-              }}>{t('添加填充')}</button>
+            <label className="inline small">
+              <input type="checkbox" data-testid="map-fill-add-to-library" checked={addToLibraryOnCreate}
+                disabled={fillReadOnly || libBusy} onChange={e => setAddToLibraryOnCreate(e.target.checked)} />
+              {t('加入库')}
+            </label>
+            <div className="map-fill-lib-actions">
+              <button type="button" className="small primary" data-testid="map-fill-add" disabled={fillReadOnly || libBusy || !selectedLocationId || !bound.has(selectedLocationId)}
+                onClick={() => {
+                  if (!selectedLocationId || !map) return;
+                  void (async () => {
+                    let assetId: string | undefined;
+                    let assetVer: number | undefined;
+                    if (addToLibraryOnCreate) {
+                      setLibBusy(true); setLibNote(null);
+                      try {
+                        const view = await createBuildingAsset(token, {
+                          kind: fillKind,
+                          label: fillLabel.trim() || `${MAP_FILL_KIND_LABEL[fillKind]}·${titles.get(selectedLocationId) ?? selectedLocationId}`,
+                          expectedRevision: libraryRevision,
+                          provenance: { source: 'fill-create', locationId: selectedLocationId, createdAt: new Date().toISOString() },
+                        });
+                        setLibrary(view.library); setLibraryRevision(view.revision);
+                        assetId = view.asset.id; assetVer = view.asset.version;
+                        setSelectedAssetId(view.asset.id);
+                        setLibNote(t('已入库：{name}', { name: view.asset.label }));
+                      } catch (e) {
+                        setLibNote(e instanceof RequestError ? e.message : String(e));
+                        setLibBusy(false);
+                        return;
+                      } finally { setLibBusy(false); }
+                    }
+                    commit(addFillPlacement(map, {
+                      kind: fillKind, locationId: selectedLocationId,
+                      label: fillLabel || undefined,
+                      buildingAssetId: assetId, buildingAssetVersion: assetVer,
+                    }));
+                    setFillLabel('');
+                  })();
+                }}>{t('添加填充')}</button>
+              <button type="button" className="small" data-testid="map-fill-place-from-library"
+                disabled={fillReadOnly || !selectedAssetId || !selectedLocationId || !bound.has(selectedLocationId) || !library}
+                title={t('将选中的库资产放置到当前地点')}
+                onClick={() => {
+                  if (!map || !selectedLocationId || !library || !selectedAssetId) return;
+                  const asset = library.assets.find(a => a.id === selectedAssetId);
+                  if (!asset) return;
+                  commit(placeFromBuildingAsset(map, selectedLocationId, asset,
+                    fillLabel.trim() ? { label: fillLabel.trim() } : undefined));
+                  setLibNote(t('已从库放置：{name}', { name: asset.label }));
+                }}>{t('从库放置')}</button>
+            </div>
+            {libNote && <p className="hint" data-testid="map-fill-lib-note">{libNote}</p>}
           </div>
           <ul className="map-fill-list" data-testid="map-fill-list">
             {(map.fill?.placements ?? []).length === 0 && <li className="empty">{t('尚无填充项')}</li>}
-            {(map.fill?.placements ?? []).map(p => <li key={p.id} data-testid={`map-fill-item-${p.id}`}
-              className={p.locationId === selectedLocationId ? 'selected' : ''} onClick={() => onSelectLocation(p.locationId)}>
-              <span className={`map-fill-kind ${p.kind}`}>{t(MAP_FILL_KIND_LABEL[p.kind])}</span>
-              <span className="name">{p.label || titles.get(p.locationId) || p.locationId}</span>
-              <button type="button" className="quiet tiny" disabled={fillReadOnly} title={t('移除')}
-                onClick={e => { e.stopPropagation(); commit(removeFillPlacement(map, p.id)); }}>×</button>
-            </li>)}
+            {(map.fill?.placements ?? []).map(p => {
+              const libAsset = p.buildingAssetId && library ? library.assets.find(a => a.id === p.buildingAssetId) : undefined;
+              return <li key={p.id} data-testid={`map-fill-item-${p.id}`}
+                className={p.locationId === selectedLocationId ? 'selected' : ''} onClick={() => onSelectLocation(p.locationId)}>
+                <span className={`map-fill-kind ${p.kind}`}>{t(MAP_FILL_KIND_LABEL[p.kind])}</span>
+                <span className="name">{p.label || libAsset?.label || titles.get(p.locationId) || p.locationId}</span>
+                {p.buildingAssetId
+                  ? <span className="map-fill-item-meta" title={p.buildingAssetId}>{t('库')}</span>
+                  : <button type="button" className="quiet tiny" disabled={fillReadOnly || libBusy} data-testid={`map-fill-add-lib-${p.id}`}
+                      title={t('加入库')}
+                      onClick={e => {
+                        e.stopPropagation();
+                        void (async () => {
+                          setLibBusy(true); setLibNote(null);
+                          try {
+                            const draft = placementToBuildingDraft(p);
+                            const view = await createBuildingAsset(token, { ...draft, expectedRevision: libraryRevision });
+                            setLibrary(view.library); setLibraryRevision(view.revision);
+                            commit(updateFillPlacement(map, p.id, {
+                              buildingAssetId: view.asset.id,
+                              buildingAssetVersion: view.asset.version,
+                              label: p.label ?? view.asset.label,
+                            }));
+                            setSelectedAssetId(view.asset.id);
+                            setLibNote(t('已入库：{name}', { name: view.asset.label }));
+                          } catch (err) {
+                            setLibNote(err instanceof RequestError ? err.message : String(err));
+                          } finally { setLibBusy(false); }
+                        })();
+                      }}>{t('入库')}</button>}
+                {p.buildingAssetId && libAsset && <button type="button" className="quiet tiny" disabled={fillReadOnly || libBusy}
+                  data-testid={`map-fill-promote-${p.id}`} title={t('升格变体')}
+                  onClick={e => {
+                    e.stopPropagation();
+                    void (async () => {
+                      setLibBusy(true); setLibNote(null);
+                      try {
+                        const overrides = {
+                          ...(p.label ? { label: p.label } : {}),
+                          ...((p.localOverrides ?? {}) as { label?: string; color?: string; icon?: string; blurb?: string }),
+                        };
+                        const view = await promoteBuildingVariant(token, p.buildingAssetId!, libraryRevision, {
+                          label: p.label ? `${p.label}` : undefined,
+                          overrides,
+                        });
+                        setLibrary(view.library); setLibraryRevision(view.revision);
+                        commit(updateFillPlacement(map, p.id, {
+                          buildingAssetId: view.asset.id,
+                          buildingAssetVersion: view.asset.version,
+                          label: view.asset.label,
+                          localOverrides: undefined,
+                        }));
+                        setSelectedAssetId(view.asset.id);
+                        setLibNote(t('已升格变体：{name}', { name: view.asset.label }));
+                      } catch (err) {
+                        setLibNote(err instanceof RequestError ? err.message : String(err));
+                      } finally { setLibBusy(false); }
+                    })();
+                  }}>{t('升格')}</button>}
+                <button type="button" className="quiet tiny" disabled={fillReadOnly} title={t('移除')}
+                  onClick={e => { e.stopPropagation(); commit(removeFillPlacement(map, p.id)); }}>×</button>
+              </li>;
+            })}
           </ul>
-          <p className="hint map-tray-hint">{t('建筑库与 AI 填充在后续阶段接入；遭遇仅注册桩效果。')}</p>
+          <BuildingLibraryPanel
+            token={token}
+            compact
+            readOnly={fillReadOnly}
+            filterKind={fillKind}
+            selectedId={selectedAssetId}
+            onSelect={a => { setSelectedAssetId(a?.id); if (a) setFillKind(a.kind); }}
+            onLibraryChange={(lib, rev) => { setLibrary(lib); setLibraryRevision(rev); }}
+            onOpenFullLibrary={onOpenBuildingLibrary}
+          />
+          <p className="hint map-tray-hint">{t('放置 = 库引用 + 本地覆盖；升格会新建变体，绝不覆盖原资产。AI 填充后续阶段接入。')}</p>
         </> : layerMode ? <>
           <div className="map-tools" role="toolbar" aria-label={t('工具')}>
             {toolDefs.map(d => <button key={d.id} type="button" data-testid={`map-tool-${d.id}`} className={`small${tool === d.id ? ' active' : ''}`} title={`${t(d.label)} (${d.key})`} onClick={() => setTool(d.id)}>

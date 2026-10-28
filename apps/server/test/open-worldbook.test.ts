@@ -7,9 +7,9 @@ import {
 } from '@novel-game/contracts';
 import { validateWorld } from '../src/modules/worlds/domain/validate-world.js';
 import { source, content as baseContent } from './helpers/open-fixture.js';
-import { advanceAdventure } from '../src/modules/adventure-sessions/domain/advance-adventure.js';
-import { projectAdventure } from '../src/modules/adventure-sessions/domain/project-adventure.js';
-import type { AdventureState } from '../src/modules/adventure-sessions/domain/adventure-state.js';
+import { advanceAdventure } from '@novel-game/play-runtime';
+import { projectAdventure } from '@novel-game/play-runtime';
+import type { AdventureState } from '@novel-game/play-runtime';
 import type { WorldRevision } from '@novel-game/contracts';
 
 const adapted = { origin: 'adapted' as const, evidence: [] };

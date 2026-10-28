@@ -1,11 +1,13 @@
 import type { GameRevision, NarrateResult, ProposeActResult, SessionView } from '@novel-game/contracts';
-import { costHintForChoice, type VariableDelta } from '../../lib/variable-delta';
+import { costHintForChoice, type OptionChangeSummary, type VariableDelta } from '../../lib/variable-delta';
 import { useI18n } from '../../lib/i18n';
 import { Empty, Notice } from '../Notice';
 import { PlayStatsBar } from '../PlayStatsBar';
+import { PlayEndingPanel, endingSummaryFromVariables } from '../PlayEndingPanel';
 import { NarrateBox } from '../NarrateBox';
 import { TiandaoToggle } from '../TiandaoToggle';
 import { ProposeActBox } from '../ProposeActBox';
+import { ReaderChoiceRow } from './ReaderChoiceRow';
 
 type Props = {
   latestRevision: GameRevision | null;
@@ -13,8 +15,10 @@ type Props = {
   playBusy: boolean;
   proposeNote: string | null;
   playVarDeltas: VariableDelta[] | null;
+  playOptionChanges?: OptionChangeSummary | null;
   onBackEdit: () => void;
   onAct: (choiceId: string) => void;
+  onRestart?: () => void;
   onNarrate: (force: boolean) => Promise<NarrateResult>;
   onPropose: (text: string) => Promise<ProposeActResult>;
   onOpenPlay?: (revisionId: string) => void;
@@ -22,8 +26,8 @@ type Props = {
 
 /** Play-mode side panel for story canvas (presentation only). */
 export function StoryPlayInspector({
-  latestRevision, playSession, playBusy, proposeNote, playVarDeltas,
-  onBackEdit, onAct, onNarrate, onPropose, onOpenPlay,
+  latestRevision, playSession, playBusy, proposeNote, playVarDeltas, playOptionChanges,
+  onBackEdit, onAct, onRestart, onNarrate, onPropose, onOpenPlay,
 }: Props) {
   const { t } = useI18n();
   return (
@@ -41,19 +45,42 @@ export function StoryPlayInspector({
             <h4>{playSession.scene.title}</h4>
             {proposeNote && <Notice kind="success" text={proposeNote} />}
             <div className="reader-text">{playSession.scene.text.split(/\n+/).map((text, i) => <p key={i}>{text}</p>)}</div>
-            <PlayStatsBar variables={playSession.variables ?? {}} deltas={playVarDeltas} statTemplateId={latestRevision?.content.statTemplateId} statTemplateVersion={latestRevision?.content.statTemplateVersion} />
-            {playSession.ended && <div className="ending"><p className="eyebrow">{t('故事抵达了一个结局')}</p><p>{playSession.scene.ending ?? t('旅程告一段落。')}</p></div>}
+            <PlayStatsBar
+              variables={playSession.variables ?? {}}
+              deltas={playVarDeltas}
+              optionChanges={playOptionChanges}
+              showEmpty
+              statTemplateId={latestRevision?.content.statTemplateId}
+              statTemplateVersion={latestRevision?.content.statTemplateVersion}
+            />
+            {playSession.ended && (
+              <PlayEndingPanel
+                mode="story"
+                title={playSession.scene.title}
+                body={playSession.scene.ending ?? t('旅程告一段落。')}
+                summary={endingSummaryFromVariables(playSession.variables, {
+                  statTemplateId: latestRevision?.content.statTemplateId,
+                  statTemplateVersion: latestRevision?.content.statTemplateVersion,
+                })}
+                onReplay={() => onRestart?.()}
+                onBackEdit={onBackEdit}
+                replayBusy={playBusy}
+              />
+            )}
+            {/* G4: SessionView.choices are already filtered to clickable only — no locked field; skip forge. */}
             {!playSession.ended && <div className="reader-choices"><p className="eyebrow">{t('你将如何选择？')}</p>{playSession.scene.choices.map((choice, i) => {
               const cost = costHintForChoice(latestRevision?.content, playSession.scene.id, choice.id);
-              return <button key={choice.id} type="button" className="reader-choice" disabled={playBusy} onClick={() => void onAct(choice.id)}>
-                <span className="reader-choice-index" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
-                <span className="reader-choice-body">
-                  <span className="reader-choice-label">{choice.label}</span>
-                  {cost ? <span className="reader-choice-cost">{t('代价')}：{cost}</span> : null}
-                </span>
-                <span className="reader-choice-arrow" aria-hidden="true">→</span>
-              </button>;
-            })}</div>}
+              return (
+                <ReaderChoiceRow
+                  key={choice.id}
+                  index={i + 1}
+                  label={choice.label}
+                  costHint={cost || undefined}
+                  disabled={playBusy}
+                  onClick={() => void onAct(choice.id)}
+                />
+              );
+            })}{!playSession.scene.choices.length && <p className="hint">{t('当前没有可见选项。')}</p>}</div>}
             <div className="reader-aux stack">
               <TiandaoToggle disabled={playBusy} />
               <NarrateBox visitKey={`${playSession.id}:${playSession.scene.id}:${playSession.turn}`} disabled={playBusy} onNarrate={onNarrate} />

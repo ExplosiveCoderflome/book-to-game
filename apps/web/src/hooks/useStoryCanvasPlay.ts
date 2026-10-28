@@ -3,7 +3,7 @@ import type { GameContent, GameRevision, NarrateResult, ProposeActResult, Sessio
 import { errorMessage, request } from '../lib/api';
 import { playOverlayFromSession } from '../lib/play-overlay';
 import { readTiandaoCorrect } from '../lib/tiandao';
-import { diffVariables, labelFnFromContent, type VariableDelta } from '../lib/variable-delta';
+import { diffOptionSets, diffVariables, labelFnFromContent, type OptionChangeSummary, type VariableDelta } from '../lib/variable-delta';
 
 export type StoryCanvasPlayArgs = {
   token: string;
@@ -24,12 +24,16 @@ export function useStoryCanvasPlay({
   const [playBusy, setPlayBusy] = useState(false);
   const [proposeNote, setProposeNote] = useState<string | null>(null);
   const [playVarDeltas, setPlayVarDeltas] = useState<VariableDelta[] | null>(null);
+  const [playOptionChanges, setPlayOptionChanges] = useState<OptionChangeSummary | null>(null);
 
   useEffect(() => {
-    if (!playVarDeltas?.length) return;
-    const timer = window.setTimeout(() => setPlayVarDeltas(null), 4500);
+    if (!playVarDeltas?.length && !playOptionChanges?.newlyAvailable.length && !playOptionChanges?.newlyUnavailable.length) return;
+    const timer = window.setTimeout(() => {
+      setPlayVarDeltas(null);
+      setPlayOptionChanges(null);
+    }, 4500);
     return () => window.clearTimeout(timer);
-  }, [playVarDeltas]);
+  }, [playVarDeltas, playOptionChanges]);
 
   const playOverlay = useMemo(() => {
     if (!playSession || !latestRevision) return null;
@@ -61,18 +65,41 @@ export function useStoryCanvasPlay({
     setPlaySession(null);
     setProposeNote(null);
     setPlayVarDeltas(null);
+    setPlayOptionChanges(null);
   }, []);
+
+  function applyChoiceFeedback(before: SessionView, after: SessionView) {
+    const deltas = diffVariables(before.variables ?? {}, after.variables ?? {}, labelFnFromContent(latestRevision?.content));
+    setPlayVarDeltas(deltas.length ? deltas : null);
+    const changes = diffOptionSets(
+      before.scene.choices.map(c => ({ id: c.id, label: c.label })),
+      after.scene.choices.map(c => ({ id: c.id, label: c.label })),
+    );
+    setPlayOptionChanges(
+      changes.newlyAvailable.length || changes.newlyUnavailable.length ? changes : null,
+    );
+  }
 
   async function actOnCanvas(choiceId: string) {
     if (!playSession) return;
-    setPlayBusy(true); onError(null); setPlayVarDeltas(null);
+    setPlayBusy(true); onError(null); setPlayVarDeltas(null); setPlayOptionChanges(null);
     try {
-      const before = { ...(playSession.variables ?? {}) };
+      const before = playSession;
       const input = { choiceId, expectedTurn: playSession.turn, requestId: crypto.randomUUID() };
       const result = await request<SessionView>(token, `/sessions/${playSession.id}/actions`, 'POST', input);
-      const deltas = diffVariables(before, result.variables ?? {}, labelFnFromContent(latestRevision?.content));
-      setPlayVarDeltas(deltas.length ? deltas : null);
+      applyChoiceFeedback(before, result);
       setPlaySession(result);
+      await refresh();
+    } catch (e) { onError(errorMessage(e)); } finally { setPlayBusy(false); }
+  }
+
+  async function restartOnCanvas() {
+    if (!latestRevision) return;
+    setPlayBusy(true); onError(null); setPlayVarDeltas(null); setPlayOptionChanges(null);
+    try {
+      const started = await request<SessionView>(token, '/sessions', 'POST', { gameRevisionId: latestRevision.id });
+      setPlaySession(started);
+      setProposeNote(null);
       await refresh();
     } catch (e) { onError(errorMessage(e)); } finally { setPlayBusy(false); }
   }
@@ -94,8 +121,7 @@ export function useStoryCanvasPlay({
       if (result.status === 'acted' && result.session) {
         setProposeNote(result.label ? `已映射并执行：${result.label}` : '已映射并执行');
         const next = result.session as SessionView;
-        const deltas = diffVariables(playSession.variables ?? {}, next.variables ?? {}, labelFnFromContent(latestRevision?.content));
-        setPlayVarDeltas(deltas.length ? deltas : null);
+        applyChoiceFeedback(playSession, next);
         setPlaySession(next);
         await refresh();
       } else if (result.status === 'none' || result.status === 'rejected') {
@@ -113,11 +139,13 @@ export function useStoryCanvasPlay({
     playBusy,
     proposeNote,
     playVarDeltas,
+    playOptionChanges,
     playOverlay,
     canPlayOnCanvas,
     actOnCanvas,
     narrateOnCanvas,
     proposeOnCanvas,
+    restartOnCanvas,
     resetPlay,
     publishedContent: (latestRevision?.content ?? null) as GameContent | null,
   };

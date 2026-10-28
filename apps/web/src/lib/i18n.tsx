@@ -8,14 +8,14 @@ function browserStorage(): Storage | null {
   try { return window.localStorage; } catch { return null; }
 }
 
-export function I18nProvider({children}: {children: ReactNode}) {
-  const [locale, setLocale] = useState<Locale>(() => readLocale(browserStorage(), navigator.languages?.length ? navigator.languages : [navigator.language]));
+export function I18nProvider({children, initialLocale, documentTitle}: {children: ReactNode; initialLocale?: Locale; documentTitle?: string}) {
+  const [locale, setLocale] = useState<Locale>(() => initialLocale ?? readLocale(browserStorage(), navigator.languages?.length ? navigator.languages : [navigator.language]));
   const t = useCallback((key: string, params?: TranslationParams) => translate(locale, key, params), [locale]);
   useEffect(() => {
-    persistLocale(browserStorage(), locale);
+    if (!initialLocale) persistLocale(browserStorage(), locale);
     document.documentElement.lang = locale;
-    document.title = t('故事工坊 · 小说转文字游戏');
-  }, [locale, t]);
+    document.title = documentTitle ?? t('故事工坊 · 小说转文字游戏');
+  }, [locale, t, initialLocale, documentTitle]);
   return <I18nContext.Provider value={{locale, setLocale, t}}>{children}</I18nContext.Provider>;
 }
 

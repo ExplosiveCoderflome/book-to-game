@@ -1,4 +1,5 @@
 import type { ActInput } from '@novel-game/contracts';
+import { newRequestId } from './request-id';
 
 export interface PendingActionValue { sessionId: string; input: ActInput }
 
@@ -13,7 +14,7 @@ export class PendingAction {
       }
       return this.value.input;
     }
-    const input = { choiceId, expectedTurn, requestId: crypto.randomUUID() };
+    const input = { choiceId, expectedTurn, requestId: newRequestId() };
     this.value = { sessionId, input };
     return input;
   }

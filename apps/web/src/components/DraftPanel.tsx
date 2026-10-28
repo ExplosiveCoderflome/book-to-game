@@ -3,6 +3,10 @@ import { gameContentSchema, type CanvasLayout, type Draft, type GameContent, typ
 import { StatTemplateSelect, type StatTemplateSelectValue } from './StatTemplateSelect';
 import { errorMessage, request, RequestError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
+import { playStoryHash } from '../lib/play-route';
+import { CopyPlayLinkButton } from './player/CopyPlayLinkButton';
+import { OpenPlayerShellButton } from './player/OpenPlayerShellButton';
+import { useExportPackage } from './export/ExportPackage';
 import { relevantStoryJob } from '../lib/job-on-canvas';
 import { shouldShowSkeletonPlaceholder, skeletonToCanvasContent } from '../lib/skeleton-placeholder';
 import { selectedChapters } from '../lib/generation-scope';
@@ -26,11 +30,12 @@ interface Props {
   selectedId: string; select: (id: string) => void; refresh: () => Promise<void>;
   onPublished: (revision: GameRevision) => void;
   onOpenPlay?: (revisionId: string) => void;
+  onOpenPlayerShell?: (revisionId: string) => void;
   onOpenGeneration?: () => void;
   onConfigure?: () => void;
 }
 
-export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, runtime, selectedId, select, refresh, onPublished, onOpenPlay, onOpenGeneration, onConfigure }: Props) {
+export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, runtime, selectedId, select, refresh, onPublished, onOpenPlay, onOpenPlayerShell, onOpenGeneration, onConfigure }: Props) {
   const { t } = useI18n();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [content, setContent] = useState<GameContent>(blankContent);
@@ -392,13 +397,14 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
     [draft, revisions],
   );
   const latestRevision = linkedRevisions[0] ?? null;
+  const exportPackage = useExportPackage({ token, kind: 'game', draftId: draft?.id, revision: latestRevision, dirty });
   const linkedSessions = useMemo(() => {
     if (!latestRevision) return [] as SessionView[];
     return sessions.filter(s => s.gameRevisionId === latestRevision.id).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }, [sessions, latestRevision]);
   const {
-    playSession, playBusy, proposeNote, playVarDeltas, playOverlay, canPlayOnCanvas,
-    actOnCanvas, narrateOnCanvas, proposeOnCanvas, resetPlay,
+    playSession, playBusy, proposeNote, playVarDeltas, playOptionChanges, playOverlay, canPlayOnCanvas,
+    actOnCanvas, narrateOnCanvas, proposeOnCanvas, restartOnCanvas, resetPlay,
   } = useStoryCanvasPlay({
     token,
     canvasMode,
@@ -623,8 +629,10 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
               playBusy={playBusy}
               proposeNote={proposeNote}
               playVarDeltas={playVarDeltas}
+              playOptionChanges={playOptionChanges}
               onBackEdit={() => setCanvasMode('edit')}
               onAct={actOnCanvas}
+              onRestart={restartOnCanvas}
               onNarrate={narrateOnCanvas}
               onPropose={proposeOnCanvas}
               onOpenPlay={onOpenPlay}
@@ -667,7 +675,7 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
           </aside>}
         </div>
       </>}
-      <div className="editor-footer"><button type="submit" className="primary" disabled={busy || conflict || jsonMode || canvasMode === 'play' || (!dirty && !!draft)}>{t(busy ? '处理中…' : draft ? '保存草稿' : '创建草稿')}</button><button type="button" disabled={busy || dirty || conflict || jsonMode || canvasMode === 'play' || !draft} onClick={validate}>{t('校验故事')}</button><button type="button" disabled={busy || dirty || conflict || jsonMode || canvasMode === 'play' || !draft || !validation?.valid} onClick={publish}>{t('发布并试玩 →')}</button><span className="hint">{t('先保存，再校验，最后发布。')}</span></div>
+      <div className="editor-footer"><button type="submit" className="primary" disabled={busy || conflict || jsonMode || canvasMode === 'play' || (!dirty && !!draft)}>{t(busy ? '处理中…' : draft ? '保存草稿' : '创建草稿')}</button><button type="button" disabled={busy || dirty || conflict || jsonMode || canvasMode === 'play' || !draft} onClick={validate}>{t('校验故事')}</button><button type="button" disabled={busy || dirty || conflict || jsonMode || canvasMode === 'play' || !draft || !validation?.valid} onClick={publish}>{t('发布并试玩 →')}</button>{latestRevision && (<><OpenPlayerShellButton mode="story" revisionId={latestRevision.id} className="quiet" disabled={busy} /><CopyPlayLinkButton hash={playStoryHash(latestRevision.id)} /></>)}{exportPackage.button}{dirty && latestRevision && <span className="hint">{t('当前编辑尚未发布；链接指向已发布版本。')}</span>}<span className="hint">{t('先保存，再校验，最后发布。')}</span></div>{exportPackage.report}
       {validation && <div className="validation"><Notice kind={validation.valid ? 'success' : 'error'} text={t(validation.valid ? '校验通过，可以发布。发布版本内容固定，后续修改请重新发布。' : '校验未通过，请修正以下问题。')} />{validation.errors.length > 0 && <ul>{validation.errors.map((text, i) => <li key={i}>{text}</li>)}</ul>}{validation.warnings.length > 0 && <><h4>{t('提醒')}</h4><ul>{validation.warnings.map((text, i) => <li key={i}>{text}</li>)}</ul></>}</div>}
     </fieldset></form>}
   </section>;

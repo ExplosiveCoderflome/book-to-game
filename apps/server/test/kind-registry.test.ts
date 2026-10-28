@@ -23,12 +23,12 @@ test('builtin kind registries list story + world kinds without duplicates', () =
   const worldEff = worldEffectKinds.list().map(m => m.kind).sort();
   assert.deepEqual(storyCond, ['variable.equals', 'variable.gte']);
   assert.deepEqual(storyEff, ['variable.increment', 'variable.set']);
-  assert.deepEqual(worldCond, ['at_terrain', 'fact', 'faction_relation', 'in_faction_territory', 'in_region', 'known', 'npc_at_location', 'npc_knows', 'time']);
+  assert.deepEqual(worldCond, ['at_terrain', 'fact', 'faction_relation', 'in_faction_territory', 'in_region', 'known', 'npc_at_location', 'npc_knows', 'resource', 'time']);
   assert.deepEqual(worldEff, ['move', 'npc_learn', 'npc_move', 'resource', 'reveal', 'set', 'set_faction_relation', 'set_territory', 'start_encounter']);
 
   const all = listAllKindMeta();
-  assert.equal(all.length, 22);
-  assert.equal(new Set(all.map(m => `${m.family}:${m.kind}`)).size, 22);
+  assert.equal(all.length, 23);
+  assert.equal(new Set(all.map(m => `${m.family}:${m.kind}`)).size, 23);
   for (const meta of all) {
     assert.ok(meta.label.length > 0, `${meta.kind} missing label`);
     assert.ok(meta.description.length > 0, `${meta.kind} missing description`);

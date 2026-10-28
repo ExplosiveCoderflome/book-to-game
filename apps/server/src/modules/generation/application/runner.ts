@@ -73,7 +73,7 @@ export class GenerationRunner {
             });
           }
           signal.throwIfAborted();
-          return this.repository.completeWith(job.id, owner, () => this.createWorld!({sourceId: job.sourceId, content}).id);
+          return this.repository.completeWith(job.id, owner, () => this.createWorld!({sourceId: job.sourceId, content: {...content, provenance: generationProvenance(this.provider.modelName)}}).id, this.provider.modelName);
         });
         if (!committed) return true;
       } else {
@@ -121,7 +121,7 @@ export class GenerationRunner {
           });
         }
         signal.throwIfAborted();
-        if (!this.repository.completeWith(job.id, owner, () => this.createDraft({sourceId: job.sourceId, content}).id)) return true;
+        if (!this.repository.completeWith(job.id, owner, () => this.createDraft({sourceId: job.sourceId, content, provenance: generationProvenance(this.provider.modelName)}).id, this.provider.modelName)) return true;
       }
       this.logger?.info('generation.succeeded', {jobId: job.id, requestId: job.requestId, mode: job.mode || 'story', durationMs: Math.round(performance.now() - startedAt)});
     } catch (error) {
@@ -165,3 +165,10 @@ export class GenerationRunner {
 function isSemanticRepair(error: unknown): boolean {
   return error instanceof ZodError || (error instanceof AppError && SEMANTIC_REPAIR.has(error.code));
 }
+
+/** S1 ⑦: stamp who generated a world or story draft. Model ids starting with `mock` (the e2e fixture LLM) mark the draft as mock output. */
+export function generationProvenance(model: string | undefined): {generator: string; model?: string; source: 'runner'} {
+  const generator = isMockModel(model) ? 'mock' : 'llm';
+  return model ? {generator, model: model.slice(0, 200), source: 'runner'} : {generator, source: 'runner'};
+}
+export function isMockModel(model: string | undefined): boolean { return !!model && /^mock(?:[-_.]|$)/i.test(model); }

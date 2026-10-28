@@ -8,3 +8,8 @@ coverage/
 *.log
 *.tsbuildinfo
 .DS_Store
+apps/web/dist-player/
+# M1b-2 Windows player: built on the author's Windows PC, binary copied back here — never committed
+/dist/player/
+apps/player-host/target/
+apps/player-host/gen/

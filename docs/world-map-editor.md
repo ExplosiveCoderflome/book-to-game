@@ -1,7 +1,8 @@
 # 世界地图编辑器：调研与设计（地图 · 地形 · 势力分布）
 
 > 状态：M1+ 多期已落地（静态地图、地形/势力/区域、试玩迷雾、子地图、AI 结构草稿等）；§7 早期 M2–M4 表保留作历史对照。  
-> **§9 地图确认 → 内容填充 → 建筑库：M-fill-1 已落地（结构锁 + 填充骨架，2026-10-28）；M-fill-2+ 未做。**  
+> **§9 地图确认 → 内容填充 → 建筑库：M-fill-1 已落地；M-fill-2 建筑库 v1 + 独立建筑库页 / AI 文本提议 / 出图接缝已在工作区（**尚未 git commit**）；**§9.10 建筑填充系统为规划（docs-only，未实现）；M-fill-3/4 待按 §9.10 落地。**  
+> **物品目录 + 建筑分种类硬内容**：见 [`items-and-building-content.md`](./items-and-building-content.md) 与 §9.11；**M-item-1…3（Item Catalog + shop/supply + quest/encounter/boss 硬模板）已在工作区落地（尚未 git commit）**；M-item-4 未实现。  
 > 约束来源：[`extensibility.md`](./extensibility.md)（五层分离）· [`architecture.md`](./architecture.md)。  
 > 核心原则：**地图是共享基底上的一层可选数据，不是新运行时**。没有地图的世界照常可玩。
 
@@ -188,9 +189,10 @@ WorldMap = {
 
 ## 9. 地图确认 → 内容填充 → 建筑库
 
-> 状态：**M-fill-1 已落地**（`structureLocked`、填充 placement 骨架、确认/解锁 UX、校验；2026-10-28）。建筑库 / AI 填充 / 完整种类试玩图标仍按 §9.8 分期。  
+> 状态：**M-fill-1 + M-fill-2 已落地（工作区，未提交）**：结构锁 + 填充骨架；`BuildingLibrary` CRUD、独立建筑库页、AI 文本提议建筑、出图接缝（SVG 回退）。**把库建筑摆到已确认地图上的「建筑填充系统」见 §9.10（规划，未实现）**；AI `propose-map-fill` / 完整试玩图标按 §9.8 + §9.10。  
 > 与 §7 M1–M4、题材地图模板、城市子地图正交：本段管的是「结构定稿之后」往地图上挂遭遇 / 商店 / 补给 / 任务等内容，以及跨城镇复用的**建筑库（Building Library）**编目。  
 > 纪律对齐 [`extensibility.md`](./extensibility.md)：Catalog 编译下行；AI 只出草稿；玩时只经 locations / conditions / effects。
+> **物品目录与分种类主要内容** → [`items-and-building-content.md`](./items-and-building-content.md)（**M-item-1…3 工作区已落地 · 尚未 commit** · 2026-10-28）。
 
 ### 9.1 约定流水线（Agreed pipeline）
 
@@ -221,7 +223,8 @@ WorldMap = {
 | 种类 `kind` | `shop` · `supply` · `quest_board` · `encounter_entrance` · …（闭集，contracts 扩展） |
 | 呈现 | 显示名、图标 / 标记样式、可选简介 |
 | 默认互动 | 编译下行到条件 / 效果草稿（购买、补给、接任务、开战桩…） |
-| 默认库存 / 掉落草稿 | 可选；须落在现有 variables / items 形状上 |
+| 分种类主要内容（硬） | **按 kind 维护**：shop 货架 / supply 配方 / quest 槽 / encounter·boss 掉落表；一律引用 **Item Catalog** 的 `itemId`，见 [`items-and-building-content.md`](./items-and-building-content.md) |
+| 库存 / 掉落草稿（过渡） | 现有 `inventoryDraft` / `lootDraft` 仅 **label 草稿**，非玩法真值；AI 中转用，accept 后须升格为硬行（上栏）；勿再当作最终内容 |
 | 世界书 | 可选关联标签 / 条目 id |
 | 出处 | provenance（首次从哪张地图 / 哪次 AI 草稿入库） |
 
@@ -317,9 +320,9 @@ BuildingLibrary = {
 | 阶段 | 内容 | 验收（规划） |
 |---|---|---|
 | **M-fill-1 确认锁 + 填充骨架** ✅ | `structureLocked`；结构写拒绝；填充 placement 挂地点；编辑器确认 / 解锁 UX；校验 warning/error | 未确认不能开填充层；锁定后改尺寸 / 绑定失败；无地图世界零回归 |
-| **M-fill-2 建筑库 v1** | 工作区 `BuildingLibrary` CRUD；创建默认入库（可取消）；手动「加入库」；同名 → `· 2` 后缀；放置 = ref + overrides；显式「升格变体」 | 无静默覆盖；跨城镇引用同一资产；覆写不改库 |
-| **M-fill-3 种类与桩效果** | shop / supply / quest / encounter / boss 闭集；`start_encounter` 等桩 effect；试玩图标 + 迷雾 | 互动只经规则引擎；无独立战斗 runtime |
-| **M-fill-4 AI 填充草稿** | 确认后 `propose-map-fill`；分类审阅；默认入库勾选；不改结构 | AI 不写 session；拒绝后零残留；provenance 可追溯 |
+| **M-fill-2 建筑库 v1** ✅（工作区未 commit） | 工作区 `BuildingLibrary` CRUD；创建默认入库（可取消）；手动「加入库」；同名 → `· 2` 后缀；放置 = ref + overrides；显式「升格变体」 | 无静默覆盖；跨城镇引用同一资产；覆写不改库 |
+| **M-fill-3 种类 · 桩效果 · 地图放置 UX** | 闭集种类 + KindRegistry 桩；地图填充层从建筑库放置 / 拖放；试玩图标 + 迷雾；详见 **§9.10** | 未锁定拒绝放置；互动只经规则引擎；无独立战斗 / 经济 runtime |
+| **M-fill-4 AI 地图填充草稿** | 确认后 `propose-map-fill`：优先引用库资产，新资产先经库审核；分类 accept/reject；默认新资产入库；详见 **§9.10** | AI 不改结构、不写 session；拒绝零残留；不发明未绑定地点 |
 | **M-fill-5 格/路段标记 + 道路结构（可选后置）** | cell/route markers（警告级）；道路 / 路程进结构层并纳入锁定 | 路上遇怪可无地点；路程消耗进数值模板 |
 
 **刻意不做（本规划范围外）**：完整战斗 / 回合制；跨项目资产市场；确认前 AI 自动铺怪铺店；填充写进地图图片生成真值（出图仍只读结构 + 示意层）。
@@ -330,4 +333,155 @@ BuildingLibrary = {
 2. **库与放置双真相** → 放置只存 ref + overrides；展示合并；回写必须新变体。  
 3. **结构解锁后悬空填充** → 校验列悬空 placement；不自动删除（作者决策）。  
 4. **战斗范围蔓延** → 效果种类名与文档写明 stub；UI 文案避免暗示完整战斗。  
-5. **Catalog 膨胀** → v1 仅工作区；资产包 / 市场另开章程条款。
+5. **Catalog 膨胀** → v1 仅工作区；资产包 / 市场另开章程条款。  
+6. **填充系统专有风险**（AI 发明未绑定地点、有图无规则、拖放手势冲突）→ 详见 **§9.10.7**。
+
+
+### 9.10 建筑填充系统（Building Fill System）— 规划
+
+> 状态：**规划（docs-only，2026-10-28）**。前置能力已在工作区：§9.1–9.9 流水线、`structureLocked`、填充骨架、Building Library 独立页、AI `propose-building`（文本）、BuildingImageProvider。  
+> **本小节规划的是「确认地图之后，如何把库建筑（及遭遇类填充）落到地图上」**——含手摆、拖放、AI `propose-map-fill`。**尚未实现；实现前勿当作 API 契约。**  
+> Catalog 层纪律见 [`extensibility.md`](./extensibility.md) §2 Catalog：库资产 compile-down 到 Substrate；禁止静默改名 / 覆盖；AI 只出草稿。
+
+#### 9.10.1 前置条件（Preconditions）
+
+| 条件 | 要求 |
+|---|---|
+| **`structureLocked === true`** | **硬门槛**。未确认：填充层入口禁用；`place` / `propose-map-fill` 命令拒绝。 |
+| **解锁改结构** | 须先「解锁结构」；解锁提示：暂停填充 AI；已放置保留；结构改动可能导致悬空引用 → 校验列出（不自动删）。 |
+| **有可绑地点** | 主路径放置要求 `locationId` 存在且已在地图 POI 绑定；否则 error。 |
+| **库可选但推荐** | 遭遇 / Boss 可无 `buildingAssetId`；城镇 shop / supply / quest **优先**带库引用（手摆可先无库、随后「加入库」）。 |
+
+#### 9.10.2 填充目标（Fill targets）
+
+| 挂点 | 用途 | 校验 |
+|---|---|---|
+| **地点（主路径）** | 城镇内商店 / 补给 / 任务板；野外据点式遭遇入口 / Boss 巢 | `locationId` 必须有效且 POI 已绑定 → **error** 若悬空 |
+| **格标记（可选）** | 无独立地点的「路上遇怪」等 | 无地点绑定时 → **warning**（不为 error）；玩法触发须另有规则挂钩或后续升格为地点 |
+| **路段标记（可选，后置）** | 驿道 / 航线上的遭遇带 | 同格标记；依赖道路结构层（M-fill-5） |
+
+**种类与场景习惯（闭集以 contracts 为准）**
+
+| 场景 | 典型 `kind` | 常见挂点 |
+|---|---|---|
+| **城镇（town）** | `shop` · `supply` · `quest` | 地点（`venueType` 可过滤库资产） |
+| **野外 / 路上（wilderness）** | `encounter` · `boss` | 地点或格 / 路段标记 |
+
+同一 `locationId` **允许**挂多条 placement（例：盐沼港同时有杂货铺 + 任务板 + 码头补给）。
+
+#### 9.10.3 填充来源（Sources）
+
+**(a) 建筑库手动放置**  
+独立「建筑库」页或地图填充侧栏：选资产 → 选目标地点（或格）→ 写入 placement = `buildingAssetId` + 可选 overrides。
+
+**(b) 从库拖到地图**  
+拖库卡片 / 缩略图到已确认地图的地点标记（或合法格）；落点高亮合法目标；非法目标拒绝并提示。与地点图节点拖拽平移**分通道**，避免抢手势。
+
+**(c) AI `propose-map-fill`（仅确认后）**
+
+| 规则 | 说明 |
+|---|---|
+| **输入** | 已锁定地图快照（地形 / 区域 / 势力 / POI / 现有 fill）+ Building Library 摘要 + 小说 / 世界书相关切片 |
+| **优先** | **引用已有库资产**（按 kind / tags / venue / region 匹配） |
+| **新资产** | 可提议 BuildingAsset **草稿** → **先**走库审核（accept → 入库，默认勾选「加入库」；同名 `· N`）→ **再**生成 placement 草稿；或一条提案内「新资产 + 放置」但 UI 分两步确认 |
+| **审阅** | 逐条 accept / reject；分类展示（城镇设施 vs 野外遭遇）；拒绝零残留 |
+| **禁止** | 改 `structureLocked` 字段、改尺寸 / 地形 / 绑定、发明**未绑定**新地点、直写 session / 玩法存档 |
+| **与 `propose-building` 分工** | 后者只产库资产（可不出图位置）；前者产**地图放置**（可连带新资产草稿） |
+
+#### 9.10.4 放置模型（Placement model）
+
+```text
+MapFillPlacement
+  id
+  kind                    // shop | supply | quest | encounter | boss
+  locationId?             // 主路径；cell/route 标记可空但 warning
+  cell? / routeId?        // 可选
+  buildingAssetId?        // 库引用；城镇类强烈推荐
+  buildingAssetVersion?
+  localOverrides?         // label / stock 文案 / interact 文案或条件效果覆写
+  // 展示：icon / color 默认取自 BuildingAsset；overrides 可盖
+```
+
+- **合并规则**：展示与默认互动 = 库资产 ⊕ localOverrides；**永不**因编辑放置而静默写回库（回写 = 显式升格变体）。  
+- **一地多填**：按 `id` 列表；UI 可叠图标或列检查器。  
+- **试玩迷雾**：填充图标遵守既有 explored；未探索不剧透 Boss / 商店（作者可开「编辑预览无视迷雾」）。  
+- **出图**：BuildingImageProvider 只服务库资产展示；**图片不是玩法真值**，缺图仍可放置与互动。
+
+#### 9.10.5 互动桩（KindRegistry stubs）
+
+| `kind` | 规划桩 effect / 行为 | 第一刀范围 |
+|---|---|---|
+| `shop` | `open_shop` 或读库存文案 + 扣变量桩 | **无**完整物价 / 库存经济 |
+| `supply` | 恢复类变量 / flag 桩 | 无物品栏仿真 |
+| `quest` | 设任务 flag / 打开世界书条目 | 无独立任务图引擎 |
+| `encounter` | 已有 / 扩展 `start_encounter` | 写 flag / 变量；**无**战斗回合 |
+| `boss` | 同上，可加 `boss` tag | 同 encounter |
+
+一律：条件 / 效果经 KindRegistry → rules 求值；AI / UI **不得**在规则引擎外改 session。完整战斗与经济另立项。
+
+#### 9.10.6 UX 流程（散文线框）
+
+**A. 建筑库页（Catalog 编辑，可随时）**  
+顶栏进入「建筑库」→ 搜索 / 种类筛选 → AI 一句话生成卡片勾选入库 → 检查器改字段 / 生成展示图 → **不直接改地图**。提供「在已确认地图上放置…」深链到填充层并带上 `buildingAssetId`。
+
+**B. 地图 · 填充层（须 `structureLocked`）**  
+世界画布 → 地图视图 → 图层「填充」→ 工具：从库选择 / 拖入、手建遭遇点、选中检查器（overrides）、列表按城镇/野外分组。顶栏「AI 填充」打开审阅抽屉（仅锁定时启用）。未锁定时图层灰显 + 引导「先确认地图」。
+
+**C. 试玩视图**  
+地图面板显示已探索填充图标（库色 / 图或 kind 默认图标）→ 点击或到达地点后列出可互动填充 → 执行桩效果 → HUD 反映变量变化。编辑态「显示全部填充」与玩时迷雾模式分开。
+
+#### 9.10.7 分期细化（相对 §9.8）
+
+| 切片 | 落地内容 | 验收标准 |
+|---|---|---|
+| **M-fill-3a 放置 UX** | 锁定后从库放置到地点；检查器 overrides；一地多填；侧栏 + 可选拖放 | 未锁定 API/UI 双拒；放置后校验 0 error；覆写不改库 |
+| **M-fill-3b 试玩呈现** | kind 图标 / 库色；迷雾；点击触发桩 | 未探索不显示敏感图标（默认）；互动只走 rules |
+| **M-fill-3c 桩补全** | shop / supply / quest 桩与 encounter/boss 对齐文档 | 双运行时包装清单更新；无经济/战斗 runtime |
+| **M-fill-4a AI 放置（只引用库）** | `propose-map-fill` 仅建议已有 `buildingAssetId` + `locationId` | 不通过审阅则零写入；不发明地点 |
+| **M-fill-4b AI 新资产 + 放置** | 新资产草稿先入库审再放置审；默认入库勾选 | 同名 `· N`；provenance；可撤销导入 |
+| **M-fill-5（后置）** | 格 / 路段标记 + 道路结构锁 | warning 级无地点标记可玩或明确「仅示意」 |
+
+**风险（填充专用，并入 §9.9）**
+
+1. **双真相（库 vs 放置）** → 只存 ref + overrides；UI 永远显示合并结果；回写强制新变体。  
+2. **AI 发明未绑定地点** → schema 校验拒绝；提案只能选现有 POI id 列表。  
+3. **有图无规则** → 出图成功 ≠ 可互动；检查器明示「缺桩效果」；验收以 rules 触发为准。  
+4. **未锁定填充** → 产品禁用 + 命令双检（与 §9.9.1 同）。  
+5. **拖放手势冲突** → 填充拖放与 POI 平移分模式或按 modifier。
+
+#### 9.10.8 本切片明确非目标（Non-goals）
+
+- 完整战斗 / 回合制 / 掉落表仿真  
+- 完整商店经济（进货、价格波动、全局物品栏）  
+- 确认前自动铺怪铺店  
+- AI 改地形 / 尺寸 / 地点绑定 / 势力格  
+- 跨项目资产市场或云同步库  
+- 把 BuildingImage / 地图美术图当作玩法或校验真值  
+- 强制「凡填充必须入库」（遭遇类允许无库；城镇类推荐不强制）  
+- 建筑内部子地图自动生成（子地图仍走既有地点挂载流程）
+
+---
+
+### 9.11 物品目录与分种类主要内容（指针）
+
+> 状态：**M-item-1…3 工作区已落地（尚未 git commit，2026-10-28）**；M-item-4 未做。全文见 [`items-and-building-content.md`](./items-and-building-content.md)。
+
+建筑库「主要内容」**不是**只靠产物 prompt，也不是建筑内孤立物资表，而是 **Item Catalog（共享编目）+ 建筑按 kind 引用硬行**。货币沿用 world `resources`；`inventoryDraft` / `lootDraft` 仅过渡。分期 **M-item-1…4**（目录 → shop/supply → quest/encounter/boss → AI 闭环）与 §9.10 填充分期正交：有图无硬行 ≠ 可购可掉。**分层：** Catalog（物品/建筑库）只放可跨世界复用的形状与偏好；真价、`resourceId`、补给 target、任务/遭遇真 id 等在**确认地图后的世界绑定 / 放置实例**才规定（见 items-and-building-content **§6**）。实现细节、字段表与 TypeScript 示意不在此重复。
+
+---
+
+## 10. 建筑展示图（BuildingImageProvider）
+
+> 状态：端口 + SVG 确定性插画回退已落地（工作区，**未 commit**）；xkrelay 探测（2026-10-28）仅有 gemini 聊天模型，`/images/generations` 对常见绘图模型返回 `model_not_found`。
+
+- **端口**：`BuildingImageProvider`（contracts），与 `MapImageProvider` 同层——UI / 编目不直连厂商。
+- **默认**：`SvgBuildingImageProvider`（同 label+kind+tags+seed ⇒ 相同 SVG）。
+- **可选真 API**：设环境变量后走 OpenAI 兼容 `POST {IMAGE_BASE_URL|LLM_BASE_URL}/images/generations`：
+  - `IMAGE_MODEL`（必填才启用）
+  - `IMAGE_BASE_URL`（可选，默认 `LLM_BASE_URL`）
+  - `IMAGE_API_KEY`（可选，默认 `LLM_API_KEY`）
+  - `IMAGE_SIZE`（`256x256`|`512x512`|`1024x1024`）
+  - `IMAGE_TIMEOUT_MS`
+- **失败回退**：Composite 捕获 API 错误后自动 SVG；结果 `provider` 字段标明来源。
+- **存储**：文件在 `DATA_DIR/building-images/`，经 `/media/building-images/*` 提供；SVG 另存 `imageUrl` 为 data URL 以便无代理时也能显示。
+- **纪律**：只写建筑库编目字段；不改玩法存档 / 规则引擎。

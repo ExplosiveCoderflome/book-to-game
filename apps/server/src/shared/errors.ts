@@ -1,5 +1,3 @@
-export class AppError extends Error {
-  constructor(public readonly code: string, message: string, public readonly status = 400, public readonly details?: unknown) {
-    super(message); this.name = 'AppError';
-  }
-}
+// Single error class shared with the play engine (@novel-game/play-runtime) so
+// `instanceof AppError` holds for rule errors thrown inside the shared runtime.
+export { AppError } from '@novel-game/play-runtime';

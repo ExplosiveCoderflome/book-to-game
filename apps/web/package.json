@@ -7,7 +7,8 @@
     "dev": "vite",
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit && vite build",
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test test/*.test.ts",
+    "build:player": "vite build --config vite.player.config.ts && node scripts/inline-player.mjs"
   },
   "dependencies": {
     "@novel-game/contracts": "*",
@@ -15,7 +16,8 @@
     "pixi-viewport": "^6.0.3",
     "pixi.js": "^8.22.0",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "@novel-game/play-runtime": "*"
   },
   "devDependencies": {
     "@types/react": "^19.2.0",

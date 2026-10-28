@@ -183,6 +183,20 @@ function registerBuiltins(): void {
         const loc = state.npcLocations?.[condition.npcId] ?? (state.npcs[condition.npcId] as { locationId?: string } | undefined)?.locationId;
         return loc === condition.locationId;
       },
+    })
+    .register({
+      kind: 'resource',
+      family: 'world.condition',
+      label: '资源至少',
+      description: '开放世界数值资源当前值 ≥ 阈值（缺省按 0）',
+      evaluate: (condition, state) => {
+        if (condition.kind !== 'resource') return false;
+        const current = state.resources?.[condition.resourceId] ?? 0;
+        if (!Number.isFinite(current)) return false;
+        if (condition.atLeast !== undefined && current < condition.atLeast) return false;
+        if (condition.atMost !== undefined && current > condition.atMost) return false;
+        return condition.atLeast !== undefined || condition.atMost !== undefined;
+      },
     });
 
   worldEffectKinds
@@ -238,7 +252,7 @@ function registerBuiltins(): void {
       kind: 'start_encounter',
       family: 'world.effect',
       label: '开始遭遇（桩）',
-      description: '战斗桩效果：标记遭遇/Boss 开战；当前不改变会话状态，完整战斗引擎另立项',
+      description: '遭遇桩：写入开战旗（enc_engaged_*）并揭示；不启动战斗 runtime / 血条',
     });
 }
 
@@ -270,6 +284,24 @@ export function evalWorldCondition(
   condition: WorldCondition,
   state: WorldConditionState,
 ): boolean {
+  // S1 kinds (clock / storylet_seen / one-level anyOf) are evaluated here, outside the
+  // metadata registry, so the legacy kind list (and its snapshot tests) stays unchanged.
+  if (condition.kind === 'clock') {
+    const month = state.elapsed;
+    if (condition.atLeastMonth !== undefined && month < condition.atLeastMonth) return false;
+    if (condition.atMostMonth !== undefined && month > condition.atMostMonth) return false;
+    if (condition.monthOfYearIn) {
+      const calendarMonth = (((state.clockStartMonth ?? 1) - 1 + month) % 12) + 1;
+      if (!condition.monthOfYearIn.includes(calendarMonth)) return false;
+    }
+    return condition.atLeastMonth !== undefined || condition.atMostMonth !== undefined || condition.monthOfYearIn !== undefined;
+  }
+  if (condition.kind === 'storylet_seen') {
+    const seen = state.storyletSeen?.[condition.storyletId] ?? 0;
+    if (seen < (condition.atLeast ?? 1)) return false;
+    return condition.atMost === undefined || seen <= condition.atMost;
+  }
+  if (condition.kind === 'anyOf') return condition.conditions.some(member => evalWorldCondition(member, state));
   const entry = worldConditionKinds.get(condition.kind);
   return entry?.evaluate?.(condition, state) ?? false;
 }

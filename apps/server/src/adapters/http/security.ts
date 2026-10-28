@@ -1,7 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { RequestHandler } from 'express';
 import type { Logger } from '../../shared/logger.js';
-export interface HttpOptions {token: string; allowedOrigins: string[]; staticDir?: string; logger?: Logger}
+export interface HttpOptions {token: string; allowedOrigins: string[]; staticDir?: string; mediaDir?: string; logger?: Logger}
 export const localBoundary = (options: HttpOptions): RequestHandler => (req, res, next) => {
   let host = '';
   try {host = new URL(`http://${req.headers.host ?? ''}`).hostname;} catch {}

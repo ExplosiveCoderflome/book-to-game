@@ -1,15 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { SYSTEM_WAIT_ACTION_ID, type AdventureView, type NarrateResult, type WorldRevision } from '@novel-game/contracts';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { type AdventureView, type NarrateResult, type WorldRevision } from '@novel-game/contracts';
 import { errorMessage, request, RequestError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { readTiandaoCorrect } from '../lib/tiandao';
 import { adventurePendingKey, PendingAdventure, restoreAdventure } from '../lib/pending-adventure';
-import { worldPlayOverlayFromAdventure } from '../lib/world-play-overlay';
 import { Empty, Notice, dateLabel } from './Notice';
-import { NarrateBox } from './NarrateBox';
-import { TiandaoToggle } from './TiandaoToggle';
-import { WorldGraphCanvas } from './WorldGraphCanvas';
-import { PlayMapPanel } from './play/PlayMapPanel';
+import { AdventurePlaySurface } from './play/AdventurePlaySurface';
+import { playWorldHash } from '../lib/play-route';
+import { CopyPlayLinkButton } from './player/CopyPlayLinkButton';
+import { OpenPlayerShellButton } from './player/OpenPlayerShellButton';
+import { diffAdventureFacts, diffOptionSets, diffResources, resourceLabelFnFromWorld, type OptionChangeSummary, type VariableDelta } from '../lib/variable-delta';
 
 interface Props {
   token: string; revisions: WorldRevision[]; adventures: AdventureView[];
@@ -25,7 +25,14 @@ export function AdventurePanel({ token, revisions, adventures, revisionId, selec
   const [uncertain, setUncertain] = useState(!!pending.current.value);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [showPath, setShowPath] = useState(true);
+  const [resDeltas, setResDeltas] = useState<VariableDelta[] | null>(null);
+  const [optionChanges, setOptionChanges] = useState<OptionChangeSummary | null>(null);
+
+  useEffect(() => {
+    if (!resDeltas?.length && !optionChanges?.newlyAvailable.length && !optionChanges?.newlyUnavailable.length) return;
+    const timer = window.setTimeout(() => { setResDeltas(null); setOptionChanges(null); }, 4500);
+    return () => window.clearTimeout(timer);
+  }, [resDeltas, optionChanges]);
 
   useEffect(() => {
     let active = true; setSession(null); setError(null);
@@ -47,12 +54,23 @@ export function AdventurePanel({ token, revisions, adventures, revisionId, selec
 
   async function act(actionId: string) {
     if (!session || busy) return;
-    setBusy(true); setError(null);
+    setBusy(true); setError(null); setResDeltas(null); setOptionChanges(null);
     try {
+      const before = session;
       const input = pending.current.begin(session.id, actionId, session.turn);
       sessionStorage.setItem(adventurePendingKey, JSON.stringify(pending.current.value));
       const value = await request<AdventureView>(token, `/adventures/${pending.current.value!.sessionId}/actions`, 'POST', input);
-      pending.current.confirm(); sessionStorage.removeItem(adventurePendingKey); setUncertain(false); setSession(value); await refresh();
+      pending.current.confirm(); sessionStorage.removeItem(adventurePendingKey); setUncertain(false);
+      const rev = revisions.find(r => r.id === value.worldRevisionId);
+      const labelFor = resourceLabelFnFromWorld(rev?.content);
+      const resD = diffResources(before.resources ?? {}, value.resources ?? {}, labelFor)
+        .filter(d => !(d.name.startsWith('fs_') || d.name.startsWith('fu_')));
+      const factD = diffAdventureFacts(before.facts ?? [], value.facts ?? []);
+      const deltas = [...resD, ...factD];
+      setResDeltas(deltas.length ? deltas : null);
+      const changes = diffOptionSets(before.actions.map(a => ({ id: a.id, label: a.label })), value.actions.map(a => ({ id: a.id, label: a.label })));
+      setOptionChanges(changes.newlyAvailable.length || changes.newlyUnavailable.length ? changes : null);
+      setSession(value); await refresh();
     } catch (e) {
       setError(errorMessage(e));
       if (e instanceof RequestError && !e.uncertain) {
@@ -69,10 +87,6 @@ export function AdventurePanel({ token, revisions, adventures, revisionId, selec
   }, [session, token]);
 
   const revision = revisions.find(r => r.id === session?.worldRevisionId);
-  const playOverlay = useMemo(() => {
-    if (!session || !revision) return null;
-    return worldPlayOverlayFromAdventure(revision.content, session);
-  }, [session, revision]);
 
   return <section className="work-section">
     <div className="section-heading">
@@ -81,7 +95,10 @@ export function AdventurePanel({ token, revisions, adventures, revisionId, selec
         <h2>{t('去哪里，做什么，由你决定')}</h2>
         <p>{t('观察、交谈与行动会留下后果。每份存档固定一个世界版本。画布上可见当前位置与移动足迹。')}</p>
       </div>
-      <span className="edition">EXPLORE & ACT</span>
+      <div className="stack" style={{alignItems:'flex-end',gap:8}}>
+        <span className="edition">EXPLORE & ACT</span>
+        {revisionId ? <div className="player-open-actions"><OpenPlayerShellButton mode="world" revisionId={revisionId} className="quiet small" /><CopyPlayLinkButton hash={playWorldHash(revisionId)} /></div> : null}
+      </div>
     </div>
     <Notice text={error} />
     <Notice kind="info" text={uncertain ? t('上一行动结果尚未确认。请重试原请求；重试使用相同存档与请求标识，不会重复耗时。') : null} />
@@ -110,51 +127,24 @@ export function AdventurePanel({ token, revisions, adventures, revisionId, selec
           ))}</ul>
         ) : <Empty>{t('发布世界后即可创建存档。')}</Empty>}
       </aside>
-      <article className="panel reading-page">
-        {!session ? (
-          <><Empty>{busy ? t('正在读取存档…') : t('开始新冒险或打开已有存档。')}</Empty>
-            {sessionId && <button disabled={busy} onClick={() => setReload(n => n + 1)}>{t('重新读取存档')}</button>}</>
-        ) : <>
-          <div className="reader-meta"><span>{revision?.content.title ?? t('开放冒险')} · v{revision?.version ?? '—'}</span><span>{t('行动')} {session.turn}</span></div>
-          <div className="adventure-goal">
-            <strong>{session.playerRole}</strong>
-            <p>{t('目标：')}{session.goal}</p>
-            <label>{t('时间 · 已用 {elapsed} / {limit} · 剩余 {remaining}', { elapsed: session.elapsed, limit: session.timeLimit, remaining: Math.max(0, session.timeLimit - session.elapsed) })}
-              <progress max={session.timeLimit} value={session.elapsed} />
-            </label>
-          </div>
-          <h3>{session.location.title}</h3>
-          <div className="reader-text">{session.location.text.split(/\n+/).map((text, i) => <p key={i}>{text}</p>)}</div>
-          <TiandaoToggle disabled={busy || uncertain} />
-          <NarrateBox visitKey={`${session.id}:${session.location.id}:${session.turn}`} disabled={busy || uncertain} onNarrate={narrate} />
-          {session.turn > 0 && <section className="adventure-result" aria-live="polite"><p className="eyebrow">{t('刚刚发生')}</p>{session.history.at(-1)?.text.split(/\n+/).map((text, i) => <p key={i}>{text}</p>)}</section>}
-          <div className="world-grid">
-            <section><h4>{t('已知信息')}</h4>{session.facts.length ? session.facts.map(f => <div className="known-fact" key={f.id}><strong>{f.label}</strong><span className="hint"> · {f.value ? t('当前成立') : t('当前不成立')}</span><p>{f.description}</p></div>) : <p className="hint">{t('尚未发现线索。')}</p>}</section>
-            <section><h4>{t('在场人物')}</h4>{session.npcs.length ? session.npcs.map(n => <div key={n.id}><strong>{n.name}</strong><p>{n.description}</p></div>) : <p className="hint">{t('这里暂时没有其他人。')}</p>}</section>
-          </div>
-          {session.ending && <div className="ending"><p className="eyebrow">{t('冒险结局')}</p><h4>{session.ending.title}</h4><p>{session.ending.text}</p></div>}
-          {uncertain && pending.current.value && <button className="primary" disabled={busy} onClick={() => act(pending.current.value!.input.actionId)}>{t('重试并确认上一行动')}</button>}
-          {!session.ended && <div className="adventure-actions"><p className="eyebrow">{t('可以采取的行动')}</p>{session.actions.map(a => <div className="adventure-action" key={a.id}><button disabled={busy || uncertain || !a.enabled} onClick={() => act(a.id)}><strong>{a.id === SYSTEM_WAIT_ACTION_ID ? t(a.label) : a.label}</strong><span>{t('耗时 {time} →', { time: a.timeCost })}</span></button><p>{a.id === SYSTEM_WAIT_ACTION_ID ? t(a.description) : a.description}</p>{a.risk && <p className="hint">{t('风险：')}{a.id === SYSTEM_WAIT_ACTION_ID ? t(a.risk) : a.risk}</p>}{!a.enabled && <p className="blocked-reason">{a.blockedReason === '剩余时间不足' || a.blockedReason === '目标人物不在此处' ? t(a.blockedReason) : a.blockedReason ?? t('当前条件不满足')}</p>}</div>)}{!session.actions.length && <p className="hint">{t('当前没有可见行动。')}</p>}</div>}
-          <div className="reader-footer"><p className="hint">{t('行动成功后自动保存。')}</p><button className="quiet small" disabled={busy} onClick={() => setReload(n => n + 1)}>{t('重新读取存档')}</button></div>
-          <details className="history" open><summary>{t('回看行程 · {count} 条记录', { count: session.history.length })}</summary>{session.history.map((h, i) => <div key={i}><p className="eyebrow">{t('行动 {turn} · 耗时 {elapsed}', { turn: h.turn, elapsed: h.elapsed })}{h.actionLabel ? ` · ${h.actionLabel}` : ''}</p><p>{h.text}</p></div>)}</details>
-          {revision && <div className="play-path-panel" data-testid="world-play-path-panel">
-            <div className="panel-heading">
-              <h3>{t('世界路径')}</h3>
-              <button type="button" className="small" onClick={() => setShowPath(v => !v)}>{t(showPath ? '收起路径画布' : '展开路径画布')}</button>
-            </div>
-            {showPath && playOverlay && (
-              <WorldGraphCanvas
-                content={revision.content}
-                selectedLocationId={session.location.id}
-                onSelectLocation={() => { /* play view follows session */ }}
-                playOverlay={playOverlay}
-                readOnly
-              />
-            )}
-          </div>}
-        </>}
-      </article>
-      {session?.map && revision && <aside className="play-map-column"><PlayMapPanel content={revision.content} session={session} /></aside>}
+      <AdventurePlaySurface
+        session={session}
+        revision={revision}
+        busy={busy}
+        uncertain={uncertain}
+        resDeltas={resDeltas}
+        optionChanges={optionChanges}
+        showAiAux
+        pathDefaultOpen
+        onAct={id => void act(id)}
+        onReplay={() => void start()}
+        onReload={() => setReload(n => n + 1)}
+        onRetryPending={pending.current.value ? () => void act(pending.current.value!.input.actionId) : undefined}
+        onNarrate={narrate}
+        includeMapColumn
+        showSeed
+        showAllFacts
+      />
     </div>
   </section>;
 }

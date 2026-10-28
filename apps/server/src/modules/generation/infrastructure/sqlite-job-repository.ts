@@ -104,9 +104,9 @@ export class SqliteJobRepository implements JobRepository {
       job.stage = '骨架已锁定，正在写正文';
     });
   }
-  completeWith(id: string, owner: string, createDraft: () => string): boolean {
+  completeWith(id: string, owner: string, createDraft: () => string, model?: string): boolean {
     return this.owned(id, owner, job => {
-      job.draftId = createDraft(); job.status = 'succeeded'; job.stage = '草稿已生成'; job.progress = 1; job.error = null; job.failure = null;
+      job.draftId = createDraft(); if (model) job.model = model.slice(0, 200); job.status = 'succeeded'; job.stage = '草稿已生成'; job.progress = 1; job.error = null; job.failure = null;
     });
   }
   fail(id: string, owner: string, failure: string | JobFailure): void {

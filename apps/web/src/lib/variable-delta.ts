@@ -1,4 +1,4 @@
-import type { Choice, GameContent, StoryEffect, VariableValue } from '@novel-game/contracts';
+import type { Choice, GameContent, StatRole, StoryEffect, VariableValue } from '@novel-game/contracts';
 import { displayLabelForVariable } from '@novel-game/contracts';
 import { formatEffect } from './edge-summary';
 
@@ -117,4 +117,92 @@ export function meterFillPercent(value: number): number {
   if (Number.isNaN(value) || !Number.isFinite(value)) return 0;
   if (value >= 0 && value <= 100) return value;
   return Math.min(100, Math.max(0, Math.abs(value)));
+}
+
+/* ---- P0 play feedback helpers (resources / option open-close / delta tone) ---- */
+
+export type ResourceMap = Record<string, number>;
+export type DeltaTone = 'gain' | 'loss' | 'pressure' | 'neutral';
+
+export interface OptionChangeSummary {
+  newlyAvailable: string[];
+  newlyUnavailable: string[];
+}
+
+/** Diff numeric resource maps; same shape as VariableDelta for HUD chips. */
+export function diffResources(
+  before: ResourceMap,
+  after: ResourceMap,
+  labelFor?: VariableLabelFn,
+): VariableDelta[] {
+  const asVars = (m: ResourceMap): VariableMap =>
+    Object.fromEntries(Object.entries(m).map(([k, v]) => [k, v as VariableValue]));
+  return diffVariables(asVars(before), asVars(after), labelFor);
+}
+
+/** Diff adventure fact list for open HUD (获物/开战旗 → 开). Uses displayLabel. */
+export function diffAdventureFacts(
+  before: { id: string; label: string; value: boolean }[],
+  after: { id: string; label: string; value: boolean }[],
+): VariableDelta[] {
+  const beforeMap: VariableMap = Object.fromEntries(before.map(f => [f.id, f.value]));
+  const afterMap: VariableMap = Object.fromEntries(after.map(f => [f.id, f.value]));
+  const labels: Record<string, string> = {};
+  for (const f of before) labels[f.id] = f.label;
+  for (const f of after) labels[f.id] = f.label;
+  return diffVariables(beforeMap, afterMap, id => labels[id] ?? id).map(d => {
+    if (typeof d.to === 'boolean') {
+      return { ...d, line: `${labels[d.name] ?? d.name} → ${d.to ? '开' : '关'}` };
+    }
+    return d;
+  });
+}
+
+/** Classify a delta chip: pressure-up → rust; numeric up (non-pressure) → gain; down → loss. */
+export function toneForDelta(
+  delta: Pick<VariableDelta, 'name' | 'from' | 'to'>,
+  role?: StatRole | null,
+): DeltaTone {
+  if (typeof delta.from === 'number' && typeof delta.to === 'number') {
+    const d = delta.to - delta.from;
+    if (d === 0) return 'neutral';
+    if (role === 'pressure') return d > 0 ? 'pressure' : 'gain';
+    return d > 0 ? 'gain' : 'loss';
+  }
+  if (typeof delta.to === 'boolean') return delta.to ? 'gain' : 'loss';
+  return 'neutral';
+}
+
+/** Compare previous/next option lists by id; returns display labels that appeared/disappeared. */
+export function diffOptionSets(
+  before: { id: string; label: string }[],
+  after: { id: string; label: string }[],
+): OptionChangeSummary {
+  const beforeMap = new Map(before.map(o => [o.id, o.label]));
+  const afterMap = new Map(after.map(o => [o.id, o.label]));
+  const newlyAvailable: string[] = [];
+  const newlyUnavailable: string[] = [];
+  for (const [id, label] of afterMap) {
+    if (!beforeMap.has(id)) newlyAvailable.push(label);
+  }
+  for (const [id, label] of beforeMap) {
+    if (!afterMap.has(id)) newlyUnavailable.push(label);
+  }
+  return { newlyAvailable, newlyUnavailable };
+}
+
+/** Soft labels for world resources: faction stats first, then a few common ids, else humanized id. */
+export function resourceLabelFnFromWorld(
+  content: { map?: { layers?: { factions?: { factions?: { stats?: { label: string; resourceId: string }[] }[] } } } } | null | undefined,
+): VariableLabelFn {
+  const labels: Record<string, string> = {};
+  for (const f of content?.map?.layers?.factions?.factions ?? []) {
+    for (const st of f.stats ?? []) {
+      if (st.resourceId && st.label) labels[st.resourceId] = st.label;
+    }
+  }
+  const COMMON: Record<string, string> = {
+    hp: '体力', coin: '银两', gold: '金币', primary_coin: '通货', qi: '修为', reputation: '声望', risk: '风险',
+  };
+  return name => labels[name] ?? COMMON[name] ?? name.replace(/_/g, ' ');
 }

@@ -1,5 +1,5 @@
 import type { SqliteDatabase } from '../../../platform/database.js';
-import type { Draft, GameRevision } from '@novel-game/contracts';
+import type { Draft, DraftProvenance, GameRevision } from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
 import type { GameRepository } from '../application/ports.js';
 
@@ -30,6 +30,14 @@ export class SqliteGameRepository implements GameRepository {
     const result = this.db.prepare('UPDATE game_drafts SET version=?,data=?,updated_at=? WHERE id=? AND version=?')
       .run(draft.version, JSON.stringify(draft), draft.updatedAt, draft.id, expectedVersion);
     if (!result.changes) throw new AppError('DRAFT_VERSION_CONFLICT', '草稿已更新，请刷新后编辑', 409);
+  }
+  setProvenanceIfMissing(id: string, provenance: DraftProvenance): boolean {
+    return this.db.transaction(() => {
+      const draft = this.getDraft(id);
+      if (!draft || draft.provenance) return false;
+      this.db.prepare('UPDATE game_drafts SET data=? WHERE id=?').run(JSON.stringify({...draft, provenance}), id);
+      return true;
+    }).immediate();
   }
   getRevision(id: string): GameRevision | undefined { return parse<GameRevision>(this.db.prepare('SELECT data FROM game_revisions WHERE id=?').get(id)); }
   findRevision(draftId: string, version: number): GameRevision | undefined {

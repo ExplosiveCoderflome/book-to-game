@@ -39,6 +39,7 @@ Supporting tokens:
 | `--line-strong` | `#d0d0cb` | Control borders |
 | `--rust` | `#b42318` | Danger / playability / failed only |
 | `--focus` | `#3b82f6` | Keyboard focus ring only |
+| `--warn-bg` / `--warn-ink` / `--warn-line` | `#fffaeb` / `#93370d` / `#f1d39b` | Amber — **only** 「会丢进度」 save warnings (`.storage-banner`, `.save-slot-unsaved`, `.save-slot-fallback`). Never export reports (X15) |
 
 **Usage rules:**
 - Backgrounds: `--bg` field; raised work on `--surface`.
@@ -66,7 +67,7 @@ Anti-slop: no purple gradients, no AI lavender fills, no cream-literary chrome.
   - Body UI: 13–14px (root 14px)
   - Caption / eyebrow / tab numbers: 10–12px
   - Reader title: 18px sans; reader body: ~17px serif, line-height ~2.1
-- **Body text:** UI ≥13px; reading prose ≥16px
+- **Body text:** UI ≥13px; reading prose ≥16px. 手机端玩家壳：正文与可点文字 ≥14px，纯元信息 ≥12px，见 §6 移动端
 - **Line-height / line-length:** UI ~1.5; prose measure `--prose-max: 72ch`
 - **Button text:** 12–13px, weight 500–600
 - **Responsive rules:** Collapse dual inspector below 980px; wide density ≥1440px
@@ -80,7 +81,7 @@ Anti-slop: no purple gradients, no AI lavender fills, no cream-literary chrome.
 - **Conversion / CTA flow:** N/A for workbench; primary action per screen (e.g. Save, Start new save).
 - **App/Product flows:** Nav placement constant; edit↔play mode toggle on canvas; deep-link via draft/revision selection.
 - **Hero composition:** N/A (no marketing hero on workbench). Connect page is utilitarian, not a landing hero.
-- **Breakpoints:** stack ~980; density-wide 1440; ultra 1680.
+- **Breakpoints:** stack ~980; **phone 760（CSS 与 `COMPACT_QUERY` 共用）**; density-wide 1440; ultra 1680. 断点顺序与优先级见 §6「移动端（≤760px）」.
 - **Alignment rules:** Full-bleed primary surfaces; density-over-stretch (see `docs/design-layout.md`).
 
 ## 6. Component system
@@ -92,11 +93,78 @@ Anti-slop: no purple gradients, no AI lavender fills, no cream-literary chrome.
 - **Navbar:** `.site-header` + `.workspace-bar` underline tabs with quiet tabular numbers.
 - **Forms / inputs:** shared radius-sm; focus ring only on `:focus-visible`.
 - **Status strips:** `.branch-canvas-gen`, `.branch-canvas-banner`, skeleton/extend guides — compact left-accent strips.
-- **Play stats HUD:** `.play-stats` — ChoiceScript-inspired always-visible chart (role-ordered meters / flag pills; optional collapse, default open) between scene prose and choices; `.play-stats-delta` uses template `displayLabel` when stamped; `.reader-choice-cost` from real effects only. Patterns: `docs/if-editor-patterns.md`.
+- **Play stats HUD:** `.play-stats` — ChoiceScript-inspired always-visible chart (role-ordered meters / flag pills; optional collapse, default open) between scene prose and choices. Outer shell keeps left green accent + muted fill; **inner rows are dense property-list dividers (no per-row card chrome)**. Supports optional `resources` with soft display labels. `.play-stats-delta` chips: `tone-gain` (green), `tone-loss` (muted), `tone-pressure` (rust). Option open/close lines under delta. Empty session HUD copy when no vars/resources. Patterns: `docs/if-editor-patterns.md`.
+- **Play feedback concept:** 试玩反馈是精密仪器的读数面板：正文是信号，HUD 是刻度，代价是预告，delta 是回弹指针；辅区（天道/旁白）保持静音。
+- **Play ending:** `.play-ending` — shared story/open shell: eyebrow · body · final-state chips ·「再开一局」primary +「回编辑改结局文案」quiet.
+- **Adventure goal / result:** `.adventure-goal` / `.adventure-result` use `--surface-muted` + left 3px `--green` (no cream `#f1f2e7` / `#e9eddf`).
 - **Stat Editor:** `.stat-editor` — universal inspector for `content.variables` (template-seeded or hand-added). Dense property-list rows (display label + mono name, role chip from catalog, type select, initial value, delete); compact template-apply strip; footer add bar. No fieldset stack, no card-in-card. Roles are display metadata only.
 - **Choice rules:** `.choice-rules` — same dense instrument language as Stat Editor; conditions labeled gate, effects labeled cost; logic stays `conditions`/`effects` only.
 - **Inspectors:** flat hierarchy; no card-in-card elevation; dual panes ≥1440.
-- **Reader choices:** muted list actions, not brochure cards.
+- **Reader choices / adventure actions:** muted list actions with cost subline (11px muted tabular); locked rows grey + rust reason text — never color alone. No brochure cards.
+
+### Player shell (M1)
+
+| Token / class | Rule |
+|---|---|
+| `.player-shell` | Full-bleed; same `--bg` field; **no** `.workspace-bar` |
+| `.player-shell .site-header` | Reuse header density; subtitle「故事工坊 · 游玩」; quiet「返回工作台」allowed |
+| `.player-shell main` / `.play-landing-grid` | Single work-section; landing two columns ≥980, stack narrow |
+| `.play-landing-row` | Dense `.list-button` rows — **no** store-poster cards / hero covers |
+| `.player-shell .play-layout` | In-session: optional save aside + single reading column (+ open map column); no author catalog chrome |
+| Ending CTA | Author: 再开一局 + 回编辑… · Player: 再开一局 + **返回书目** |
+| Anti-slop | No splash poster, discount bar, star ratings, account wall, export-zip button, neon game kit |
+
+### Export package (M1b-1)
+
+| Token / class | Rule |
+|---|---|
+| Author entry | One `button.quiet`「导出可玩包（网页版）」in the editor footer after「复制玩家链接」; unpublished → disabled + hint「先发布再导出」; dirty → hint「导出的是已发布 v{n}」. Never a primary/hero button, never a zip/store-style CTA |
+| `.export-report` | One compact left-accent strip directly under the footer: `.ok` green / `.failed` rust / `.busy` muted. Main line = facts (size · mode · freeze); degraded items in a muted `<details>`; failures say what happened + no file created + next step. Never echoes a secret value |
+| Package player | Same `.player-shell` chrome minus workbench links: no 返回工作台 / 返回书目 / 复制链接 / AI aux; eyebrow「{mode} · v{version}」; saves list is `.list-button` rows「存档 {n}」 |
+| `.list-button.blocked` | Old-version / damaged saves: greyed, disabled, kept after continuable rows, rust `.save-slot-reason` text (never color alone) |
+| `.save-slot-unsaved` | Small amber pill「未保存」on the current row when storage is unavailable |
+| `.storage-banner` | Full-width amber status strip above `<main>` (role=status) when saving is impossible; play continues |
+| `.package-error` | Single centered work-section for damaged / newer-format files: title + one sentence + `<details>` 技术信息 + 重新打开 |
+
+### Export package · Windows (M1b-2)
+
+| Token / class | Rule |
+|---|---|
+| Author entry | Two adjacent `button.quiet` in the editor footer:「导出可玩包（网页版）」then「导出 Windows 版」, wrapped in `.export-actions` (no wrap between them). One shared hint span. One in-flight export per panel — the other button is disabled while either runs. No platform logos, no dropdown/segmented picker |
+| Player missing | Windows button disabled + hint「Windows 播放器未就绪，网页版可正常导出」. If learned on click: `.export-report.unavailable` = muted strip (left 3px `--line-strong`), **not** rust — it is an environment fact, not an author error |
+| `.export-report.ok` (exe) | Same strip; main line adds「· Windows 版」; optional mono player line (`.export-player`); one 13px ink SmartScreen sentence (`.export-smartscreen`). No shield icon, no amber fill — known behaviour, not an error |
+| Native dialogs | Player-side OS TaskDialog/MessageBox only (system icon + title + one main sentence + body + system buttons). Never a custom-drawn window, splash, or poster |
+| Window | Title = game title only; min 980×640; no menu bar; no splash |
+| `.storage-banner` variants | Same strip, same colors; copy varies by `where` (browser / host-file / host-fallback); only one banner at a time (unsaved > fallback) |
+| `.save-slot-location` | 「存档位置」`<details>` under the saves list: mono 11px env-var path + `button.quiet.small`「复制路径」; package id only here, never as primary text |
+| `.save-slot-fallback` | Same pill shape as `.save-slot-unsaved`, text「临时位置」 |
+
+### 移动端（≤760px）· Player phone
+
+适用：`.player-shell`（/play 玩家壳、作者试玩、HTML 包、exe 窗口缩到 ≤760 时）。桌面与 exe 默认窗口（≥980）不变。
+唯一断点 `760px`；JS 端用 `COMPACT_QUERY = '(max-width: 760px)'`，CSS 写 `@media (width <= 760px)`，两边同值，不另起 720 / 768。
+
+| 规则 | 要求 | 验证 |
+|---|---|---|
+| 单栏 | 进局后只有一列：阅读栏在上，存档侧栏 `order: 2` 放到下方，且默认收起 | 390 宽：`grid-template-columns` 只有一个轨道；正文顶边 < 视口高 |
+| 正文在第一屏 | 开局 / 读档后第一屏能看到地点标题和至少 2 行正文；世界简介最多 1 行（clamp-1） | 390×844：`.reader-text` 顶边 < 844 |
+| 紧凑状态行 | `PlayStatsCompact` 放在目标块之后、地点标题之前；`position: sticky; top: 0`，白底 + 1px 线；完整 `PlayStatsBar` 留在正文之后；结局时取消 sticky | 状态行在第一屏；结局时 `position: static` |
+| 行动后滚到结果 | 回合数增加 → 把「刚刚发生」滚到顶部（`scroll-margin-top` 要让开 sticky 行）；到达结局按结局规则滚（结局页 §2） | 点完行动后结果在视口内 |
+| 字号下限 | 正文、选项、锁定原因、掷骰结果、资源名和数值、按钮、清单 ≥ 14px；只有纯元信息（版本号、行动计数、eyebrow）可以 ≥ 12px | 计算样式检查 |
+| 点击区 | 一切可点元素（按钮、`summary`、行动行、存档行）≥ 44×44px；相邻点击区间距 ≥ 8px | 外框高度检查 |
+| 寿元封顶 | 倒计时类资源（`countdownResourceId`，如寿元）永不显示「已封顶」；到上限时只显示数值 | 文本检查 |
+| 不横向滚动 | 任何状态下 `scrollWidth ≤ innerWidth`；长 id、路径用 `overflow-wrap: anywhere` | 每个截图点检查 |
+| 数值不拆行 | 一个「名 值/上限」是一个 `nowrap` 单元，只在单元之间换行 | 不出现「1 /」换行后接「5」 |
+| 触屏 hover | `:hover` 底色只写在 `@media (hover: hover)` 里；触屏上点过的行不能留着绿底，看起来像被选中 | 点完行动后截图里没有残留的着色 |
+| 少套层 | 手机端不叠三层表面（白面板 → 灰块 → 带框卡 → 灰选项）；剧情卡在手机上去掉外框，只保留标题行和选项行 | 目测截图 |
+| 空态只说一次 | 同一屏同一件事只出一个空态（例如「还没有存档」） | 开始页截图 |
+
+**断点顺序与优先级（2026-10-28 根因：桌面 `.player-shell .play-layout.player-play-layout:not(.with-map)` 的两栏规则特异性高于通用的 ≤760 单栏回退，把正文挤到约 70px）**
+1. 覆盖某条桌面规则的手机规则，必须用**同一个选择器**（或更高特异性），写在那条桌面规则**之后、同一个文件里**，紧挨着它。
+2. 同一组件的媒体查询按 基础 → `≥1440` / `≥1680` → `≤1100` / `≤980` → `≤760` 排列，**最窄的放最后**。
+3. 不用 `!important` 去赢特异性；赢不了，就说明选择器写错了地方。
+4. 新增任何 `grid-template-columns` 或 `display: grid` 的桌面规则，都要在 390 宽的手机 e2e 里断言它只剩单轨。
+
 
 ## 7. Card & section style
 
@@ -151,3 +219,23 @@ Reuse tokens, quiet chrome, canvas primacy, and compact status strips. Do not re
 ## 14. Update policy
 
 If tokens or chrome patterns change, update this file, `docs/design-ui.md`, and `docs/design-layout.md` in the same change.
+
+### Building library (建筑库)
+- **Surface:** App/Product catalog studio (not a CRUD form farm).
+- **Lead:** AI generate strip — one prompt, kind chips, 「生成」; selectable draft cards; optional 「为所选草案生成图」; 「入库所选」 via catalog accept (never silent overwrite).
+- **Catalog:** Full-width **card grid** with portrait thumbnails (16:10), kind chip, blurb clamp; empty / skeleton loading / error states required.
+- **Inspector:** Portrait hero + 「生成图片」/「重新生成图」; primary fields; advanced options collapsed.
+- **Images:** Display-only (`imageUrl` / `imagePath` / `imageProvider`). Prefer real `BuildingImageProvider` (OpenAI-compat `/images/generations` when `IMAGE_MODEL` set); deterministic SVG illustrator is the always-on fallback. Never mutates play/session/rules.
+- **Concept:** Prompt-first cataloging with portrait cards — review before write; chrome stays dense and quiet like the rest of the workbench.
+
+### Item Catalog AI propose (M-item-4)
+- Same AI strip pattern as Building Library: prompt → draft card grid → multi-select → accept / discard.
+- Draft cards reuse `.building-draft-card` + `.item-category-chip`; soft price hint line only (no world currency lock).
+- Building inspector shelf/loot AI sits in `.building-template-ai` under kind templates; unknown nouns show as pending (must go Item Catalog first).
+- Discard clears client proposal state only — never writes session or map.
+
+### Building kind templates (M-item-2/3)
+- **Shop / supply / quest / encounter·boss inspectors:** compact `.building-kind-template` strip inside building inspector — shelf/recipe/slot/loot rows as dense property grids, not card-in-card.
+- Empty shelf/recipes/slots/loot show a quiet left-accent empty hint (合法模板-only).
+- Item pickers are native `<select>` against Item Catalog; price / resourceDrops / rewards.resources are soft hints (roleHint), never world-currency or genre flags required.
+- Quest slots: label + markerTag (+ optional placeholder questId); encounter/boss: loot + pack/trigger prefs; Boss defeat flag is **not** a Catalog field.

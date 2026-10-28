@@ -1,0 +1,17 @@
+# DRAFT — not active (lives outside .github/). Optional: the player is built on the author's Windows PC instead.
+# To enable later: copy to .github/workflows/player-windows.yml.
+name: player-windows
+on: { workflow_dispatch: {} }
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: powershell -ExecutionPolicy Bypass -File apps/player-host/scripts/build-windows.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: btg-player-windows-x64
+          path: |
+            dist/player/btg-player-windows-x64.exe
+            dist/player/btg-player-windows-x64.json

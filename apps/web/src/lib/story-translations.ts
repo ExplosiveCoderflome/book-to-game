@@ -105,5 +105,6 @@ export const storyTranslations: Record<string, string> = {
   '旗帜': 'Flag',
   '进度': 'Progress',
   '压力': 'Pressure',
+  '随时可查': 'Always checkable',
 };
 export const storyEnglish = storyTranslations;

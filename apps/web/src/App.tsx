@@ -7,14 +7,18 @@ import { Notice } from './components/Notice';
 import { SourcePanel } from './components/SourcePanel';
 import { ModelSettingsPanel } from './components/ModelSettingsPanel';
 import { DemoPreview } from './components/DemoPreview';
+import { PlayRouteGate, useIsPlayerShell } from './components/player/PlayRouteGate';
+import { isPlayerRoute, navigateHash, parsePlayRoute, playStoryHash, playWorldHash } from './lib/play-route';
 /** Workbench tabs are code-split so the shell stays under the main-chunk budget. */
 const DraftPanel = lazy(() => import('./components/DraftPanel').then(m => ({ default: m.DraftPanel })));
 const PlayPanel = lazy(() => import('./components/PlayPanel').then(m => ({ default: m.PlayPanel })));
 const WorldsPanel = lazy(() => import('./components/WorldsPanel').then(m => ({ default: m.WorldsPanel })));
 const AdventurePanel = lazy(() => import('./components/AdventurePanel').then(m => ({ default: m.AdventurePanel })));
+const BuildingLibraryPage = lazy(() => import('./components/building-library/BuildingLibraryPage').then(m => ({ default: m.BuildingLibraryPage })));
+const ItemCatalogPage = lazy(() => import('./components/item-catalog/ItemCatalogPage').then(m => ({ default: m.ItemCatalogPage })));
 
-type Tab = 'sources' | 'generation' | 'worlds' | 'adventures' | 'drafts' | 'play' | 'settings';
-const tabs: { id: Tab; label: string; number: string }[] = [{ id: 'sources', label: '原作书架', number: '01' }, { id: 'generation', label: '改编生成', number: '02' }, {id: 'worlds', label: '世界草稿', number: '03'}, {id: 'adventures', label: '开放冒险', number: '04'}, { id: 'drafts', label: '分支草稿', number: '05' }, { id: 'play', label: '分支试玩', number: '06' }, {id: 'settings', label: '模型设置', number: '07'}];
+type Tab = 'sources' | 'generation' | 'worlds' | 'buildings' | 'items' | 'adventures' | 'drafts' | 'play' | 'settings';
+const tabs: { id: Tab; label: string; number: string }[] = [{ id: 'sources', label: '原作书架', number: '01' }, { id: 'generation', label: '改编生成', number: '02' }, {id: 'worlds', label: '世界草稿', number: '03'}, {id: 'buildings', label: '建筑库', number: '04'}, {id: 'items', label: '物品目录', number: '05'}, {id: 'adventures', label: '开放冒险', number: '06'}, { id: 'drafts', label: '分支草稿', number: '07' }, { id: 'play', label: '分支试玩', number: '08' }, {id: 'settings', label: '模型设置', number: '09'}];
 interface Data { runtime: RuntimeInfo; sources: SourceSummary[]; jobs: GenerationJob[]; drafts: Draft[]; revisions: GameRevision[]; sessions: SessionView[]; worlds: WorldDraft[]; worldRevisions: WorldRevision[]; adventures: AdventureView[] }
 
 function Workbench() {
@@ -70,7 +74,6 @@ function Workbench() {
       const prev = seenJobStatus.current.get(job.id);
       seenJobStatus.current.set(job.id, job.status);
       if (prev && prev !== 'succeeded' && job.status === 'succeeded' && job.draftId && (job.mode ?? 'story') !== 'open') {
-        // Deep-link onto Draft canvas when a story job finishes.
         setDraftId(job.draftId);
         setSourceId(job.sourceId);
         setTab('drafts');
@@ -93,9 +96,11 @@ function Workbench() {
         <Notice text={error} />
         <div hidden={tab !== 'sources'}><SourcePanel token={token} sources={data.sources} revisions={data.revisions} selectedId={sourceId} select={setSourceId} refresh={refresh} onGenerate={() => setTab('generation')} onDemoReady={revision => { setRevisionId(revision.id); setTab('play'); }} /></div>
         <div hidden={tab !== 'generation'}><GenerationPanel token={token} runtime={data.runtime} sources={data.sources} selectedId={sourceId} select={setSourceId} jobs={data.jobs} refresh={refresh} openDraft={openGeneratedDraft} onConfigure={() => setTab('settings')} /></div>
-        <div hidden={tab !== 'drafts'}><Suspense fallback={null}><DraftPanel token={token} drafts={data.drafts} sources={data.sources} revisions={data.revisions} sessions={data.sessions} jobs={data.jobs} runtime={data.runtime} selectedId={draftId} select={setDraftId} refresh={refresh} onPublished={revision => { setRevisionId(revision.id); setTab('play'); }} onOpenPlay={id => { setRevisionId(id); setTab('play'); }} onOpenGeneration={() => setTab('generation')} onConfigure={() => setTab('settings')} /></Suspense></div>
+        <div hidden={tab !== 'drafts'}><Suspense fallback={null}><DraftPanel token={token} drafts={data.drafts} sources={data.sources} revisions={data.revisions} sessions={data.sessions} jobs={data.jobs} runtime={data.runtime} selectedId={draftId} select={setDraftId} refresh={refresh} onPublished={revision => { setRevisionId(revision.id); navigateHash(playStoryHash(revision.id)); }} onOpenPlay={id => { setRevisionId(id); setTab('play'); }} onOpenPlayerShell={id => navigateHash(playStoryHash(id))} onOpenGeneration={() => setTab('generation')} onConfigure={() => setTab('settings')} /></Suspense></div>
         <div hidden={tab !== 'play'}><Suspense fallback={null}><PlayPanel token={token} revisions={data.revisions} sessions={data.sessions} revisionId={revisionId} selectRevision={setRevisionId} refresh={refresh} /></Suspense></div>
-        <div hidden={tab !== 'worlds'}><Suspense fallback={null}><WorldsPanel onDirtyChange={setWorldDirty} token={token} drafts={data.worlds} sources={data.sources} revisions={data.worldRevisions} adventures={data.adventures} selectedId={worldDraftId} select={setWorldDraftId} refresh={refresh} onPublished={revision => {setWorldRevisionId(revision.id); setTab('adventures');}} onOpenAdventure={id => { setWorldRevisionId(id); setTab('adventures'); }} /></Suspense></div>
+        <div hidden={tab !== 'worlds'}><Suspense fallback={null}><WorldsPanel onDirtyChange={setWorldDirty} token={token} drafts={data.worlds} sources={data.sources} revisions={data.worldRevisions} adventures={data.adventures} selectedId={worldDraftId} select={setWorldDraftId} refresh={refresh} onPublished={revision => { setWorldRevisionId(revision.id); navigateHash(playWorldHash(revision.id)); }} onOpenAdventure={id => { setWorldRevisionId(id); setTab('adventures'); }} onOpenPlayerShell={id => navigateHash(playWorldHash(id))} onOpenBuildingLibrary={() => setTab('buildings')} /></Suspense></div>
+        <div hidden={tab !== 'buildings'}><Suspense fallback={null}><BuildingLibraryPage token={token} /></Suspense></div>
+        <div hidden={tab !== 'items'}><Suspense fallback={null}><ItemCatalogPage token={token} /></Suspense></div>
         <div hidden={tab !== 'adventures'}><Suspense fallback={null}><AdventurePanel token={token} revisions={data.worldRevisions} adventures={data.adventures} revisionId={worldRevisionId} selectRevision={setWorldRevisionId} refresh={refresh} /></Suspense></div>
         {tab === 'settings' && <ModelSettingsPanel token={token} onSaved={refresh} />}
       </>}
@@ -104,4 +109,14 @@ function Workbench() {
   </div>;
 }
 
-export function App() { return <I18nProvider><Workbench /></I18nProvider>; }
+function Root() {
+  const player = useIsPlayerShell();
+  // Keep hash parse in sync on first paint for deep links.
+  useEffect(() => {
+    if (!window.location.hash && isPlayerRoute(parsePlayRoute())) return;
+  }, []);
+  if (player) return <PlayRouteGate token="" />;
+  return <Workbench />;
+}
+
+export function App() { return <I18nProvider><Root /></I18nProvider>; }

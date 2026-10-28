@@ -1,5 +1,5 @@
 import type { ActInput, GameRevision, SessionView } from '@novel-game/contracts';
-import type { SessionState } from '../domain/session-state.js';
+import type { SessionState } from '@novel-game/play-runtime';
 
 export interface RevisionReader { getRevision(id: string): GameRevision }
 export interface SessionRepository {

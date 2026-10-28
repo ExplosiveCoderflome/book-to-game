@@ -1,7 +1,13 @@
+import { WorldSystemInspector } from './WorldSystemInspector';
+import { PreflightPanel } from './preflight/PreflightPanel';
 import { useEffect, useMemo, useState } from 'react';
 import { worldContentSchema, type AdventureView, type CanvasLayout, type SourceSummary, type WorldContent, type WorldDraft, type WorldRevision, type ValidationResult } from '@novel-game/contracts';
 import { request, RequestError, errorMessage } from '../lib/api';
 import { useI18n } from '../lib/i18n';
+import { playWorldHash } from '../lib/play-route';
+import { CopyPlayLinkButton } from './player/CopyPlayLinkButton';
+import { OpenPlayerShellButton } from './player/OpenPlayerShellButton';
+import { useExportPackage } from './export/ExportPackage';
 import { openingActionDensity } from '../lib/world-graph';
 import { useWorldCanvasPlay } from '../hooks/useWorldCanvasPlay';
 import { Notice, Empty } from './Notice';
@@ -32,10 +38,12 @@ interface Props {
   select: (id: string) => void; refresh: () => Promise<void>;
   onPublished: (r: WorldRevision) => void; onDirtyChange: (dirty: boolean) => void;
   onOpenAdventure?: (revisionId: string) => void;
+  onOpenPlayerShell?: (revisionId: string) => void;
+  onOpenBuildingLibrary?: () => void;
 }
 
 export function WorldsPanel({
-  token, drafts, sources, revisions, adventures, selectedId, select, refresh, onPublished, onDirtyChange, onOpenAdventure,
+  token, drafts, sources, revisions, adventures, selectedId, select, refresh, onPublished, onDirtyChange, onOpenAdventure, onOpenPlayerShell, onOpenBuildingLibrary,
 }: Props) {
   const { t } = useI18n();
   const [draft, setDraft] = useState<WorldDraft | null>(null);
@@ -50,7 +58,7 @@ export function WorldsPanel({
   const [conflict, setConflict] = useState(false);
   const [reload, setReload] = useState(0);
   const [inspectorOpen, setInspectorOpen] = useState(false);
-  const [inspectorTab, setInspectorTab] = useState<'location' | 'meta' | 'all' | 'worldbook' | 'factions' | 'layer'>('location');
+  const [inspectorTab, setInspectorTab] = useState<'location' | 'meta' | 'all' | 'worldbook' | 'factions' | 'layer' | 'system'>('location');
   const [eraId, setEraId] = useState('');
   const [mapDraft, setMapDraft] = useState<MapDraftDiff | null>(null);
   const [mapDraftBusy, setMapDraftBusy] = useState(false);
@@ -123,8 +131,8 @@ export function WorldsPanel({
     return adventures.filter(a => a.worldRevisionId === latestRevision.id).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }, [adventures, latestRevision]);
   const {
-    playSession, playBusy, proposeNote, playOverlay, canPlayOnCanvas,
-    actOnCanvas, narrateOnCanvas, proposeOnCanvas, resetPlay,
+    playSession, playBusy, proposeNote, playResDeltas, playOptionChanges, playOverlay, canPlayOnCanvas,
+    actOnCanvas, narrateOnCanvas, proposeOnCanvas, restartOnCanvas, resetPlay,
   } = useWorldCanvasPlay({
     token,
     canvasMode,
@@ -180,6 +188,13 @@ export function WorldsPanel({
       if (e instanceof RequestError && e.status === 409) setConflict(true);
     } finally { setBusy(false); }
   }
+
+  const linkedWorldRevisions = useMemo(
+    () => (draft ? revisions.filter(r => r.draftId === draft.id).sort((a, b) => b.version - a.version) : []),
+    [draft, revisions],
+  );
+  const latestWorldRevision = linkedWorldRevisions[0] ?? null;
+  const exportPackage = useExportPackage({ token, kind: 'world', draftId: draft?.id, revision: latestWorldRevision, dirty: dirty || json !== null });
 
   return <section className="work-section draft-workspace world-workspace">
     <div className="section-heading">
@@ -288,9 +303,9 @@ export function WorldsPanel({
                   playOverlay={canvasMode === 'play' ? playOverlay : null}
                   readOnly={canvasMode === 'play'}
                 />
-              ) : canvasView === 'map' ? <WorldMapCanvas content={content} selectedLocationId={selectedLocationId} onSelectLocation={selectLocationLinked} onMapChange={updateMap} onContentChange={change} historyKey={draft?.id ?? 'new-world'} {...eraProps} /> : (
+              ) : canvasView === 'map' ? <WorldMapCanvas token={token} content={content} selectedLocationId={selectedLocationId} onSelectLocation={selectLocationLinked} onMapChange={updateMap} onContentChange={change} historyKey={draft?.id ?? 'new-world'} onOpenBuildingLibrary={onOpenBuildingLibrary} {...eraProps} /> : (
                 <div className="world-split" data-testid="world-split">
-                  <WorldMapCanvas content={content} selectedLocationId={selectedLocationId} onSelectLocation={selectLocationLinked} onMapChange={updateMap} onContentChange={change} historyKey={draft?.id ?? 'new-world'} {...eraProps} />
+                  <WorldMapCanvas token={token} content={content} selectedLocationId={selectedLocationId} onSelectLocation={selectLocationLinked} onMapChange={updateMap} onContentChange={change} historyKey={draft?.id ?? 'new-world'} onOpenBuildingLibrary={onOpenBuildingLibrary} {...eraProps} />
                 <WorldGraphCanvas
                   primary
                   content={canvasMode === 'play' && latestRevision ? latestRevision.content : content}
@@ -309,8 +324,11 @@ export function WorldsPanel({
                   playSession={playSession}
                   playBusy={playBusy}
                   proposeNote={proposeNote}
+                  playResDeltas={playResDeltas}
+                  playOptionChanges={playOptionChanges}
                   onBackEdit={() => setCanvasMode('edit')}
                   onAct={actOnCanvas}
+                  onRestart={restartOnCanvas}
                   onNarrate={narrateOnCanvas}
                   onPropose={proposeOnCanvas}
                   onOpenAdventure={onOpenAdventure}
@@ -324,6 +342,7 @@ export function WorldsPanel({
                       <button type="button" className={inspectorTab === 'worldbook' ? 'active' : ''} data-testid="inspector-worldbook-tab" onClick={() => setInspectorTab('worldbook')}>{t('世界书')}</button>
                       <button type="button" className={inspectorTab === 'factions' ? 'active' : ''} data-testid="inspector-factions-tab" onClick={() => setInspectorTab('factions')}>{t('势力')}</button>
                       <button type="button" className={inspectorTab === 'layer' ? 'active' : ''} data-testid="inspector-layer-tab" onClick={() => setInspectorTab('layer')}>{t('人物·时代')}</button>
+                      <button type="button" className={inspectorTab === 'system' ? 'active' : ''} data-testid="inspector-system-tab" onClick={() => setInspectorTab('system')}>{t('系统')}</button>
                       <button type="button" className={inspectorTab === 'all' ? 'active' : ''} onClick={() => setInspectorTab('all')}>{t('全览')}</button>
                     </div>
                     <button type="button" className="quiet small" onClick={() => setInspectorOpen(false)} aria-label={t('关闭侧栏')}>{t('关闭')}</button>
@@ -358,6 +377,7 @@ export function WorldsPanel({
                       regions={content.map?.layers?.regions?.regions.map(r => ({ id: r.id, name: r.name, color: r.color }))} />}
                     {inspectorTab === 'factions' && <FactionRelationsEditor content={content} onChange={change} />}
                     {inspectorTab === 'layer' && <WorldLayerEditor content={content} onChange={change} />}
+                    {inspectorTab === 'system' && <WorldSystemInspector content={content} />}
                     {inspectorTab === 'all' && <WorldOverview content={content} />}
                   </div>
                 </aside>
@@ -368,8 +388,12 @@ export function WorldsPanel({
             <button className="primary" disabled={busy || conflict || json !== null || canvasMode === 'play' || (!!draft && !dirty)} onClick={() => operate('save')}>{t('保存世界草稿')}</button>
             <button disabled={busy || dirty || conflict || json !== null || canvasMode === 'play' || !draft} onClick={() => operate('validate')}>{t('校验世界')}</button>
             <button disabled={busy || dirty || conflict || json !== null || canvasMode === 'play' || !draft || !validation?.valid} onClick={() => operate('publish')}>{t('发布并冒险 →')}</button>
+            {latestWorldRevision && (<><OpenPlayerShellButton mode="world" revisionId={latestWorldRevision.id} className="quiet" disabled={busy} /><CopyPlayLinkButton hash={playWorldHash(latestWorldRevision.id)} /></>)}
+            {exportPackage.button}
+            {dirty && latestWorldRevision && <span className="hint">{t('当前编辑尚未发布；链接指向已发布版本。')}</span>}
             <span className="hint">{t('先保存，再校验，最后发布。')}</span>
           </div>
+          {exportPackage.report}
           {validation && (
             <div className="validation">
               <Notice kind={validation.valid ? 'success' : 'error'} text={validation.valid ? t('校验通过，可以发布。请确认公开文本没有泄漏隐藏剧情。') : t('校验未通过，请修正。')} />
@@ -377,6 +401,7 @@ export function WorldsPanel({
               {validation.warnings.map((e, i) => <p className="hint" key={i}>{e}</p>)}
             </div>
           )}
+          <PreflightPanel token={token} draft={draft} dirty={dirty || json !== null} />
         </fieldset>
       </div>
     )}

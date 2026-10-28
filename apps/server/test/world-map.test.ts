@@ -75,7 +75,7 @@ test('fixture world: valid, no map errors, prompt and schematic deterministic', 
 });
 
 test('adventure runtime passes world.map to map-aware conditions', async () => {
-  const { visible, blockedReason } = await import('../src/modules/adventure-sessions/domain/rules.js');
+  const { visible, blockedReason } = await import('@novel-game/play-runtime');
   const { initialWorldState } = await import('@novel-game/rules');
   const world = worldContentSchema.parse(JSON.parse(readFileSync('fixtures/world-map/ember-reach.world.json', 'utf8')));
   const s0 = initialWorldState(world);

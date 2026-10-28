@@ -47,7 +47,7 @@ export {
 
 export {
   cellKey, parseCellKey, offsetToAxial, axialToOffset, hexInBounds, listHexCells, hexToPixel, hexCorners, hexDistance,
-  validateWorldMap, type Axial, type WorldMapIssue, type WorldMapIssueCode,
+  validateWorldMap, type Axial, type WorldMapIssue, type WorldMapIssueCode, type ValidateWorldMapOptions,
   isStructureLocked, structureFingerprint, lockMapStructure, unlockMapStructure, assertMapWriteAllowed, validateMapFill,
 } from './world-map.js';
 
@@ -71,3 +71,10 @@ export {
 export { childMapOf, mapPath, validateSubMaps, type SubMapIssue } from './sub-maps.js';
 export { eraMap, npcsOnMap, strongholds, validateWorldLayer, type WorldLayerIssue } from './world-layer.js';
 export { planMapDraft, applyMapDraft, mapDraftDependencies, slugId } from './map-draft.js';
+
+export {
+  projectFillActions, fillSpecificBlockedReason, mergeFillSeedResources, mergeFillSeedFacts, findFillAction,
+  lootChancePasses, stableLootUnit,
+  type FillCompiledAction, type FillGroupView, type FillProjection, type FillProjectOptions, type FillKindHint,
+} from './fill-actions.js';
+export { validateS1References, walkWorldLogic, type S1Issue } from './s1-references.js';

@@ -18,6 +18,12 @@ export type WorldConditionState = {
   relationOverlay?: Record<string, { stance: 'ally' | 'neutral' | 'hostile'; standing: number }>;
   /** NPC locations (npc_at_location kind). */
   npcLocations?: Record<string, string>;
+  /** Open-world numeric pools (resource condition kind). */
+  resources?: Record<string, number>;
+  /** S1: storylet play counts (storylet_seen kind). */
+  storyletSeen?: Record<string, number>;
+  /** S1: clock start calendar month (1–12) for monthOfYearIn. */
+  clockStartMonth?: number;
 };
 
 export type OpeningEvalState = WorldConditionState & {
@@ -39,7 +45,18 @@ export function initialWorldState(world: WorldContent): OpeningEvalState {
     elapsed: 0,
     ...(world.map ? { map: world.map } : {}),
     ...(world.factionRelations ? { factionRelations: world.factionRelations } : {}),
+    ...(world.resourceDefs || world.clock || world.storylets ? s1InitialExtras(world) : {}),
   };
+}
+
+/** S1 worlds: starting resources (defs.initial → resources → min, clamped), no storylets seen, clock calendar. */
+function s1InitialExtras(world: WorldContent): Pick<WorldConditionState, 'resources' | 'storyletSeen' | 'clockStartMonth'> {
+  const resources: Record<string, number> = { ...(world.resources ?? {}) };
+  for (const [id, def] of Object.entries(world.resourceDefs ?? {})) {
+    const value = def.initial ?? resources[id] ?? def.min;
+    resources[id] = Math.min(def.max ?? Infinity, Math.max(def.min, value));
+  }
+  return { resources, storyletSeen: {}, ...(world.clock ? { clockStartMonth: world.clock.startMonth } : {}) };
 }
 
 export function matchesWorldConditions(conditions: WorldCondition[], state: WorldConditionState): boolean {
@@ -77,11 +94,22 @@ export function assessOpeningActions(world: WorldContent): OpeningActionReport {
     matchesWorldConditions(action.requires, state) && !isWaitLikeAction(action));
   const lockedVisible = visible.filter(action =>
     !matchesWorldConditions(action.requires, state) && action.id !== SYSTEM_WAIT_ACTION_ID);
-  const count = executable.length;
+  // S1: opening storylet cards (location + when met, not window-bound) count as executable choices.
+  const storyletChoiceIds: string[] = [];
+  const windowCards = new Set((world.clock?.windows ?? []).map(w => w.storyletId).filter(Boolean));
+  for (const sl of world.storylets ?? []) {
+    if (sl.locationIds?.length && !sl.locationIds.includes(world.initialLocationId)) continue;
+    if (windowCards.has(sl.id) || !matchesWorldConditions(sl.when ?? [], state)) continue;
+    for (const choice of sl.choices) {
+      if (!matchesWorldConditions(choice.availableWhen ?? [], state) || !matchesWorldConditions(choice.requires ?? [], state)) continue;
+      storyletChoiceIds.push(`sl__${sl.id}__${choice.id}`);
+    }
+  }
+  const count = executable.length + storyletChoiceIds.length;
   const ok = count >= 3;
   return {
     visibleIds: visible.map(a => a.id),
-    executableIds: executable.map(a => a.id),
+    executableIds: [...executable.map(a => a.id), ...storyletChoiceIds],
     lockedVisibleIds: lockedVisible.map(a => a.id),
     count,
     ok,

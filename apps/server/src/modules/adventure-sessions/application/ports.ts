@@ -1,5 +1,5 @@
 import type { AdventureActInput, AdventureView, WorldRevision } from '@novel-game/contracts';
-import type { AdventureState } from '../domain/adventure-state.js';
+import type { AdventureState } from '@novel-game/play-runtime';
 export interface RevisionReader {getRevision(id: string): WorldRevision}
 export interface AdventureRepository {
   insert(state: AdventureState): void;

@@ -49,8 +49,13 @@ export type WorldMapIssueCode = 'poi_unknown_venue' | 'poi_missing_location' | '
   | 'fill_missing_location' | 'fill_unbound_location' | 'fill_duplicate_id' | 'fill_unbound_marker' | 'fill_marker_out_of_bounds' | 'fill_unknown_building';
 export interface WorldMapIssue { level: 'error' | 'warning'; code: WorldMapIssueCode; message: string; locationId?: string; cell?: CellKey }
 
+export type ValidateWorldMapOptions = {
+  /** When provided, fill placements that reference buildingAssetId must exist in this set (error). */
+  buildingAssetIds?: ReadonlySet<string> | readonly string[];
+};
+
 /** Validate POI bindings against the location graph. Map never adds edges; it only reports. */
-export function validateWorldMap(map: WorldMap, locationIds: readonly string[]): WorldMapIssue[] {
+export function validateWorldMap(map: WorldMap, locationIds: readonly string[], opts?: ValidateWorldMapOptions): WorldMapIssue[] {
   const issues: WorldMapIssue[] = [];
   const known = new Set(locationIds);
   const bound = new Set<string>();
@@ -70,7 +75,7 @@ export function validateWorldMap(map: WorldMap, locationIds: readonly string[]):
   const venues = new Set((map.venueTypes ?? []).map(v => v.id));
   for (const poi of map.pois) if (poi.venueType && !venues.has(poi.venueType)) issues.push({ level: 'error', code: 'poi_unknown_venue', locationId: poi.locationId, cell: poi.anchor.cell, message: `地图标记的场所类型未定义：${poi.locationId} → ${poi.venueType}` });
   for (const id of locationIds) if (!bound.has(id)) issues.push({ level: 'warning', code: 'location_unbound', locationId: id, message: `地点尚未放到地图上：${id}` });
-  issues.push(...validateMapFill(map, locationIds));
+  issues.push(...validateMapFill(map, locationIds, opts));
   return issues;
 }
 
@@ -143,13 +148,16 @@ export function assertMapWriteAllowed(
   return { ok: false, reason: '地图结构已锁定：尺寸、地点绑定、地形/区域/势力归属不可改，请先解锁' };
 }
 
-export function validateMapFill(map: WorldMap, locationIds: readonly string[]): WorldMapIssue[] {
+export function validateMapFill(map: WorldMap, locationIds: readonly string[], opts?: ValidateWorldMapOptions): WorldMapIssue[] {
   const issues: WorldMapIssue[] = [];
   const fill = map.fill;
   if (!fill) return issues;
   const known = new Set(locationIds);
   const bound = new Set(map.pois.map(p => p.locationId));
   const seen = new Set<string>();
+  const buildingIds = opts?.buildingAssetIds
+    ? (opts.buildingAssetIds instanceof Set ? opts.buildingAssetIds : new Set(opts.buildingAssetIds))
+    : null;
   for (const p of fill.placements) {
     if (seen.has(p.id)) issues.push({ level: 'error', code: 'fill_duplicate_id', message: `填充项 id 重复：${p.id}` });
     seen.add(p.id);
@@ -159,7 +167,13 @@ export function validateMapFill(map: WorldMap, locationIds: readonly string[]): 
       issues.push({ level: 'warning', code: 'fill_unbound_location', locationId: p.locationId, message: `填充项地点尚未放到地图上：${p.id} → ${p.locationId}` });
     }
     if (p.buildingAssetId) {
-      issues.push({ level: 'warning', code: 'fill_unknown_building', locationId: p.locationId, message: `填充项引用了建筑库资产（库尚未接入）：${p.id} → ${p.buildingAssetId}` });
+      if (buildingIds) {
+        if (!buildingIds.has(p.buildingAssetId)) {
+          issues.push({ level: 'error', code: 'fill_unknown_building', locationId: p.locationId, message: `填充项引用了不存在的建筑库资产：${p.id} → ${p.buildingAssetId}` });
+        }
+      } else {
+        issues.push({ level: 'warning', code: 'fill_unknown_building', locationId: p.locationId, message: `填充项引用了建筑库资产，但校验未提供库：${p.id} → ${p.buildingAssetId}` });
+      }
     }
   }
   for (const m of fill.cellMarkers ?? []) {

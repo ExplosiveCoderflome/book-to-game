@@ -20,6 +20,9 @@ export function createApp(workbench: Workbench, options: HttpOptions) {
   app.use('/api', apiRouter(commands));
   app.use('/mcp', authenticate(options.token), express.json({limit: '8mb'}));
   app.use('/mcp', mcpRouter(commands));
+  if (options.mediaDir && existsSync(options.mediaDir)) {
+    app.use('/media/building-images', express.static(options.mediaDir, { fallthrough: false, index: false, maxAge: '1h' }));
+  }
   if (options.staticDir && existsSync(options.staticDir)) {
     app.use(express.static(options.staticDir, {index: 'index.html'}));
     app.get('/', (_req, res) => res.sendFile(path.join(options.staticDir!, 'index.html')));

@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "player-saves",
+  "description": "The game page may call exactly the four save commands. No shell, http, fs, dialog or other plugins.",
+  "windows": ["main"],
+  "permissions": [
+    "allow-save-list",
+    "allow-save-read",
+    "allow-save-write",
+    "allow-save-delete"
+  ]
+}

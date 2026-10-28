@@ -16,6 +16,7 @@
     "apps/server/**/*.ts",
     "packages/contracts/src/**/*.ts",
     "packages/rules/src/**/*.ts",
+    "packages/play-runtime/src/**/*.ts",
     "scripts/**/*.ts"
   ]
 }

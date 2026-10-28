@@ -14,6 +14,7 @@ export function WorldOverview({ content: w, focusLocationId }: Props) {
   const npc = (id: string) => w.npcs.find(n => n.id === id)?.name ?? id;
   const location = (id: string) => w.locations.find(l => l.id === id)?.title ?? id;
   const truth = (value: boolean) => t(value ? '成立' : '不成立');
+  const resLabel = (id: string) => w.resourceDefs?.[id]?.label ?? id;
   const terrain = (id: string) => w.map?.layers?.terrain?.palette.find(p => p.id === id)?.label ?? id;
   const faction = (id: string) => w.map?.layers?.factions?.factions.find(f => f.id === id)?.name ?? id;
   const condition = (c: WorldCondition): string => c.kind === 'at_terrain' ? t('所在地形为 {list}', { list: c.terrainIds.map(terrain).join('/') })
@@ -23,7 +24,13 @@ export function WorldOverview({ content: w, focusLocationId }: Props) {
     : c.kind === 'npc_at_location' ? t('{npc}在{location}', { npc: npc(c.npcId), location: location(c.locationId) })
     : c.kind === 'time' ? t('耗时至少 {time}', { time: c.atLeast })
     : c.kind === 'npc_knows' ? t('{npc}知道「{fact}」', { npc: npc(c.npcId), fact: fact(c.factId) })
-    : c.kind === 'known' ? t('玩家知道「{fact}」', { fact: fact(c.factId) }) : t('「{fact}」{value}', { fact: fact(c.factId), value: truth(c.value) });
+    : c.kind === 'known' ? t('玩家知道「{fact}」', { fact: fact(c.factId) })
+    : c.kind === 'resource' ? (c.atLeast !== undefined && c.atMost !== undefined ? t('资源 {id} 在 {a}–{b}', { id: resLabel(c.resourceId), a: c.atLeast, b: c.atMost })
+      : c.atMost !== undefined ? t('资源 {id} ≤ {n}', { id: resLabel(c.resourceId), n: c.atMost }) : t('资源 {id} ≥ {n}', { id: resLabel(c.resourceId), n: c.atLeast ?? 0 }))
+    : c.kind === 'clock' ? t('第 {a}–{b} 个月', { a: c.atLeastMonth ?? 0, b: c.atMostMonth ?? '∞' })
+    : c.kind === 'storylet_seen' ? t('经历过「{title}」', { title: w.storylets?.find(s => s.id === c.storyletId)?.title ?? c.storyletId })
+    : c.kind === 'anyOf' ? t('满足其一：{list}', { list: c.conditions.map(condition).join('；') })
+    : t('「{fact}」{value}', { fact: fact(c.factId), value: truth(c.value) });
   const effect = (e: WorldEffect): string => e.kind === 'move' ? t('玩家前往{location}', { location: location(e.locationId) })
     : e.kind === 'npc_move' ? t('{npc}前往{location}', { npc: npc(e.npcId), location: location(e.locationId) })
     : e.kind === 'npc_learn' ? t('{npc}获知「{fact}」', { npc: npc(e.npcId), fact: fact(e.factId) })
@@ -32,6 +39,9 @@ export function WorldOverview({ content: w, focusLocationId }: Props) {
     : e.kind === 'set_faction_relation' ? t('{a} 与 {b} 关系变化 {detail}', { a: faction(e.a), b: faction(e.b), detail: [e.stance ? t(STANCE_LABEL[e.stance]) : '', e.standing !== undefined ? `=${e.standing}` : '', e.standingDelta ? (e.standingDelta > 0 ? `+${e.standingDelta}` : String(e.standingDelta)) : ''].filter(Boolean).join(' ') })
     : e.kind === 'resource' ? t('资源 {id} {delta}', { id: e.resourceId, delta: e.delta > 0 ? `+${e.delta}` : String(e.delta) })
     : e.kind === 'start_encounter' ? t('开始遭遇（桩）{label}', { label: e.label ? ` · ${e.label}` : (e.placementId ? ` · ${e.placementId}` : '') })
+    : e.kind === 'resource_max' ? t('{id} 上限 {detail}', { id: resLabel(e.resourceId), detail: e.set !== undefined ? `=${e.set}` : (e.delta ?? 0) > 0 ? `+${e.delta}` : String(e.delta) })
+    : e.kind === 'ending' ? t('结局「{title}」', { title: w.endings.find(x => x.id === e.endingId)?.title ?? e.endingId })
+    : e.kind === 'roll' ? t('判定 {chance}：成功 {success}；失败 {failure}', { chance: `${Math.round(e.chance.base * 100)}%`, success: e.success.map(effect).join('，') || '—', failure: e.failure.map(effect).join('，') || '—' })
     : t('「{fact}」变为{value}', { fact: fact(e.factId), value: truth(e.value) });
   const provenance = (v: { origin: 'source' | 'adapted'; evidence: { chapterId: string; paragraphId: string }[] }) => <div className="hint">{t(v.origin === 'source' ? '依据原作' : '改编新增')} · {t('{count} 处证据', { count: v.evidence.length })}{v.evidence.length > 0 && <details><summary>{t('证据标识')}</summary>{v.evidence.map((e, i) => <div key={i}><code>{e.chapterId} / {e.paragraphId}</code></div>)}</details>}</div>;
 

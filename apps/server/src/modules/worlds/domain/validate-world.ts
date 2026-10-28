@@ -1,6 +1,9 @@
 import {SYSTEM_WAIT_ACTION_ID, validateWorldbookContent, type WorldContent, type WorldCondition, type WorldEffect, type SourceDocument, type ValidationResult} from '@novel-game/contracts';
-import {assessOpeningActions, mapIdOf, validateSubMaps, validateWorldLayer, validateWorldMap, worldFactions, worldMaps} from '@novel-game/rules';
-export function validateWorld(world: WorldContent, source: SourceDocument): ValidationResult {
+import {assessOpeningActions, mapIdOf, validateS1References, walkWorldLogic, validateSubMaps, validateWorldLayer, validateWorldMap, worldFactions, worldMaps} from '@novel-game/rules';
+export type ValidateWorldOptions = {
+  buildingAssetIds?: ReadonlySet<string> | readonly string[];
+};
+export function validateWorld(world: WorldContent, source: SourceDocument, opts?: ValidateWorldOptions): ValidationResult {
   const errors: string[] = []; const warnings: string[] = [];
   function ids(entries: {id: string}[], category: string): Set<string> {
     const result = new Set<string>();
@@ -48,7 +51,7 @@ export function validateWorld(world: WorldContent, source: SourceDocument): Vali
       if (item.kind === 'time' && item.atLeast > world.timeLimit) warnings.push(`${owner} 的时间条件超过时限`);
     }
   }
-  const resourceIds = new Set(Object.keys(world.resources ?? {}));
+  const resourceIds = new Set([...Object.keys(world.resources ?? {}), ...Object.keys(world.resourceDefs ?? {})]);
   function effects(items: WorldEffect[], owner: string): void {
     for (const item of items) {
       if (item.kind === 'set' || item.kind === 'reveal' || item.kind === 'npc_learn') reference(facts, item.factId, owner, '事实');
@@ -86,6 +89,11 @@ export function validateWorld(world: WorldContent, source: SourceDocument): Vali
   }
   for (const event of world.events) {conditions(event.when, `事件 ${event.id}`); effects(event.effects, `事件 ${event.id}`);}
   for (const ending of world.endings) conditions(ending.when, `结局 ${ending.id}`);
+  if (world.resourceDefs || world.clock || world.storylets) {
+    // S1: fact / NPC / location refs inside storylets, anyOf members, roll branches, thresholds and clock rules.
+    walkWorldLogic(world, (c, owner) => { if (c.kind !== 'anyOf') conditions([c], owner); }, (e, owner) => { if (e.kind !== 'roll' && e.kind !== 'resource' && e.kind !== 'resource_max') effects([e], owner); });
+    for (const issue of validateS1References(world)) (issue.level === 'error' ? errors : warnings).push(issue.message);
+  }
   // Hard gate: ≥3 immediately executable non-wait actions at start (availableWhen + requires).
   const opening = assessOpeningActions(world);
   if (!opening.ok) {
@@ -124,6 +132,6 @@ export function validateWorld(world: WorldContent, source: SourceDocument): Vali
   warnings.push(...wb.warnings);
   for (const issue of validateSubMaps(world)) (issue.level === 'error' ? errors : warnings).push(issue.message);
   for (const issue of validateWorldLayer(world)) (issue.level === 'error' ? errors : warnings).push(issue.message);
-  if (world.map) for (const issue of validateWorldMap(world.map, world.locations.map(l => l.id).filter(id => !(world.subMaps ?? []).some(m => m.pois.some(p => p.locationId === id))))) (issue.level === 'error' ? errors : warnings).push(issue.message);
+  if (world.map) for (const issue of validateWorldMap(world.map, world.locations.map(l => l.id).filter(id => !(world.subMaps ?? []).some(m => m.pois.some(p => p.locationId === id))), opts?.buildingAssetIds ? { buildingAssetIds: opts.buildingAssetIds } : undefined)) (issue.level === 'error' ? errors : warnings).push(issue.message);
   return {valid: errors.length === 0, errors, warnings};
 }

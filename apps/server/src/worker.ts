@@ -10,7 +10,7 @@ const config = loadConfig();
 const db = openDatabase(config.databasePath);
 const settings = createModelSettings(db, config.dataDir, config.provider);
 const logger = createLogger(config.dataDir, 'worker');
-const workbench = createWorkbench(db, settings, logger, {repairAttempts: config.provider.repairAttempts ?? 3});
+const workbench = createWorkbench(db, settings, logger, {repairAttempts: config.provider.repairAttempts ?? 3, dataDir: config.dataDir});
 const shutdown = new AbortController();
 process.on('SIGINT', () => shutdown.abort()); process.on('SIGTERM', () => shutdown.abort());
 logger.info('worker.started');

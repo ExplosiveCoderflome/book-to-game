@@ -61,3 +61,25 @@ test('architecture guard keeps map-kind plugins behind map-kinds/index', () => {
   ]);
   assert.equal(v.length, 2);
 });
+
+test('M1b: play-runtime is browser-safe and sits above contracts/rules', () => {
+  const bad = checkImports([
+    {file: 'packages/play-runtime/src/story/advance-session.ts', imports: ['node:crypto']},
+    {file: 'packages/rules/src/fill-actions.ts', imports: ['@novel-game/play-runtime']},
+    {file: 'packages/contracts/src/index.ts', imports: ['../../play-runtime/src/index.js']},
+  ]);
+  assert.equal(bad.length, 3);
+  assert.deepEqual(checkImports([
+    {file: 'packages/play-runtime/src/adventure/rules.ts', imports: ['@novel-game/contracts', '@novel-game/rules', './adventure-state.js']},
+    {file: 'apps/server/src/modules/sessions/application/session-service.ts', imports: ['@novel-game/play-runtime']},
+  ]), []);
+});
+
+test('M1b: one play engine — server keeps no copy of advance/project/start engine files', async () => {
+  const { readdirSync, existsSync } = await import('node:fs');
+  for (const dir of ['apps/server/src/modules/sessions/domain', 'apps/server/src/modules/adventure-sessions/domain']) {
+    if (!existsSync(dir)) continue;
+    const engineLike = readdirSync(dir).filter(name => /^(advance|project|start|rules|session-state|adventure-state|story-variables|map-view|system-actions)/.test(name));
+    assert.deepEqual(engineLike, [], `${dir} must import the engine from @novel-game/play-runtime`);
+  }
+});

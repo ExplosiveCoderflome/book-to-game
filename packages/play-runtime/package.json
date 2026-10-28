@@ -1,0 +1,14 @@
+{
+  "name": "@novel-game/play-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./sim": "./src/sim/index.ts"
+  },
+  "dependencies": {
+    "@novel-game/contracts": "*",
+    "@novel-game/rules": "*"
+  }
+}

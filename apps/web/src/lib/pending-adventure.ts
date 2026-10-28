@@ -1,4 +1,5 @@
 import { adventureActSchema, type AdventureActInput } from '@novel-game/contracts';
+import { newRequestId } from './request-id';
 export interface PendingAdventureValue { sessionId: string; input: AdventureActInput }
 export const adventurePendingKey = 'novel-game.pending-adventure';
 export function restoreAdventure(storage: Pick<Storage, 'getItem'>): PendingAdventureValue | null {
@@ -15,7 +16,7 @@ export class PendingAdventure {
       if (this.value.sessionId !== sessionId || this.value.input.actionId !== actionId) throw new Error('上一行动结果尚未确认，请先重试。');
       return this.value.input;
     }
-    const input = {actionId, expectedTurn, requestId: crypto.randomUUID()};
+    const input = {actionId, expectedTurn, requestId: newRequestId()};
     this.value = {sessionId, input}; return input;
   }
   confirm() { this.value = null; }

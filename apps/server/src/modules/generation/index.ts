@@ -1,6 +1,8 @@
 export { JobService } from './application/job-service.js';
-export { GenerationRunner } from './application/runner.js';
+export { GenerationRunner, generationProvenance, isMockModel } from './application/runner.js';
+export { ProvenanceTracer, type TracedProvenance } from './application/provenance-trace.js';
+export { JsonlModelLogReader } from './infrastructure/jsonl-model-log-reader.js';
 export { SqliteJobRepository } from './infrastructure/sqlite-job-repository.js';
-export type { GenerationProvider, ModelRepairFeedback, ModelRepairIssue, SourceChunk, DraftWriter, WorldDraftWriter, WorldGenerationOptions } from './domain/ports.js';
+export type { GenerationProvider, ModelRepairFeedback, ModelRepairIssue, SourceChunk, DraftWriter, WorldDraftWriter, WorldGenerationOptions, ModelLogEvent, ModelLogReader } from './domain/ports.js';
 export { extendDraftScene } from './application/extend-scene-service.js';
 export { fillDraftSceneText } from './application/fill-scene-text.js';

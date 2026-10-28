@@ -1,0 +1,37 @@
+[package]
+name = "btg-player"
+version = "0.1.0"
+description = "Book-to-Game offline Windows player: a thin Tauri shell around the exported HTML (M1b-2)"
+edition = "2021"
+publish = false
+# Built ONLY on Windows / CI (see README). The author machine never compiles this:
+# export = this prebuilt exe + the M1b-1 HTML byte-for-byte + a 52-byte footer.
+
+[[bin]]
+name = "btg-player"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", default-features = false, features = ["wry", "common-controls-v6", "custom-protocol"] }
+# `custom-protocol` = production context without tauri-cli, so a plain `cargo build --release` is a release build.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+  "Win32_Globalization",
+  "Win32_UI_WindowsAndMessaging",
+  "Win32_UI_Shell",
+  "Win32_System_SystemInformation",
+] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

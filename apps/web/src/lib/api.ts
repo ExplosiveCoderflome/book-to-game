@@ -11,10 +11,8 @@ export async function request<T>(token: string, path: string, method = 'GET', bo
     const headers: Record<string, string> = {};
     if (token) headers.Authorization = `Bearer ${token}`;
     if (body !== undefined) headers['Content-Type'] = 'application/json';
-    const timeout = AbortSignal.timeout(30000);
-    const signal = options?.signal
-      ? (typeof AbortSignal.any === 'function' ? AbortSignal.any([timeout, options.signal]) : options.signal)
-      : timeout;
+    // If caller passed a signal (e.g. long image gen), honor it alone — do not clamp to 30s.
+    const signal = options?.signal ?? AbortSignal.timeout(30_000);
     response = await fetch(`/api${path}`, {
       method, headers,
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}), signal,
