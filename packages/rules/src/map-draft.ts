@@ -20,7 +20,13 @@ export function slugId(name: string, taken: Set<string>, prefix: string): string
   let id = base; let i = 2; while (taken.has(id)) id = `${base}_${i++}`;
   taken.add(id); return id;
 }
-const norm = (s: string) => s.trim().toLowerCase();
+const norm = (s: string) => s.trim().toLowerCase().replace(/[\s·・,，。]/g, '').replace(/^(那|这)?(个|座|间|片)?/, '');
+/** Exact name, else a unique fuzzy hit (one name contains the other, ≥2 chars): "旧仓库" ↔ "北边的旧仓库". */
+function lookup<V>(m: Map<string, V>, name: string): V | undefined {
+  const k = norm(name); if (m.has(k)) return m.get(k); if (k.length < 2) return undefined;
+  const hits = [...m.keys()].filter(x => x.length >= 2 && (x.includes(k) || k.includes(x)));
+  return hits.length === 1 ? m.get(hits[0]) : undefined;
+}
 
 export function planMapDraft(world: WorldContent, out: MapDraftModelOutput): MapDraftDiff {
   const items: MapDraftItem[] = []; const warnings: string[] = [];
@@ -30,11 +36,11 @@ export function planMapDraft(world: WorldContent, out: MapDraftModelOutput): Map
   const factionByName = new Map(worldFactions(world).map(f => [norm(f.name), f.id]));
   const used = worldFactions(world).length;
   for (const f of out.factions) {
-    if (factionByName.has(norm(f.name))) continue;
+    if (lookup(factionByName, f.name)) continue;
     const id = slugId(f.name, ids, 'faction'); factionByName.set(norm(f.name), id);
     items.push({ id: `faction:${id}`, kind: 'faction', label: f.name, faction: { id, name: f.name, color: PALETTE[(used + items.length) % PALETTE.length], ...(f.description ? { description: f.description } : {}) } });
   }
-  const factionOf = (n?: string) => { if (!n) return undefined; const id = factionByName.get(norm(n)); if (!id) warnings.push(`未知势力「${n}」已忽略`); return id; };
+  const factionOf = (n?: string) => { if (!n) return undefined; const id = lookup(factionByName, n); if (!id) warnings.push(`未知势力「${n}」已忽略`); return id; };
   // locations: existing by title, else new
   const locByName = new Map(world.locations.map(l => [norm(l.title), l.id]));
   const occupied = new Map<string, string>(); const cellOf = new Map<string, string>();
@@ -55,9 +61,9 @@ export function planMapDraft(world: WorldContent, out: MapDraftModelOutput): Map
   ordered.push(...pending);
   let free = 0;
   for (const l of ordered) {
-    const existingId = locByName.get(norm(l.name));
+    const existingId = lookup(locByName, l.name);
     if (existingId && cellOf.has(existingId)) continue; // already placed: nothing to propose
-    const anchorId = l.relativeTo ? locByName.get(norm(l.relativeTo)) : undefined;
+    const anchorId = l.relativeTo ? lookup(locByName, l.relativeTo) : undefined;
     const anchorCell = anchorId ? parseCellKey(cellOf.get(anchorId) ?? '') : null;
     if (l.relativeTo && !anchorCell) warnings.push(`「${l.name}」的参照地点「${l.relativeTo}」未知，改为就近放置`);
     const v = DIR[l.direction ?? 'near']; const k = l.direction === 'inside' ? 0 : (l.distance ?? 2);
@@ -74,14 +80,14 @@ export function planMapDraft(world: WorldContent, out: MapDraftModelOutput): Map
   }
   const npcByName = new Set(world.npcs.map(n => norm(n.name)));
   for (const n of out.npcs) {
-    if (npcByName.has(norm(n.name))) continue;
-    const locationId = locByName.get(norm(n.location)); if (!locationId) { warnings.push(`人物「${n.name}」所在地点「${n.location}」未知，已跳过`); continue; }
+    if (lookup(new Map([...npcByName].map(x => [x, true])), n.name)) continue;
+    const locationId = lookup(locByName, n.location); if (!locationId) { warnings.push(`人物「${n.name}」所在地点「${n.location}」未知，已跳过`); continue; }
     const id = slugId(n.name, ids, 'npc'); npcByName.add(norm(n.name)); const factionId = factionOf(n.faction);
     items.push({ id: `npc:${id}`, kind: 'npc', label: n.name, npc: { id, name: n.name, description: n.description || n.name, locationId, ...(factionId ? { factionId } : {}) } });
   }
   const moves = new Set(world.actions.flatMap(a => a.effects.filter(e => e.kind === 'move').map(e => `${a.locationId}>${(e as { locationId: string }).locationId}`)));
   for (const r of out.routes) {
-    const from = locByName.get(norm(r.from)), to = locByName.get(norm(r.to));
+    const from = lookup(locByName, r.from), to = lookup(locByName, r.to);
     if (!from || !to || from === to) { warnings.push(`路线「${r.from} → ${r.to}」端点未知，已跳过`); continue; }
     if (moves.has(`${from}>${to}`)) continue; moves.add(`${from}>${to}`);
     items.push({ id: `route:${from}>${to}`, kind: 'route', label: `${r.from} → ${r.to}`, from, to });

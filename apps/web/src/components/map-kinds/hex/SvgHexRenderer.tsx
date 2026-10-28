@@ -61,8 +61,10 @@ export const SvgHexRenderer = memo(forwardRef<HexRendererHandle, HexRendererProp
   const regionLabels = useMemo(() => {
     if (!map.layers?.regions) return [];
     const cents = layerCentroids(map, 'region', key => { const a = parseCellKey(key); return a ? hexToPixel(g, a) : null; });
-    return map.layers.regions.regions.flatMap(r => { const c = cents.get(r.id); return c ? [{ id: r.id, name: r.name, x: c.x, y: c.y, n: c.n }] : []; });
-  }, [map.layers?.regions, g]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Play fog: a region's label only shows once one of its cells is explored (no spatial spoilers).
+    const hidden = state.play?.hiddenCells; const seen = hidden ? new Set(Object.entries(map.layers.regions.cells).filter(([k]) => !hidden.has(k)).map(([, r]) => r)) : undefined;
+    return map.layers.regions.regions.flatMap(r => { const c = cents.get(r.id); return c && (!seen || seen.has(r.id)) ? [{ id: r.id, name: r.name, x: c.x, y: c.y, n: c.n }] : []; });
+  }, [map.layers?.regions, g, state.play?.hiddenCells]); // eslint-disable-line react-hooks/exhaustive-deps
   const brush = state.brushCells.map(k => topo.byKey.get(k)?.points).filter((p): p is string => !!p);
   const layerMode = mode !== 'poi';
   return <svg ref={svgRef} className="branch-canvas-svg" width="100%" height="100%" data-renderer="svg" style={{ ['--map-label' as string]: `${labelWorldSize(view.zoom)}px` }}>

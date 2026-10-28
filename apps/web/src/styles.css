@@ -3050,3 +3050,6 @@ summary:focus:not(:focus-visible) {
 .mdr-item:has(.mdr-swatch) { grid-template-columns: 18px 12px auto 1fr; }
 .mdr-label { font-weight: 600; }
 .import-undo-strip { display: flex; gap: 6px; align-items: center; padding: 4px 8px; background: #fff6ec; border-radius: 6px; margin: 4px 0; }
+/* full-width play: reading column fills, map column gets the rest */
+.play-layout.with-map { grid-template-columns: 260px minmax(520px, 1fr) minmax(560px, 1.15fr); }
+.play-layout.with-map .reading-page { max-width: none; }

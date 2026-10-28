@@ -1,6 +1,6 @@
 import { lazy, Suspense, useMemo, useRef, useState, type DragEvent } from 'react';
 import { MAP_SIZE_PRESETS, MAP_TEMPLATES, getMapTemplate, mapSizePreset } from '@novel-game/contracts';
-import { parseCellKey, validateWorldMap } from '@novel-game/rules';
+import { mapIdOf, parseCellKey, validateWorldMap, worldMaps } from '@novel-game/rules';
 import { useI18n } from '../../lib/i18n';
 import { applyMapTemplate, createEmptyMap, resizeMap, resizeMapEdge, setPoiVenueType, unbindLocation, type MapEdge } from '../../lib/world-map';
 import { layerPalette } from '../../lib/world-map-edit';
@@ -30,6 +30,8 @@ export function HexMapEditor(props: MapEditorProps) {
   const zoomRef = useRef<HTMLSpanElement | null>(null);
   const c = useHexMapController(props, viewportRef, rendererRef, zoomRef);
   const { map, mode, setMode, tool, setTool, brush, setBrush, setActive, activeId, hist, undo, redo, commit, fit, autoFit, cursorCell, selectedCell, selectedPoiCell, layerMode, renderState } = c;
+  /** Locations already anchored on another map (root ↔ sub-maps) are not offered in this map's tray. */
+  const placedElsewhere = useMemo(() => new Set(worldMaps(content).filter(m => mapIdOf(m) !== (map ? mapIdOf(map) : '')).flatMap(m => m.pois.map(p => p.locationId))), [content, map]);
   const titles = useMemo(() => new Map(content.locations.map(l => [l.id, l.title])), [content.locations]);
   const factionOf = useMemo(() => new Map(Object.entries(map?.layers?.factions?.cells ?? {})), [map?.layers?.factions]);
   const regionOf = useMemo(() => new Map(Object.entries(map?.layers?.regions?.cells ?? {})), [map?.layers?.regions]);
@@ -164,7 +166,7 @@ export function HexMapEditor(props: MapEditorProps) {
         </> : <>
           <p className="world-map-tray-label">{t('拖动地点到格子上绑定')}</p>
           <ul>
-            {content.locations.map(l => {
+            {content.locations.filter(l => !placedElsewhere.has(l.id)).map(l => {
               const isBound = bound.has(l.id);
               return <li key={l.id} draggable={!readOnly} onDragStart={e => startDrag(e, l.id)} data-testid={`map-tray-${l.id}`}
                 className={`${isBound ? 'bound' : 'unbound'}${l.id === selectedLocationId ? ' selected' : ''}${problemLocations.has(l.id) ? ' problem' : ''}`}

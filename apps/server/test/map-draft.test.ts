@@ -70,3 +70,12 @@ test('extractMapDraft (mock provider) is read-only and uses source chapters when
     assert.deepEqual(worlds.get(draft.id).content, draft.content);
   } finally { db.close(); }
 });
+
+test('fuzzy name match: "旧仓库" reuses existing "北边的旧仓库" instead of duplicating', () => {
+  const w = content(); delete w.map;
+  w.locations[1] = { ...w.locations[1], title: '北边的旧仓库' };
+  const diff = planMapDraft(w, mapDraftModelOutputSchema.parse({ locations: [{ name: '旧仓库' }], npcs: [{ name: '新人', location: '旧仓库' }] }));
+  const loc = diff.items.find(i => i.kind === 'location');
+  assert.ok(loc && loc.kind === 'location' && loc.existing && loc.location.id === w.locations[1].id);
+  const npc = diff.items.find(i => i.kind === 'npc'); assert.ok(npc && npc.kind === 'npc' && npc.npc.locationId === w.locations[1].id);
+});
