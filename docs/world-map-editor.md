@@ -1,6 +1,7 @@
 # 世界地图编辑器：调研与设计（地图 · 地形 · 势力分布）
 
-> 状态：M1 已实现（2026-10-27）：`contracts/world-map.ts`、`rules/world-map.ts`（六边形数学 + `validateWorldMap`）、`WorldMapCanvas` 地图/分屏模式。M2–M4 仍为设计稿。  
+> 状态：M1+ 多期已落地（静态地图、地形/势力/区域、试玩迷雾、子地图、AI 结构草稿等）；§7 早期 M2–M4 表保留作历史对照。  
+> **§9 地图确认 → 内容填充 → 建筑库：仅规划（2026-10-28），无功能代码。**  
 > 约束来源：[`extensibility.md`](./extensibility.md)（五层分离）· [`architecture.md`](./architecture.md)。  
 > 核心原则：**地图是共享基底上的一层可选数据，不是新运行时**。没有地图的世界照常可玩。
 
@@ -182,3 +183,151 @@ WorldMap = {
 - 新建地图时可选；对已有地图「套用」只补缺失 id，不改名不删除（`applyMapTemplate`）。不按小说自动判定题材。`map.mapTemplate` 仅为作者元数据，规则不读。
 - POI 可选 `venueType`，须出现在 `map.venueTypes` 中，否则校验报 `poi_unknown_venue`。
 - 尺寸：预设 + 按任一边扩缩；左/上扩缩会平移全部格子与 POI（`resizeMapEdge`/`shiftMap`），越界内容保留并报警，不静默删除。
+
+---
+
+## 9. 地图确认 → 内容填充 → 建筑库（规划 · 未实现）
+
+> 状态：**仅设计**（作者已口头认可流水线与建筑库方向，2026-10-28）。**无功能代码**。  
+> 与 §7 M1–M4、题材地图模板、城市子地图正交：本段管的是「结构定稿之后」往地图上挂遭遇 / 商店 / 补给 / 任务等内容，以及跨城镇复用的**建筑库（Building Library）**编目。  
+> 纪律对齐 [`extensibility.md`](./extensibility.md)：Catalog 编译下行；AI 只出草稿；玩时只经 locations / conditions / effects。
+
+### 9.1 约定流水线（Agreed pipeline）
+
+| 步 | 名称 | 作者做什么 | 系统约束 |
+|---|---|---|---|
+| **1** | **建底图（Build base map）** | 空白或套用地图模板 → 调尺寸 → 画地形 / 区域 / 势力 → 放地点并绑定地点图；道路与路程消耗属**结构层**（见 §9.3） | 未确认前**不开放**遭遇 / 商店 / 任务等填充层；也**不**跑此类 AI |
+| **2** | **确认 / 锁定结构（Confirm / lock）** | 作者显式「确认地图」或「锁定结构」 | **硬锁**结构字段（见 §9.3）；要改结构须先「解锁」 |
+| **3** | **内容填充（Content fill）** | 确认后：手摆或生成野外遭遇 & Boss；城镇商店、补给点、任务点 | 填充层可编辑；默认挂在地点上；可选格 / 路段标记见 §9.3 |
+| **4** | **AI 填充草稿（AI fill drafts）** | 仅确认后可用；审核面板逐条接受 / 拒绝 | AI **不得**改结构、**不得**写 session；只经草稿写入端口；与规则引擎外的状态突变一律禁止 |
+| **5** | **建筑库复用（Building library）** | 首次生成默认入库；后续从库复用或派生改造；回写库须显式新变体 | 放置 = `libraryRef` + 本地覆盖；玩时仍走地点 / 条件 / 效果，库不进存档逻辑 |
+
+```text
+[底图结构] --确认锁定--> [填充层可编辑]
+                              |-- 手摆
+                              |-- AI 草稿（accept/reject）
+                              '-- 建筑库：引用 / 派生 / 显式升格变体
+```
+
+### 9.2 建筑库（Building Library）— Catalog 资产
+
+与数值模板（`STAT_TEMPLATES`）、题材地图模板（`map-templates`）**同层**：共享编目里的可复用资产，**不是**新运行时。
+
+**一条建筑资产（BuildingAsset，示意）大致包含：**
+
+| 字段组 | 内容 |
+|---|---|
+| 身份 | `id` · `version` · `label` · 可选 `tags`（杂货铺 / 铁匠 / 客栈…） |
+| 种类 `kind` | `shop` · `supply` · `quest_board` · `encounter_entrance` · …（闭集，contracts 扩展） |
+| 呈现 | 显示名、图标 / 标记样式、可选简介 |
+| 默认互动 | 编译下行到条件 / 效果草稿（购买、补给、接任务、开战桩…） |
+| 默认库存 / 掉落草稿 | 可选；须落在现有 variables / items 形状上 |
+| 世界书 | 可选关联标签 / 条目 id |
+| 出处 | provenance（首次从哪张地图 / 哪次 AI 草稿入库） |
+
+**放置（Placement）** = `{ buildingAssetId, version?, localOverrides }`，挂在地点（主路径）或可选的格 / 路段标记上。覆写只影响这一次放置，**不**静默改库本体。
+
+**库 vs 世界实例**
+
+| | 建筑库 | 地图上的建筑 |
+|---|---|---|
+| 范围 | 编目（跨世界 / 跨城镇复用） | 某世界某地图上的一次放置 |
+| 变更 | 显式新建变体 / bump version | 本地覆盖或换引用 |
+| 玩时 | 不直接读 | 经地点行动 + 条件 / 效果求值 |
+
+### 9.3 已拍板默认值（Decided defaults）
+
+作者对「可以」未逐项细定处，文档**固定为下列默认**（实现时按此，变更须改本文）：
+
+| 议题 | 默认 |
+|---|---|
+| **库范围 v1** | **当前项目 / 工作区编目**（workspace catalog）。schema 预留日后 import / export 资产包字段；**不做**跨项目市场或云端资产店。 |
+| **入库时机** | **首次生成 / 创建默认写入建筑库**（UI 可取消勾选「加入库」）；另提供手动「加入库」。 |
+| **同名冲突** | **自动后缀变体**（如 `杂货铺 · 2`），UI 明示；**禁止**静默覆盖或静默改名已有资产。 |
+| **回写库** | 仅「升格为新变体 / 新版本」；禁止把本地覆盖悄悄写回原 `id`+`version`。 |
+| **确认锁定** | **硬锁**结构字段：尺寸、地点绑定、地形 / 区域 / 势力格归属（及已纳入结构层的道路）。锁定后只允许编辑**填充层**；改结构必须先解锁。 |
+| **填充挂点** | **以地点为主**；允许可选的**格 / 路段标记**（map-only），未绑定地点时校验**警告**（不为错误），结构预留给后续「路上遇怪」等。 |
+| **道路 / 路程** | 属**结构层**，理想上在确认前完成；可排在实现分期稍后（不阻塞填充 MVP）。 |
+| **战斗** | **桩效果**即可：如 `start_encounter` → 写 variables / flags；**不**新建战斗 runtime。完整战斗引擎另立项。 |
+
+### 9.4 推荐但仍可调的边界（Open-but-recommended）
+
+下列与 §9.3 一致，实现前若要改须显式改文档：
+
+1. **解锁 UX**：解锁时提示「将暂停填充 AI；已放置内容保留，结构改动可能导致悬空引用 → 校验列出」。
+2. **AI 填充范围**：默认一次按类生成（遭遇 / 城镇设施分轨），审核面板分类展示；可配置「全出后分类审」。
+3. **与地图 AI 草稿（M4）分工**：M4 提结构（势力 / 地理 / POI）；本节 AI **只**在确认后提填充与建筑资产草稿，不改格子与绑定。
+4. **迷雾与图标**：试玩中填充图标受既有迷雾约束；未探索不剧透 Boss / 商店（可作者开关）。
+
+### 9.5 层归属（五层对照）
+
+| 层 | 本功能落点 |
+|---|---|
+| Substrate | 地点、条件 / 效果种类（含 `start_encounter` 桩）、会话 overlay；地图结构字段与 `structureLocked` 元数据 |
+| Catalog | **Building Library**、地图 / 数值模板；填充种类与默认互动的编目快照 |
+| AI adapters | `propose-map-fill` / `propose-building` → **草稿 diff**；禁止直写 SQLite / session |
+| Authoring UI | 确认 / 解锁、填充图层面板、建筑库浏览器、草稿审核（accept / reject） |
+| Transport | 确认、放置、入库、升格变体、AI 提案等进入共用命令表 |
+
+### 9.6 数据形状（提案，非实现）
+
+```ts
+// WorldMap 增补（示意）
+structureLocked?: boolean          // 确认后 true；解锁清空或保留由命令显式处理
+structureLockedAt?: string         // ISO，可选
+fill?: {
+  placements: MapFillPlacement[]   // 商店/补给/任务/遭遇等
+  cellMarkers?: MapCellMarker[]    // 可选：未绑地点的格标记（警告级）
+  routeMarkers?: MapRouteMarker[]  // 可选：路段遇怪等
+}
+
+MapFillPlacement = {
+  id: string
+  kind: 'shop' | 'supply' | 'quest' | 'encounter' | 'boss' | string // 闭集以 contracts 为准
+  locationId: string               // 主路径：必须是已绑定 POI 的地点
+  buildingAssetId?: string         // 建筑库引用；遭遇类可空
+  buildingAssetVersion?: number
+  localOverrides?: Record<string, unknown>  // 显示名/库存/条件效果覆写
+  // 编译下行后的可玩切片：actions / conditions / effects 引用或内联草稿
+}
+
+// Catalog（工作区级，v1）
+BuildingLibrary = {
+  schemaVersion: 1
+  assets: BuildingAsset[]
+  // 预留：exportManifest? / packId? — 跨项目包，v1 不实现
+}
+```
+
+校验要点（规划）：锁定后拒绝结构写命令；`buildingAssetId` 必须存在于库；本地覆盖不得暗含改库；未绑定地点的 cell/route 标记 → warning；悬空 `locationId` → error。
+
+### 9.7 与现有能力的衔接
+
+| 已有 | 衔接方式 |
+|---|---|
+| 地点图 + `move` | 仍为移动真相；填充不自动造边 |
+| `venueType` / 地图模板 | 城镇填充可按场所类型过滤库资产；模板可带「推荐建筑标签」种子 |
+| 世界书 regions / location scope | 商店 / 任务点可关联条目；Boss 区域可绑 `regions` |
+| 势力关系 / 领土 overlay | 遭遇难度或商店库存可**读**势力关系条件；不新开状态机 |
+| AI 地图草稿（已实现审阅面板） | 复用 accept / reject / 依赖序 / 可撤销导入 UX；命令与 prompt **分轨**（structure vs fill） |
+| KindRegistry | 新 condition / effect（如 `start_encounter`）走 contracts → rules register → 双运行时包装清单 |
+
+### 9.8 实现分期（outline only · M-fill-*）
+
+| 阶段 | 内容 | 验收（规划） |
+|---|---|---|
+| **M-fill-1 确认锁 + 填充骨架** | `structureLocked`；结构写拒绝；填充 placement 挂地点；编辑器确认 / 解锁 UX；校验 warning/error | 未确认不能开填充层；锁定后改尺寸 / 绑定失败；无地图世界零回归 |
+| **M-fill-2 建筑库 v1** | 工作区 `BuildingLibrary` CRUD；创建默认入库（可取消）；手动「加入库」；同名 → `· 2` 后缀；放置 = ref + overrides；显式「升格变体」 | 无静默覆盖；跨城镇引用同一资产；覆写不改库 |
+| **M-fill-3 种类与桩效果** | shop / supply / quest / encounter / boss 闭集；`start_encounter` 等桩 effect；试玩图标 + 迷雾 | 互动只经规则引擎；无独立战斗 runtime |
+| **M-fill-4 AI 填充草稿** | 确认后 `propose-map-fill`；分类审阅；默认入库勾选；不改结构 | AI 不写 session；拒绝后零残留；provenance 可追溯 |
+| **M-fill-5 格/路段标记 + 道路结构（可选后置）** | cell/route markers（警告级）；道路 / 路程进结构层并纳入锁定 | 路上遇怪可无地点；路程消耗进数值模板 |
+
+**刻意不做（本规划范围外）**：完整战斗 / 回合制；跨项目资产市场；确认前 AI 自动铺怪铺店；填充写进地图图片生成真值（出图仍只读结构 + 示意层）。
+
+### 9.9 风险（本段追加）
+
+1. **未确认就生成** → 产品上禁用入口；命令表双检。  
+2. **库与放置双真相** → 放置只存 ref + overrides；展示合并；回写必须新变体。  
+3. **结构解锁后悬空填充** → 校验列悬空 placement；不自动删除（作者决策）。  
+4. **战斗范围蔓延** → 效果种类名与文档写明 stub；UI 文案避免暗示完整战斗。  
+5. **Catalog 膨胀** → v1 仅工作区；资产包 / 市场另开章程条款。

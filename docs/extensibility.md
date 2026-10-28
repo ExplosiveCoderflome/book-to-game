@@ -4,7 +4,7 @@
 > **所有构建必须保证低耦合与高延伸性。**  
 > 本文是对 [`architecture.md`](./architecture.md) 模块边界的**演进约束**补充；日常 PR 以本文清单自检。
 
-相关文档：[`stat-templates.md`](./stat-templates.md)（数值模板编目）· [`if-editor-patterns.md`](./if-editor-patterns.md)（传统 IF 用法映射）· [`world-map-editor.md`](./world-map-editor.md)（世界地图/地形/势力层设计）。
+相关文档：[`stat-templates.md`](./stat-templates.md)（数值模板编目）· [`if-editor-patterns.md`](./if-editor-patterns.md)（传统 IF 用法映射）· [`world-map-editor.md`](./world-map-editor.md)（世界地图/地形/势力层设计；含 §9 内容填充与**建筑库**规划）。
 
 ---
 
@@ -25,7 +25,7 @@
 | 层 | 职责 | 可变速度 | 硬禁止 |
 |---|---|---|---|
 | **1. Substrate（基底）** | 图节点/边、`variables` + conditions/effects、世界书约束、sessions / adventure-sessions 规则引擎 | 慢 | 题材 `if/else`；domain 导入 LLM / React / Express / SQL |
-| **2. Catalog / templates（编目）** | 数值模板、未来题材包、可玩性启发式配置 | 中 | 自建并行状态机；输出必须**编译下行**到 Substrate |
+| **2. Catalog / templates（编目）** | 数值模板、地图模板、**建筑库（Building Library，规划见 world-map-editor §9）**、未来题材包、可玩性启发式配置 | 中 | 自建并行状态机；输出必须**编译下行**到 Substrate；库资产禁止静默改名/覆盖 |
 | **3. AI adapters（可替换）** | generate / narrate / propose-act / fill-text / 天道 prompt | 快 | 直接写 SQLite / 绕过规则端口提交状态；换模型商要动 domain |
 | **4. Authoring UI（呈现）** | 画布、StatEditor、选项规则、玩时 HUD | 中 | 发明 contracts/rules 没有的 effect/condition 语义；本地一套「真状态」 |
 | **5. Transport** | HTTP / MCP **同一命令表** | 中 | 在适配器里复制游戏规则 |
@@ -78,6 +78,7 @@ flowchart LR
 |---|---|
 | `variables` / story conditions·effects / worldbook | Substrate |
 | `STAT_TEMPLATES`、`statTemplateId`+`version` | Catalog |
+| 地图模板 · **建筑库**（规划：确认后填充、放置=库引用+本地覆盖） | Catalog（见 [`world-map-editor.md` §9](./world-map-editor.md)） |
 | generation provider、narrate、propose-act、fill-scene-text、天道 prompt | AI adapters |
 | 无限画布、StatEditor、ChoiceRulesEditor、PlayStatsBar | Authoring UI |
 | `apps/server` HTTP + MCP 共用 commands | Transport |
@@ -170,7 +171,7 @@ v1 **仍用 contracts 闭集 zod** 保证线缆安全；`@novel-game/rules` 增�
 ## 7. 延伸路线图（纪律，非排期承诺）
 
 
-1. **Catalog 加厚**：题材包 = 模板 + 提示种子 + 可选可玩性权重；仍 compile-down。  
+1. **Catalog 加厚**：题材包 = 模板 + 提示种子 + 可选可玩性权重；仍 compile-down。地图侧加厚见 [`world-map-editor.md` §9](./world-map-editor.md)（确认锁 → 填充 → **建筑库**；工作区编目 v1，预留资产包）。  
 2. **条件/效果种类扩展**：contracts schema → `kind-builtins` register → 双运行时包装 → 迁移文档 → UI 读 registry；一次一种。  
 3. **AI 新能力**：一律「建议 / 映射 / 填文」，提交仍走 act 端口。  
 4. **作者面**：StatEditor / 画布 / HUD 消费 contracts（形状）+ rules（求值）；不复制权威求值。  
