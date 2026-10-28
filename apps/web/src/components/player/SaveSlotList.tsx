@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { useI18n } from '../../lib/i18n';
 import { dateLabel, Empty } from '../Notice';
 
@@ -33,18 +33,30 @@ type Props = {
   onSelect: (id: string) => void;
 };
 
+const PAGE_SIZE = 8;
+
 export function SaveSlotList({ slots, selectedId, busy, emptyHint, heading, footHint, footer, onSelect }: Props) {
   const { t, locale } = useI18n();
+  const listId = useId();
   // Continuable rows first; blocked rows after, keeping their relative order.
   const ordered = [...slots.filter(s => !s.blockedReason), ...slots.filter(s => s.blockedReason)];
+  const selectedIndex = ordered.findIndex(slot => slot.id === selectedId);
+  const selectedPage = selectedIndex < 0 ? 1 : Math.floor(selectedIndex / PAGE_SIZE) + 1;
+  const [requestedPage, setPage] = useState(selectedPage);
+  const pageCount = Math.max(1, Math.ceil(ordered.length / PAGE_SIZE));
+  const page = Math.min(requestedPage, pageCount);
+  // A resumed/new save must be visible even when it is on another page.
+  useEffect(() => { setPage(selectedPage); }, [selectedId, selectedPage]);
+  useEffect(() => { setPage(value => Math.min(value, pageCount)); }, [pageCount]);
+  const visible = ordered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   return (
     <div className="save-slot-list" data-testid="save-slot-list">
       <h3>{heading ?? t('我的存档')} <small>{slots.length}</small></h3>
       {slots.length === 0 ? (
         emptyHint === null ? null : <Empty>{emptyHint ?? t('开始新存档后会出现在这里。')}</Empty>
       ) : (
-        <ul className="item-list">
-          {ordered.map(s => (
+        <ul className="item-list" id={listId}>
+          {visible.map(s => (
             <li key={s.id}>
               <button
                 type="button"
@@ -68,6 +80,13 @@ export function SaveSlotList({ slots, selectedId, busy, emptyHint, heading, foot
             </li>
           ))}
         </ul>
+      )}
+      {pageCount > 1 && (
+        <nav className="save-slot-pagination" aria-label={t('存档分页')} aria-controls={listId}>
+          <button type="button" className="quiet small" disabled={busy || page === 1} onClick={() => setPage(page - 1)}>{t('上一页')}</button>
+          <span className="hint" role="status" aria-live="polite">{t('第 {page} / {pages} 页', { page, pages: pageCount })}</span>
+          <button type="button" className="quiet small" disabled={busy || page === pageCount} onClick={() => setPage(page + 1)}>{t('下一页')}</button>
+        </nav>
       )}
       {footHint && <p className="hint">{footHint}</p>}
       {footer}

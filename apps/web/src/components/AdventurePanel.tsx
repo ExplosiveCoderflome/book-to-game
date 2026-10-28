@@ -4,11 +4,12 @@ import { errorMessage, request, RequestError } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { readTiandaoCorrect } from '../lib/tiandao';
 import { adventurePendingKey, PendingAdventure, restoreAdventure } from '../lib/pending-adventure';
-import { Empty, Notice, dateLabel } from './Notice';
+import { Notice } from './Notice';
 import { AdventurePlaySurface } from './play/AdventurePlaySurface';
 import { playWorldHash } from '../lib/play-route';
 import { CopyPlayLinkButton } from './player/CopyPlayLinkButton';
 import { OpenPlayerShellButton } from './player/OpenPlayerShellButton';
+import { SaveSlotList } from './player/SaveSlotList';
 import { diffAdventureFacts, diffOptionSets, diffResources, resourceLabelFnFromWorld, type OptionChangeSummary, type VariableDelta } from '../lib/variable-delta';
 
 interface Props {
@@ -17,7 +18,7 @@ interface Props {
 }
 
 export function AdventurePanel({ token, revisions, adventures, revisionId, selectRevision, refresh }: Props) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const pending = useRef(new PendingAdventure(restoreAdventure(sessionStorage)));
   const [sessionId, setSessionId] = useState(pending.current.value?.sessionId ?? '');
   const [session, setSession] = useState<AdventureView | null>(null);
@@ -114,18 +115,18 @@ export function AdventurePanel({ token, revisions, adventures, revisionId, selec
         <p className="hint">{revisions.find(r => r.id === revisionId)?.content.premise}</p>
         <button className="primary" disabled={busy || uncertain || !revisionId} onClick={start}>{t('开始新冒险')}</button>
         <div className="divider" />
-        <h3>{t('冒险存档')} <small>{adventures.length}</small></h3>
-        {adventures.length ? (
-          <ul className="item-list">{adventures.map(s => (
-            <li key={s.id}>
-              <button className={`list-button ${s.id === sessionId ? 'selected' : ''}`} disabled={busy || uncertain} onClick={() => setSessionId(s.id)}>
-                <strong>{revisions.find(r => r.id === s.worldRevisionId)?.content.title ?? t('开放冒险')}</strong>
-                <span>{s.location.title} · {s.ended ? t('已结束') : t('耗时 {elapsed}/{limit}', { elapsed: s.elapsed, limit: s.timeLimit })}</span>
-                <small>{dateLabel(s.updatedAt, locale)}</small>
-              </button>
-            </li>
-          ))}</ul>
-        ) : <Empty>{t('发布世界后即可创建存档。')}</Empty>}
+        <SaveSlotList
+          heading={t('冒险存档')}
+          slots={adventures.map(s => ({
+            id: s.id, title: revisions.find(r => r.id === s.worldRevisionId)?.content.title ?? t('开放冒险'),
+            summary: `${s.location.title} · ${t('耗时 {elapsed}/{limit}', { elapsed: s.elapsed, limit: s.timeLimit })}`,
+            ended: s.ended, updatedAt: s.updatedAt,
+          }))}
+          selectedId={sessionId}
+          busy={busy || uncertain}
+          emptyHint={t('发布世界后即可创建存档。')}
+          onSelect={setSessionId}
+        />
       </aside>
       <AdventurePlaySurface
         session={session}

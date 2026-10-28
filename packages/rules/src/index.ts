@@ -1,4 +1,5 @@
 /** Pure rule engines — no React, Express, or SQL. Schema/DTO authority stays in @novel-game/contracts. */
+export { resourceLabelsForWorld, resourceDisplayLabel, type ResourceLabelSource } from './resource-labels.js';
 
 export {
   analyzeReachability, choiceAvailable as reachChoiceAvailable, applyChoiceEffects as reachApplyEffects,

@@ -49,6 +49,7 @@ function blockedReasonText(
     reason === '剩余时间不足'
     || reason === '目标人物不在此处'
     || reason === '通货不足'
+    || reason === '银两不足'
     || reason === '无货'
     || reason === '未上架'
     || reason === '次数已用尽'

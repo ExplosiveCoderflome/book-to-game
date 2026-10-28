@@ -119,3 +119,12 @@ test('resourceLabelFnFromWorld prefers faction stats then common ids', () => {
   assert.equal(fn('primary_coin'), '通货');
   assert.equal(fn('custom_pool'), 'custom pool');
 });
+
+test('resource labels use explicit world names before faction labels and currency defaults', () => {
+  const label = resourceLabelFnFromWorld({
+    resourceDefs: { coin: { label: '灵石' } },
+    map: { layers: { factions: { factions: [{ stats: [{ label: '盘缠', resourceId: 'coin' }] }] } } },
+  });
+  assert.equal(label('coin'), '灵石');
+  assert.equal(resourceLabelFnFromWorld(null)('coin'), '银两');
+});

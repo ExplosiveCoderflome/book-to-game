@@ -5,11 +5,12 @@ import { useI18n } from '../lib/i18n';
 import { readTiandaoCorrect } from '../lib/tiandao';
 import { PendingAction, type PendingActionValue } from '../lib/pending-action';
 import { diffOptionSets, diffVariables, labelFnFromContent, type OptionChangeSummary, type VariableDelta } from '../lib/variable-delta';
-import { Empty, Notice, dateLabel } from './Notice';
+import { Notice } from './Notice';
 import { ReaderPlaySurface } from './play/ReaderPlaySurface';
 import { playStoryHash } from '../lib/play-route';
 import { CopyPlayLinkButton } from './player/CopyPlayLinkButton';
 import { OpenPlayerShellButton } from './player/OpenPlayerShellButton';
+import { SaveSlotList } from './player/SaveSlotList';
 
 const pendingKey = 'novel-game.pending-action';
 function restorePending(): PendingActionValue | null {
@@ -25,7 +26,7 @@ function restorePending(): PendingActionValue | null {
 interface Props { token: string; revisions: GameRevision[]; sessions: SessionView[]; revisionId: string; selectRevision: (id: string) => void; refresh: () => Promise<void> }
 
 export function PlayPanel({ token, revisions, sessions, revisionId, selectRevision, refresh }: Props) {
-  const { locale, t } = useI18n();
+  const { t } = useI18n();
   const pending = useRef(new PendingAction(restorePending()));
   const [session, setSession] = useState<SessionView | null>(null);
   const [sessionId, setSessionId] = useState(pending.current.value?.sessionId ?? '');
@@ -118,8 +119,18 @@ export function PlayPanel({ token, revisions, sessions, revisionId, selectRevisi
       <h3>{t('发布书目')}</h3><label>{t('选择发布版本')}<select value={revisionId} disabled={busy || uncertain} onChange={e => selectRevision(e.target.value)}><option value="">{t('请选择一个已发布游戏')}</option>{revisions.map(r => <option key={r.id} value={r.id}>{r.content.title} · v{r.version}</option>)}</select></label>
       {revisions.find(r => r.id === revisionId) && <p className="hint">{revisions.find(r => r.id === revisionId)?.content.premise}</p>}
       <button className="primary" disabled={!revisionId || busy || uncertain} onClick={start}>{t('开始新存档')}</button>
-      <div className="divider" /><h3>{t('我的存档')} <small>{sessions.length}</small></h3>
-      {sessions.length === 0 ? <Empty>{t('从一个发布版本开始，存档会自动保存。')}</Empty> : <ul className="item-list">{sessions.map(s => <li key={s.id}><button className={`list-button ${s.id === sessionId ? 'selected' : ''}`} disabled={busy || uncertain} onClick={() => setSessionId(s.id)}><strong>{revisions.find(r => r.id === s.gameRevisionId)?.content.title ?? t('文字冒险')}</strong><span>{t('第 {turn} 幕', { turn: s.turn + 1 })} · {s.ended ? t('已到结局') : s.scene.title}</span><small>{dateLabel(s.updatedAt, locale)}</small></button></li>)}</ul>}
+      <div className="divider" />
+      <SaveSlotList
+        slots={sessions.map(s => ({
+          id: s.id, title: revisions.find(r => r.id === s.gameRevisionId)?.content.title ?? t('文字冒险'),
+          summary: `${t('第 {turn} 幕', { turn: s.turn + 1 })} · ${s.scene.title}`,
+          ended: s.ended, updatedAt: s.updatedAt,
+        }))}
+        selectedId={sessionId}
+        busy={busy || uncertain}
+        emptyHint={t('从一个发布版本开始，存档会自动保存。')}
+        onSelect={setSessionId}
+      />
     </aside><article className="panel reading-page">
       <ReaderPlaySurface
         session={session}

@@ -26,10 +26,12 @@ const dying = (): WorldContent => {
 
 test('K15 import: batch3 keeps endings[].passages and recap[]; validates with 0 errors', () => {
   const file = JSON.parse(readFileSync(new URL('../../../docs/samples/shoudeng/shoudeng.batch3.world.json', import.meta.url), 'utf8'));
-  const world = worldContentSchema.parse(btgWorldFileToContent(file, {sourceChapterIds: ['shoudeng-c1']}));
+  const world = worldContentSchema.parse(btgWorldFileToContent(file, {
+    goal: '在灯灭之前，决定是修上去、查下去、借回来，还是回家去。', sourceChapterIds: ['shoudeng-c1'],
+  }));
   assert.equal(world.endings.reduce((n, e) => n + (e.passages?.length ?? 0), 0), 59);
   assert.equal(world.recap?.length, 44);
-  assert.deepEqual({endings: world.endings, recap: world.recap}, {endings: gold().endings, recap: gold().recap}, 'fixture = import of the sample');
+  assert.deepEqual(world, gold(), 'the entire fixture stays in sync with the imported sample');
   assert.deepEqual(validateWorld(world, {chapters: [{id: 'shoudeng-c1', paragraphs: []}]} as never).errors, []);
   // Worlds without the fields still parse (fields are optional).
   const bare = gold(); delete bare.recap; for (const e of bare.endings) delete e.passages;

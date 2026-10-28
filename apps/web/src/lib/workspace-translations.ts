@@ -760,4 +760,10 @@ export const workspaceEnglish: Record<string, string> = {
   "资源平衡": "Resource balance",
   "卡池": "Card pool",
   "体量": "Volume",
+  "存档分页": "Save pages",
+  "上一页": "Previous",
+  "下一页": "Next",
+  "第 {page} / {pages} 页": "Page {page} / {pages}",
+  "选择成功后自动保存。": "Choices save automatically.",
+  "银两不足": "Not enough silver",
 };

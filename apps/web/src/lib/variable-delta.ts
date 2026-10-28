@@ -1,5 +1,6 @@
 import type { Choice, GameContent, StatRole, StoryEffect, VariableValue } from '@novel-game/contracts';
 import { displayLabelForVariable } from '@novel-game/contracts';
+import { resourceDisplayLabel, resourceLabelsForWorld, type ResourceLabelSource } from '@novel-game/rules';
 import { formatEffect } from './edge-summary';
 
 export type VariableMap = Record<string, VariableValue>;
@@ -191,18 +192,10 @@ export function diffOptionSets(
   return { newlyAvailable, newlyUnavailable };
 }
 
-/** Soft labels for world resources: faction stats first, then a few common ids, else humanized id. */
+/** Shared labels keep HUD, deltas and action costs consistent, including S1 resource definitions. */
 export function resourceLabelFnFromWorld(
-  content: { map?: { layers?: { factions?: { factions?: { stats?: { label: string; resourceId: string }[] }[] } } } } | null | undefined,
+  content: ResourceLabelSource | null | undefined,
 ): VariableLabelFn {
-  const labels: Record<string, string> = {};
-  for (const f of content?.map?.layers?.factions?.factions ?? []) {
-    for (const st of f.stats ?? []) {
-      if (st.resourceId && st.label) labels[st.resourceId] = st.label;
-    }
-  }
-  const COMMON: Record<string, string> = {
-    hp: '体力', coin: '银两', gold: '金币', primary_coin: '通货', qi: '修为', reputation: '声望', risk: '风险',
-  };
-  return name => labels[name] ?? COMMON[name] ?? name.replace(/_/g, ' ');
+  const labels = resourceLabelsForWorld(content);
+  return name => resourceDisplayLabel(name, labels);
 }

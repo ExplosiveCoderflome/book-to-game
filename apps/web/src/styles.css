@@ -4047,6 +4047,13 @@ button.chip.active {
 .list-button.blocked { opacity: .62; cursor: not-allowed; background: var(--surface-muted); }
 .list-button.blocked:hover { background: var(--surface-muted); }
 .save-slot-reason { color: var(--rust) !important; }
+.save-slot-pagination { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-block: 8px; }
+.save-slot-pagination .hint { margin: 0; white-space: nowrap; }
+.save-slot-pagination button { min-height: var(--control-h); }
+.save-slot-pagination button:active:not(:disabled) { transform: translateY(1px); }
+@media (max-width: 760px) {
+  .save-slot-pagination button { min-height: 44px; }
+}
 .save-slot-unsaved {
   display: inline-block; margin-left: 6px; padding: 0 6px;
   border: 1px solid var(--warn-line); border-radius: 999px;

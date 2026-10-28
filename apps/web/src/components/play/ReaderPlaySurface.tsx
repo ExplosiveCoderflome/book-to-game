@@ -35,7 +35,7 @@ export type ReaderPlaySurfaceProps = {
   onSecondary?: () => void;
   secondaryLabel?: string;
   emptyHint?: string;
-  /** Replaces the footer save-id line (export package never shows ids). */
+  /** Overrides the automatic-save hint for export packages. */
   autosaveHint?: string;
   replayLabel?: string;
 };
@@ -124,7 +124,7 @@ export function ReaderPlaySurface({
         </div>
       )}
       <div className="reader-footer">
-        <p className="hint" data-testid="autosave-hint">{autosaveHint ?? t('选择成功后自动保存。存档 ID：{id}', { id: session.id })}</p>
+        <p className="hint" data-testid="autosave-hint">{autosaveHint ?? t('选择成功后自动保存。')}</p>
         {onReload && (
           <button type="button" className="quiet small" disabled={busy} onClick={onReload}>{t('重新读取存档')}</button>
         )}

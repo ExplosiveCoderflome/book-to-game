@@ -112,6 +112,11 @@ Anti-slop: no purple gradients, no AI lavender fills, no cream-literary chrome.
 | `.play-landing-row` | Dense `.list-button` rows — **no** store-poster cards / hero covers |
 | `.player-shell .play-layout` | In-session: optional save aside + single reading column (+ open map column); no author catalog chrome |
 | Ending CTA | Author: 再开一局 + 回编辑… · Player: 再开一局 + **返回书目** |
+| Save list | Shared author-hosted/offline list: eight rows per page; playable rows before blocked rows; selecting/resuming a save reveals its page; list shrink clamps the page. Pagination is a labelled `nav`, with disabled bounds and busy state, plus a live page count |
+| `.save-slot-pagination` | Reuse quiet buttons, `--muted` text and existing spacing; 44px touch targets at ≤760px; wrap controls instead of overflowing. No new colours, fonts or imagery |
+| Save privacy | Automatic-save text contains no internal session UUID; routing and storage keep their existing IDs |
+| Resource names | HUD, delta and fill costs share resource labels: explicit `resourceDefs` label → faction label → common default (`coin` = 银两). Insufficient-funds text uses the same currency name |
+| Save-list review (2026-10-28) | Existing density, fonts and palette retained. Weakness fixed: a resumed save could be on a hidden page; selecting it now reveals that page. Edge checks at 375/768/1280px cover page controls, list shrink and ID privacy; no overflow. Pagination `--muted` on `--surface` contrast: 5.35:1 |
 | Anti-slop | No splash poster, discount bar, star ratings, account wall, export-zip button, neon game kit |
 
 ### Export package (M1b-1)

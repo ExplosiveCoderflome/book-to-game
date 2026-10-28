@@ -1,5 +1,5 @@
 import { storyletBodies, type AdventureAction, type AdventureClockView, type AdventureHandView, type AdventureResourceMeta, type AdventureRollView, type AdventureView, type BuildingLibrary, type ItemCatalog, type WorldContent, type WorldEffect, type WorldRevision } from '@novel-game/contracts';
-import { fillSpecificBlockedReason, projectFillActions, type FillCompiledAction } from '@novel-game/rules';
+import { fillSpecificBlockedReason, projectFillActions, resourceLabelsForWorld, type FillCompiledAction } from '@novel-game/rules';
 import { AppError } from '../errors.js';
 import type { AdventureState } from './adventure-state.js';
 import { visible, blockedReason, matches, requiresBlock } from './rules.js';
@@ -23,18 +23,6 @@ export type ProjectAdventureOptions = {
   itemCatalog?: ItemCatalog;
   resourceLabels?: Record<string, string>;
 };
-
-function resourceLabelsFromWorld(world: WorldRevision['content']): Record<string, string> {
-  const labels: Record<string, string> = {
-    coin: '通货', primary_coin: '通货', hp: '体力', gold: '金币', reputation: '声望',
-  };
-  for (const f of world.map?.layers?.factions?.factions ?? []) {
-    for (const st of f.stats ?? []) {
-      if (st.resourceId && st.label) labels[st.resourceId] = st.label;
-    }
-  }
-  return labels;
-}
 
 function projectOneAction(
   action: FillCompiledAction | WorldRevision['content']['actions'][number],
@@ -161,7 +149,7 @@ export function projectAdventure(
   const location = world.locations.find(item => item.id === state.locationId);
   if (!location) throw new AppError('INVALID_WORLD_STATE', '存档地点不存在', 500);
   const resources = { ...(state.resources ?? world.resources ?? {}) };
-  const labels = opts.resourceLabels ?? resourceLabelsFromWorld(world);
+  const labels = { ...resourceLabelsForWorld(world), ...opts.resourceLabels };
   const fill = projectFillActions(world, {
     library: opts.buildingLibrary,
     catalog: opts.itemCatalog,

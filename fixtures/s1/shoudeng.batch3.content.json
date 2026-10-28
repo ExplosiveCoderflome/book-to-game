@@ -8,7 +8,7 @@
   "worldRules": [
     "时间以月计；时限 720 个月。"
   ],
-  "adaptationNotes": "《寿灯》金样本 · 第三批累积文件（第一批 + 第二批 + 后期与全部结局），即完整金样本。手写内容，按 docs/s1-game-production-flow-slice.md §3 契约（RUNTIME 1.1.0 草案）。本文件取代 shoudeng.batch2.world.json。结局的 passages / textVariants 与顶层 recap 是拟议契约扩展，见 shoudeng.batch3.md「契约扩展」；今天的引擎加载时忽略这三项，其余照常运行（lint、playtest 均以本文件为准）。",
+  "adaptationNotes": "《寿灯》金样本 · 第三批累积文件（第一批 + 第二批 + 后期与全部结局），即完整金样本。手写内容，按 docs/s1-game-production-flow-slice.md §3 契约（RUNTIME 1.1.0 草案）。本文件取代 shoudeng.batch2.world.json。结局的 passages / textVariants 与顶层 recap 见 shoudeng.batch3.md「契约扩展（K15）」，引擎已实现（lint、playtest 均以本文件为准）。",
   "sourceChapterIds": [
     "shoudeng-c1"
   ],
@@ -898,6 +898,16 @@
       "playerKnown": true,
       "origin": "adapted",
       "evidence": []
+    },
+    {
+      "id": "xiaoman_sent",
+      "label": "托人把灵石捎给了周小满的妹妹",
+      "description": "托人把灵石捎给了周小满的妹妹",
+      "kind": "event",
+      "initialValue": false,
+      "playerKnown": true,
+      "origin": "adapted",
+      "evidence": []
     }
   ],
   "npcs": [
@@ -1241,7 +1251,7 @@
     },
     {
       "id": "go_zayi_qinghe",
-      "label": "告假回清河镇（两个月）",
+      "label": "告假回清河镇",
       "description": "",
       "locationId": "zayi",
       "availableWhen": [],
@@ -1262,7 +1272,7 @@
     },
     {
       "id": "go_qinghe_zayi",
-      "label": "回青崖山（两个月）",
+      "label": "回青崖山",
       "description": "",
       "locationId": "qinghe",
       "availableWhen": [],
@@ -1325,7 +1335,7 @@
     },
     {
       "id": "xiulian_raw",
-      "label": "打坐吐纳（三个月）",
+      "label": "打坐吐纳",
       "description": "",
       "locationId": "dongfu",
       "availableWhen": [
@@ -1363,7 +1373,7 @@
     },
     {
       "id": "xiulian_tuna",
-      "label": "修炼《青崖吐纳》（三个月）",
+      "label": "修炼《青崖吐纳》",
       "description": "",
       "locationId": "dongfu",
       "availableWhen": [
@@ -1401,7 +1411,7 @@
     },
     {
       "id": "xiulian_kurong",
-      "label": "修炼《枯荣诀》（三个月）",
+      "label": "修炼《枯荣诀》",
       "description": "",
       "locationId": "dongfu",
       "availableWhen": [
@@ -1444,7 +1454,7 @@
     },
     {
       "id": "xiulian_qingxin",
-      "label": "修炼《清心诀》（三个月）",
+      "label": "修炼《清心诀》",
       "description": "",
       "locationId": "dongfu",
       "availableWhen": [
@@ -1514,7 +1524,7 @@
           "atLeast": 20
         }
       ],
-      "blockedReason": "寿元不足 20 年，不敢闭关这么久",
+      "blockedReason": "条件未满足",
       "risk": "心魔 +6",
       "timeCost": 12,
       "once": false,
@@ -1569,7 +1579,7 @@
           "atLeast": 30
         }
       ],
-      "blockedReason": "灵石不足：需 ≥ 30",
+      "blockedReason": "条件未满足",
       "risk": "",
       "timeCost": 1,
       "once": false,
@@ -1607,7 +1617,7 @@
           "atLeast": 120
         }
       ],
-      "blockedReason": "需炼气后期，且功勋 ≥ 120",
+      "blockedReason": "条件未满足",
       "risk": "",
       "timeCost": 1,
       "once": false,
@@ -1629,7 +1639,7 @@
     },
     {
       "id": "xiulian_tuna_zj",
-      "label": "修炼《青崖吐纳》（四个月）",
+      "label": "修炼《青崖吐纳》",
       "description": "",
       "locationId": "dongfu",
       "availableWhen": [
@@ -1667,7 +1677,7 @@
     },
     {
       "id": "xiulian_kurong_zj",
-      "label": "修炼《枯荣诀》（四个月）",
+      "label": "修炼《枯荣诀》",
       "description": "",
       "locationId": "dongfu",
       "availableWhen": [
@@ -1710,7 +1720,7 @@
     },
     {
       "id": "xiulian_qingxin_zj",
-      "label": "修炼《清心诀》（四个月）",
+      "label": "修炼《清心诀》",
       "description": "",
       "locationId": "dongfu",
       "availableWhen": [
@@ -1818,7 +1828,7 @@
           "atLeast": 80
         }
       ],
-      "blockedReason": "灵石不足：需 ≥ 80",
+      "blockedReason": "条件未满足",
       "risk": "",
       "timeCost": 12,
       "once": false,
@@ -1856,7 +1866,7 @@
           "atLeast": 1
         }
       ],
-      "blockedReason": "没有秘境材料",
+      "blockedReason": "条件未满足",
       "risk": "",
       "timeCost": 0,
       "once": false,
@@ -1878,7 +1888,7 @@
     },
     {
       "id": "luoxing_xiuxi",
-      "label": "在裂口边歇一口气（一个月）",
+      "label": "在裂口边歇一口气",
       "description": "",
       "locationId": "luoxing",
       "availableWhen": [
@@ -1916,7 +1926,7 @@
     },
     {
       "id": "go_luoxing_zayi",
-      "label": "离开秘境，回青崖山（两个月）",
+      "label": "离开秘境，回青崖山",
       "description": "",
       "locationId": "luoxing",
       "availableWhen": [],
@@ -1979,7 +1989,7 @@
     },
     {
       "id": "ye_dazuo",
-      "label": "夜里在铺上打坐（两个月）",
+      "label": "夜里在铺上打坐",
       "description": "",
       "locationId": "zayi",
       "availableWhen": [
@@ -2000,7 +2010,7 @@
         }
       ],
       "requires": [],
-      "blockedReason": "尚未满足条件",
+      "blockedReason": "条件未满足",
       "risk": "心魔 +1",
       "timeCost": 2,
       "once": false,
@@ -2022,7 +2032,7 @@
     },
     {
       "id": "tingjiang",
-      "label": "在传功阁旁听讲经（两个月，十功勋）",
+      "label": "在传功阁旁听讲经（十功勋）",
       "description": "",
       "locationId": "chuangong",
       "availableWhen": [
@@ -2049,7 +2059,7 @@
           "atLeast": 10
         }
       ],
-      "blockedReason": "功勋不足：需 ≥ 10",
+      "blockedReason": "条件未满足",
       "risk": "",
       "timeCost": 2,
       "once": false,
@@ -2322,7 +2332,7 @@
             {
               "kind": "resource",
               "resourceId": "zhaowan",
-              "atLeast": 60
+              "atLeast": 50
             },
             {
               "kind": "fact",
@@ -2463,7 +2473,7 @@
             {
               "kind": "resource",
               "resourceId": "zhaowan",
-              "atLeast": 60
+              "atLeast": 30
             },
             {
               "kind": "fact",
@@ -2616,12 +2626,32 @@
           "id": "ledger",
           "when": [
             {
-              "kind": "fact",
-              "factId": "has_wanbao_ledger",
-              "value": true
+              "kind": "anyOf",
+              "conditions": [
+                {
+                  "kind": "fact",
+                  "factId": "has_wanbao_ledger",
+                  "value": true
+                },
+                {
+                  "kind": "fact",
+                  "factId": "knows_wanbao_ledger",
+                  "value": true
+                },
+                {
+                  "kind": "resource",
+                  "resourceId": "xiansuo",
+                  "atLeast": 3
+                },
+                {
+                  "kind": "storylet_seen",
+                  "storyletId": "qian_huo",
+                  "atLeast": 21
+                }
+              ]
             }
           ],
-          "text": "那本四十年前的灯油账，你翻过很多遍。最后一次翻，是钱掌柜出殡的那天夜里。你把它从抽屉里拿出来，放在柜台上，拨了一夜算盘，把三百盏灯少添的那十年，一盏一盏折成灵石。天亮的时候你算完了，数目大得吓人。你把账合上，第二天开始，每年秋祭往祠堂多送三百斤灯油，不记账。"
+          "text": "那本四十年前的灯油账，后来一直锁在柜台底下的抽屉里。你知道它在那里，翻过很多遍。最后一次翻，是钱掌柜出殡的那天夜里。你把它从抽屉里拿出来，放在柜台上，拨了一夜算盘，把三百盏灯少添的那十年，一盏一盏折成灵石。天亮的时候你算完了，数目大得吓人。你把账合上，第二天开始，每年秋祭往祠堂多送三百斤灯油，不记账。"
         },
         {
           "id": "ledger_none",
@@ -2630,6 +2660,21 @@
               "kind": "fact",
               "factId": "has_wanbao_ledger",
               "value": false
+            },
+            {
+              "kind": "fact",
+              "factId": "knows_wanbao_ledger",
+              "value": false
+            },
+            {
+              "kind": "resource",
+              "resourceId": "xiansuo",
+              "atMost": 2
+            },
+            {
+              "kind": "storylet_seen",
+              "storyletId": "qian_huo",
+              "atMost": 20
             }
           ],
           "text": "钱掌柜走之前，跟你说过一件事：他这辈子做过一笔亏心的买卖，账藏在一个他自己都不敢翻的地方。他没说是哪里。你也没有找。"
@@ -2638,12 +2683,27 @@
           "id": "xiaoman",
           "when": [
             {
-              "kind": "fact",
-              "factId": "xiaoman_home",
-              "value": true
+              "kind": "anyOf",
+              "conditions": [
+                {
+                  "kind": "storylet_seen",
+                  "storyletId": "zayi_yiye",
+                  "atLeast": 1
+                },
+                {
+                  "kind": "fact",
+                  "factId": "xiaoman_home",
+                  "value": true
+                },
+                {
+                  "kind": "fact",
+                  "factId": "xiaoman_sent",
+                  "value": true
+                }
+              ]
             }
           ],
-          "text": "周小满的妹妹家后来添了一头牛、两头牛，又开了一间豆腐坊。坊里的黄豆，是万宝楼按进价赊给她的，赊了二十年，账本上一个字也没有。"
+          "text": "杂役院里头一个跟你说话的人，叫周小满。你入了万宝楼以后，托跑商的伙计找到了他家，在清河上游一个叫周家坳的地方，只剩他妹妹和一头瘦牛。后来她家添了一头牛、两头牛，又开了一间豆腐坊。坊里的黄豆，是万宝楼按进价赊给她的，赊了二十年，账本上一个字也没有。"
         },
         {
           "id": "zhaowan_good",
@@ -2651,7 +2711,7 @@
             {
               "kind": "resource",
               "resourceId": "zhaowan",
-              "atLeast": 60
+              "atLeast": 15
             },
             {
               "kind": "fact",
@@ -2665,9 +2725,29 @@
           "id": "hongxiu",
           "when": [
             {
-              "kind": "fact",
-              "factId": "knows_brother",
-              "value": true
+              "kind": "anyOf",
+              "conditions": [
+                {
+                  "kind": "fact",
+                  "factId": "has_wanbao_ledger",
+                  "value": true
+                },
+                {
+                  "kind": "fact",
+                  "factId": "knows_wanbao_ledger",
+                  "value": true
+                },
+                {
+                  "kind": "resource",
+                  "resourceId": "xiansuo",
+                  "atLeast": 3
+                },
+                {
+                  "kind": "storylet_seen",
+                  "storyletId": "qian_huo",
+                  "atLeast": 21
+                }
+              ]
             },
             {
               "kind": "fact",
@@ -2675,7 +2755,7 @@
               "value": false
             }
           ],
-          "text": "红袖来找过你，问你那本账。你把账给她看了，她看完，什么也没说，只是把她弟弟那一行撕了下来，叠好，收进了袖子里。你没拦她。"
+          "text": "黑水渡卖灯的红袖来找过你，问你那本账。她说她弟弟当年也是杂役，十二岁进的山。你把账给她看了，她看完，什么也没说，只是把她弟弟那一行撕了下来，叠好，收进了袖子里。你没拦她。"
         }
       ]
     },
@@ -3711,7 +3791,6 @@
               "atLeast": 10
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 10",
           "effects": [
             {
               "kind": "resource",
@@ -4002,7 +4081,6 @@
               "atLeast": 40
             }
           ],
-          "blockedReason": "功勋不足：需 ≥ 40",
           "effects": [
             {
               "kind": "set",
@@ -4031,20 +4109,20 @@
           "id": "kurong",
           "label": "主修《枯荣诀》（四十功勋）",
           "timeCost": 0,
-          "availableWhen": [],
-          "requires": [
-            {
-              "kind": "resource",
-              "resourceId": "gongxun",
-              "atLeast": 40
-            },
+          "availableWhen": [
             {
               "kind": "fact",
               "factId": "knows_kurong",
               "value": true
             }
           ],
-          "blockedReason": "需先知道这本书（问过照晚），且功勋 ≥ 40",
+          "requires": [
+            {
+              "kind": "resource",
+              "resourceId": "gongxun",
+              "atLeast": 40
+            }
+          ],
           "effects": [
             {
               "kind": "set",
@@ -4154,7 +4232,6 @@
               "atLeast": 10
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 10",
           "effects": [
             {
               "kind": "resource",
@@ -4218,7 +4295,6 @@
               "atLeast": 10
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 10",
           "effects": [
             {
               "kind": "resource",
@@ -4324,7 +4400,6 @@
               "atLeast": 20
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 20",
           "effects": [
             {
               "kind": "resource",
@@ -4810,7 +4885,7 @@
       "choices": [
         {
           "id": "take",
-          "label": "接下这单（三个月）",
+          "label": "接下这单",
           "timeCost": 3,
           "availableWhen": [],
           "requires": [],
@@ -4825,7 +4900,7 @@
         },
         {
           "id": "recite",
-          "label": "抄经时以神识默诵（三个月）",
+          "label": "抄经时以神识默诵",
           "timeCost": 3,
           "availableWhen": [],
           "requires": [
@@ -4835,7 +4910,6 @@
               "atLeast": 1
             }
           ],
-          "blockedReason": "神识未开：需境界 ≥ 炼气中期",
           "effects": [
             {
               "kind": "resource",
@@ -4887,7 +4961,6 @@
               "atLeast": 1
             }
           ],
-          "blockedReason": "你还不知道该找什么：需借寿线索 ≥ 1",
           "effects": [
             {
               "kind": "roll",
@@ -4966,7 +5039,7 @@
       "choices": [
         {
           "id": "work",
-          "label": "接一份差事（一个月）",
+          "label": "接一份差事",
           "timeCost": 1,
           "availableWhen": [],
           "requires": [],
@@ -5047,7 +5120,7 @@
       "choices": [
         {
           "id": "pick",
-          "label": "下沟采药（一个月）",
+          "label": "下沟采药",
           "timeCost": 1,
           "availableWhen": [],
           "requires": [],
@@ -5166,16 +5239,14 @@
                   "atLeastMonth": 120
                 }
               ]
-            }
-          ],
-          "requires": [
+            },
             {
               "kind": "resource",
               "resourceId": "xiansuo",
               "atMost": 2
             }
           ],
-          "blockedReason": "井边能听到的，你都已经听过了",
+          "requires": [],
           "effects": [
             {
               "kind": "resource",
@@ -5341,7 +5412,7 @@
         },
         {
           "id": "walk",
-          "label": "披上衣服，出去走一走（一个月）",
+          "label": "披上衣服，出去走一走",
           "timeCost": 1,
           "availableWhen": [],
           "requires": [],
@@ -5423,7 +5494,6 @@
               "atLeast": 15
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 15",
           "effects": [
             {
               "kind": "resource",
@@ -5518,7 +5588,6 @@
               "atLeast": 7
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 7",
           "effects": [
             {
               "kind": "set",
@@ -5534,6 +5603,11 @@
               "kind": "resource",
               "resourceId": "xinmo",
               "delta": -6
+            },
+            {
+              "kind": "set",
+              "factId": "xiaoman_sent",
+              "value": true
             }
           ],
           "text": "他枕头里缝着十三枚灵石，你又添了七枚，凑了个整数。托车夫捎话时，你说：给他妹妹，买牛。车夫问哪家，你才发现，你从没问过他家在哪。"
@@ -5768,7 +5842,6 @@
               "atLeast": 1
             }
           ],
-          "blockedReason": "没有筑基丹",
           "effects": [
             {
               "kind": "resource",
@@ -6079,7 +6152,6 @@
               "atLeast": 2
             }
           ],
-          "blockedReason": "你还说不出该问什么：需借寿线索 ≥ 2",
           "effects": [
             {
               "kind": "resource",
@@ -6106,7 +6178,6 @@
               "atLeast": 200
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 200",
           "effects": [
             {
               "kind": "resource",
@@ -6175,7 +6246,6 @@
               "atLeast": 40
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 40",
           "effects": [
             {
               "kind": "resource",
@@ -6222,7 +6292,6 @@
               "atLeast": 30
             }
           ],
-          "blockedReason": "需境界 ≥ 炼气中期，且修为 ≥ 30",
           "effects": [
             {
               "kind": "resource",
@@ -6337,7 +6406,7 @@
       "choices": [
         {
           "id": "learn",
-          "label": "坐下来，听她讲吐纳（一个月）",
+          "label": "坐下来，听她讲吐纳",
           "timeCost": 1,
           "availableWhen": [],
           "requires": [],
@@ -6382,7 +6451,6 @@
               "atLeast": 25
             }
           ],
-          "blockedReason": "她还不愿意跟你说这些：需照晚 ≥ 25",
           "effects": [
             {
               "kind": "resource",
@@ -6409,7 +6477,6 @@
               "atLeast": 8
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 8",
           "effects": [
             {
               "kind": "resource",
@@ -6490,20 +6557,20 @@
           "id": "zhaowan",
           "label": "带着账本的事，去找柳照晚",
           "timeCost": 0,
-          "availableWhen": [],
-          "requires": [
-            {
-              "kind": "resource",
-              "resourceId": "zhaowan",
-              "atLeast": 30
-            },
+          "availableWhen": [
             {
               "kind": "fact",
               "factId": "betrayed_zhaowan",
               "value": false
             }
           ],
-          "blockedReason": "你还不够信任她，或她不再信任你：需照晚 ≥ 30",
+          "requires": [
+            {
+              "kind": "resource",
+              "resourceId": "zhaowan",
+              "atLeast": 30
+            }
+          ],
           "effects": [
             {
               "kind": "resource",
@@ -6729,7 +6796,6 @@
               "atLeast": 1
             }
           ],
-          "blockedReason": "筑基丹不足：需 ≥ 1",
           "effects": [
             {
               "kind": "resource",
@@ -6806,7 +6872,6 @@
               "atLeast": 2
             }
           ],
-          "blockedReason": "秘境材料不足：需 ≥ 2",
           "effects": [
             {
               "kind": "resource",
@@ -7018,7 +7083,22 @@
         {
           "kind": "resource",
           "resourceId": "realm",
-          "atLeast": 3
+          "atLeast": 2
+        },
+        {
+          "kind": "anyOf",
+          "conditions": [
+            {
+              "kind": "resource",
+              "resourceId": "realm",
+              "atLeast": 3
+            },
+            {
+              "kind": "resource",
+              "resourceId": "xiansuo",
+              "atLeast": 5
+            }
+          ]
         },
         {
           "kind": "anyOf",
@@ -7170,7 +7250,22 @@
         {
           "kind": "resource",
           "resourceId": "realm",
-          "atLeast": 3
+          "atLeast": 2
+        },
+        {
+          "kind": "anyOf",
+          "conditions": [
+            {
+              "kind": "resource",
+              "resourceId": "realm",
+              "atLeast": 3
+            },
+            {
+              "kind": "resource",
+              "resourceId": "xiansuo",
+              "atLeast": 5
+            }
+          ]
         },
         {
           "kind": "fact",
@@ -7243,13 +7338,7 @@
           "id": "together",
           "label": "和柳照晚一起，把账本摊在碑前",
           "timeCost": 0,
-          "availableWhen": [],
-          "requires": [
-            {
-              "kind": "resource",
-              "resourceId": "zhaowan",
-              "atLeast": 50
-            },
+          "availableWhen": [
             {
               "kind": "anyOf",
               "conditions": [
@@ -7271,7 +7360,13 @@
               ]
             }
           ],
-          "blockedReason": "照晚不足：需 ≥ 50；需满足其一：拿到了哑伯的账本；抄到了戒律堂卷宗；抄下了哑伯账上的名单",
+          "requires": [
+            {
+              "kind": "resource",
+              "resourceId": "zhaowan",
+              "atLeast": 50
+            }
+          ],
           "effects": [
             {
               "kind": "resource",
@@ -7514,7 +7609,6 @@
               "atLeast": 50
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 50",
           "effects": [
             {
               "kind": "resource",
@@ -7654,7 +7748,6 @@
               "atLeast": 30
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 30",
           "effects": [
             {
               "kind": "resource",
@@ -7976,7 +8069,6 @@
               "atLeast": 100
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 100",
           "effects": [
             {
               "kind": "resource",
@@ -8194,7 +8286,7 @@
       "choices": [
         {
           "id": "take",
-          "label": "照规矩收下（耗时一个月）",
+          "label": "照规矩收下",
           "timeCost": 1,
           "availableWhen": [],
           "requires": [],
@@ -8438,7 +8530,6 @@
               "atLeast": 2
             }
           ],
-          "blockedReason": "借寿线索不足：需 ≥ 2",
           "effects": [
             {
               "kind": "resource",
@@ -8527,7 +8618,7 @@
         },
         {
           "id": "learn",
-          "label": "跟着他学看货（三个月）",
+          "label": "跟着他学看货",
           "timeCost": 3,
           "availableWhen": [],
           "requires": [],
@@ -8654,7 +8745,7 @@
       "choices": [
         {
           "id": "go",
-          "label": "接下，摘了木牌上路（半年）",
+          "label": "接下，摘了木牌上路",
           "timeCost": 6,
           "availableWhen": [],
           "requires": [],
@@ -8711,7 +8802,7 @@
         },
         {
           "id": "safe",
-          "label": "只走官道，少挣些（半年）",
+          "label": "只走官道，少挣些",
           "timeCost": 6,
           "availableWhen": [],
           "requires": [],
@@ -8774,7 +8865,6 @@
               "atLeast": 300
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 300",
           "effects": [
             {
               "kind": "resource",
@@ -8863,7 +8953,6 @@
               "atLeast": 180
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 180",
           "effects": [
             {
               "kind": "resource",
@@ -8895,7 +8984,6 @@
               "atLeast": 3
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 600；境界不足：需 ≥ 筑基",
           "effects": [
             {
               "kind": "resource",
@@ -8927,7 +9015,6 @@
               "atLeast": 1
             }
           ],
-          "blockedReason": "秘境材料不足：需 ≥ 1",
           "effects": [
             {
               "kind": "resource",
@@ -9070,7 +9157,7 @@
       "choices": [
         {
           "id": "go",
-          "label": "告假，立刻回清河镇（两个月）",
+          "label": "告假，立刻回清河镇",
           "timeCost": 2,
           "availableWhen": [],
           "requires": [],
@@ -9099,7 +9186,6 @@
               "atLeast": 50
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 50",
           "effects": [
             {
               "kind": "resource",
@@ -9170,7 +9256,7 @@
       "choices": [
         {
           "id": "stay",
-          "label": "留下来，守她一整年（一年）",
+          "label": "留下来，守她一整年",
           "timeCost": 12,
           "availableWhen": [],
           "requires": [],
@@ -9215,7 +9301,6 @@
               "atLeast": 40
             }
           ],
-          "blockedReason": "境界不足：需 ≥ 炼气中期；修为不足：需 ≥ 40",
           "effects": [
             {
               "kind": "set",
@@ -9247,7 +9332,6 @@
               "atLeast": 30
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 30",
           "effects": [
             {
               "kind": "set",
@@ -9409,7 +9493,7 @@
         },
         {
           "id": "help",
-          "label": "替镇上人做些力气活，换几吊钱（三个月）",
+          "label": "替镇上人做些力气活，换几吊钱",
           "timeCost": 3,
           "availableWhen": [],
           "requires": [],
@@ -9597,7 +9681,6 @@
               "atLeast": 20
             }
           ],
-          "blockedReason": "境界不足：需 ≥ 炼气中期；灵石不足：需 ≥ 20",
           "effects": [
             {
               "kind": "resource",
@@ -9633,7 +9716,6 @@
               "atLeast": 20
             }
           ],
-          "blockedReason": "境界不足：需 ≥ 炼气中期；照晚不足：需 ≥ 30；灵石不足：需 ≥ 20",
           "effects": [
             {
               "kind": "resource",
@@ -9717,7 +9799,6 @@
               "atLeast": 20
             }
           ],
-          "blockedReason": "境界不足：需 ≥ 炼气中期；灵石不足：需 ≥ 20",
           "effects": [
             {
               "kind": "resource",
@@ -9753,7 +9834,6 @@
               "atLeast": 20
             }
           ],
-          "blockedReason": "境界不足：需 ≥ 炼气中期；照晚不足：需 ≥ 30；灵石不足：需 ≥ 20",
           "effects": [
             {
               "kind": "resource",
@@ -9836,7 +9916,7 @@
       "choices": [
         {
           "id": "shallow",
-          "label": "在浅处采些星砂和白花（三个月）",
+          "label": "在浅处采些星砂和白花",
           "timeCost": 3,
           "availableWhen": [],
           "requires": [],
@@ -9872,7 +9952,7 @@
         },
         {
           "id": "deep",
-          "label": "往深处走，找那颗星（六个月）",
+          "label": "往深处走，找那颗星",
           "timeCost": 6,
           "availableWhen": [],
           "requires": [
@@ -9882,7 +9962,6 @@
               "atLeast": 60
             }
           ],
-          "blockedReason": "修为不足：需 ≥ 60",
           "effects": [
             {
               "kind": "set",
@@ -9979,7 +10058,7 @@
         },
         {
           "id": "out",
-          "label": "出秘境（两个月）",
+          "label": "出秘境",
           "timeCost": 2,
           "availableWhen": [],
           "requires": [],
@@ -10143,7 +10222,7 @@
         "mods": []
       },
       "urgent": true,
-      "text": "宗门大比十年一次，比的是筑基以下。头名赏一枚筑基丹，宗主亲手发。\n\n擂台搭在主峰前的广场上，四面挂着青崖宗的山纹旗。台下坐满了人，内门的坐前排，外门的坐后排，杂役站在最外圈，踮着脚看。\n\n主座上坐着宗主，左手边是闻人肃。他今天穿得很素，手里捏着一块黑布，偶尔低头擦一擦座椅的扶手。\n\n报名处贴着一张告示：功勋满两百者，方可登台。你在心里算了一遍这些年替人挑水、抄经、熬夜接差事攒下的那点功勋，才知道它们原来是为了这一天——够不够，执事翻一翻名册就知道。\n\n鼓响了。第一个上台的是个内门弟子，筑基初期，一剑就把对手扫下了台。",
+      "text": "宗门大比十年一次，比的是结丹以下。头名赏一枚筑基丹，宗主亲手发。\n\n擂台搭在主峰前的广场上，四面挂着青崖宗的山纹旗。台下坐满了人，内门的坐前排，外门的坐后排，杂役站在最外圈，踮着脚看。\n\n主座上坐着宗主，左手边是闻人肃。他今天穿得很素，手里捏着一块黑布，偶尔低头擦一擦座椅的扶手。\n\n报名处贴着一张告示：功勋满八十者，方可登台。你在心里算了一遍这些年替人挑水、抄经、熬夜接差事攒下的那点功勋，才知道它们原来是为了这一天——够不够，执事翻一翻名册就知道。\n\n鼓响了。第一个上台的是个内门弟子，筑基初期，一剑就把对手扫下了台。",
       "batch": 2,
       "choices": [
         {
@@ -10155,15 +10234,14 @@
             {
               "kind": "resource",
               "resourceId": "gongxun",
-              "atLeast": 200
+              "atLeast": 80
             }
           ],
-          "blockedReason": "功勋不足：需 ≥ 200",
           "effects": [
             {
               "kind": "roll",
               "chance": {
-                "base": 0.3,
+                "base": 0.35,
                 "mods": [
                   {
                     "resourceId": "realm",
@@ -10171,13 +10249,13 @@
                     "add": 0.3
                   },
                   {
-                    "resourceId": "realm",
-                    "atMost": 1,
-                    "add": -0.15
-                  },
-                  {
                     "resourceId": "xinmo",
                     "per": -0.005
+                  },
+                  {
+                    "resourceId": "realm",
+                    "atLeast": 2,
+                    "add": 0.15
                   }
                 ],
                 "min": 0.05,
@@ -10241,7 +10319,6 @@
               "atLeast": 50
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 50",
           "effects": [
             {
               "kind": "roll",
@@ -10903,7 +10980,6 @@
               "atLeast": 5
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 5",
           "effects": [
             {
               "kind": "resource",
@@ -11340,20 +11416,20 @@
           "id": "zhaowan",
           "label": "把位置让给柳照晚",
           "timeCost": 0,
-          "availableWhen": [],
-          "requires": [
-            {
-              "kind": "resource",
-              "resourceId": "zhaowan",
-              "atLeast": 60
-            },
+          "availableWhen": [
             {
               "kind": "fact",
               "factId": "betrayed_zhaowan",
               "value": false
             }
           ],
-          "blockedReason": "照晚不足：需 ≥ 60；已不可：向戒律堂报过照晚的信",
+          "requires": [
+            {
+              "kind": "resource",
+              "resourceId": "zhaowan",
+              "atLeast": 40
+            }
+          ],
           "effects": [
             {
               "kind": "set",
@@ -11735,7 +11811,6 @@
               "atLeast": 50
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 50",
           "effects": [
             {
               "kind": "resource",
@@ -12016,7 +12091,6 @@
               "atLeast": 10
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 10",
           "effects": [
             {
               "kind": "resource",
@@ -12697,7 +12771,6 @@
               "atLeast": 1
             }
           ],
-          "blockedReason": "秘境材料不足：需 ≥ 1",
           "effects": [
             {
               "kind": "resource",
@@ -12764,7 +12837,6 @@
               "atLeast": 1
             }
           ],
-          "blockedReason": "筑基丹不足：需 ≥ 1",
           "effects": [
             {
               "kind": "resource",
@@ -12801,7 +12873,6 @@
               "atLeast": 1
             }
           ],
-          "blockedReason": "筑基丹不足：需 ≥ 1",
           "effects": [
             {
               "kind": "resource",
@@ -12894,7 +12965,6 @@
               "atLeast": 60
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 60",
           "effects": [
             {
               "kind": "resource",
@@ -13144,7 +13214,6 @@
               "atLeast": 40
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 40",
           "effects": [
             {
               "kind": "resource",
@@ -13274,7 +13343,6 @@
               "atLeast": 1
             }
           ],
-          "blockedReason": "秘境材料不足：需 ≥ 1",
           "effects": [
             {
               "kind": "resource",
@@ -13370,7 +13438,6 @@
               "atLeast": 10
             }
           ],
-          "blockedReason": "灵石不足：需 ≥ 10",
           "effects": [
             {
               "kind": "resource",
@@ -13647,7 +13714,22 @@
         {
           "kind": "resource",
           "resourceId": "realm",
-          "atLeast": 3
+          "atLeast": 2
+        },
+        {
+          "kind": "anyOf",
+          "conditions": [
+            {
+              "kind": "resource",
+              "resourceId": "realm",
+              "atLeast": 3
+            },
+            {
+              "kind": "resource",
+              "resourceId": "xiansuo",
+              "atLeast": 5
+            }
+          ]
         },
         {
           "kind": "resource",

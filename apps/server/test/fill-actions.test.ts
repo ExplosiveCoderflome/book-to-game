@@ -86,7 +86,20 @@ test('AdventureView projects fill actions with costHints/kindHint/fillGroups at 
   const sand = view.actions.find(a => a.label.includes('灵砂'));
   assert.ok(sand);
   assert.equal(sand!.enabled, false);
-  assert.match(sand!.blockedReason ?? '', /通货不足/);
+  assert.equal(sand!.blockedReason, '银两不足');
+  assert.deepEqual(sand!.costHints, ['银两 9']);
+});
+
+test('world currency labels apply to shop/supply costs and insufficient-funds reasons', () => {
+  const world = fillDemoWorld();
+  world.resourceDefs = { coin: { label: '灵石', initial: 5, min: 0, max: 100, display: 'number' } };
+  const view = projectAdventure(startState(world), revision(world));
+  const sand = view.actions.find(action => action.label.includes('灵砂'))!;
+  assert.deepEqual(sand.costHints, ['灵石 9']);
+  assert.equal(sand.blockedReason, '灵石不足');
+  const supply = view.actions.find(action => action.kindHint === 'supply' && action.costHints?.length)!;
+  assert.ok(supply.costHints?.some(hint => hint.startsWith('灵石 ')));
+  assert.equal(projectFillActions(world).actions.find(action => action.id === supply.id)?.fillBlockHints?.money, '灵石不足');
 });
 
 test('buy success: coin delta + own fact; locked when insufficient; stock empty locks', () => {
@@ -101,7 +114,7 @@ test('buy success: coin delta + own fact; locked when insufficient; stock empty 
   // spirit sand still locked
   const sand = projectFillActions(world).actions.find(a => a.label.includes('灵砂'))!;
   const reason = fillSpecificBlockedReason(sand, state.resources, state.facts) ?? 'x';
-  assert.match(reason, /通货不足/);
+  assert.equal(reason, '银两不足');
   assert.throws(
     () => advanceAdventure(state, { actionId: sand.id, expectedTurn: state.turn, requestId: randomUUID() }, world, '2026-10-28T04:02:00.000Z'),
     (e: unknown) => e instanceof AppError && e.code === 'ACTION_BLOCKED',

@@ -1,7 +1,7 @@
 # 物品目录与建筑分种类主要内容
 
-> **状态：M-item-1 + M-item-2 + M-item-3 已在工作区落地（Item Catalog + shop/supply + quest/encounter/boss 硬模板 / 校验 / 建筑库表单）· 尚未 git commit · 2026-10-28**  
-> M-item-4（AI propose-item/shelf 闭环）**工作区已落地（未 commit）**；**不**另起经济 runtime。放置真价/`resourceId` 绑定 UI 未做（仅 schema 扩展口）。  
+> **状态：M-item-1…4 已提交（`66b4b2f` · 2026-10-28）**：Item Catalog、shop/supply、quest/encounter/boss 硬模板、校验、建筑库表单及 AI 提议审核闭环。
+> M-item-4 包含物品、货架和掉落的 propose/accept；**不**另起经济 runtime。放置真价/`resourceId` 绑定 UI 未做（仅 schema 扩展口）。
 > 约束来源：[`extensibility.md`](./extensibility.md)（五层 · Catalog compile-down）· [`world-map-editor.md`](./world-map-editor.md) §9 / §9.10（确认 → 填充 → 建筑库）· [`stat-templates.md`](./stat-templates.md)（`role: resource` 货币约定）。  
 > 产品纪律：**不另起经济 / 物品运行时**；玩时真相仍是 Substrate 的 `resources` / `variables` / `facts` / conditions / effects。
 
@@ -381,9 +381,9 @@ MapFillPlacement = {
 | 切片 | 内容 | 验收 |
 |---|---|---|
 | **M-item-1** Item Catalog | 工作区 CRUD；类别闭集；字段校验；独立或嵌在建筑库旁的目录页 | 增删改查；同名 `· N`；无静默覆盖；删除被引用 Item 有警告 |
-| **M-item-2** shop / supply 硬内容 | BuildingAsset 增 `shop` / `supply`；检查器表单；放置 overrides 单价/库存 | **工作区已落地（未 commit）**：空 shelf 合法；未知 itemId 拒存；roleHint-only target OK；inventoryDraft 保留。放置真价绑定 UI / 购买桩经 rules / draft 升格捷径 → 后续 |
-| **M-item-3** quest / encounter / boss | `quest.slots`、`encounter.loot`+trigger；loot 引用目录 | **工作区已落地（未 commit）**：空 slots/loot 合法；未知 loot/giveItems itemId 拒存；Boss 无击败旗必填；lootDraft 保留。完整任务/战斗 runtime → 非目标 |
-| **M-item-4** AI 提议闭环 | propose-item → accept catalog → propose shelf/loot → accept building | **工作区已落地（未 commit）**：propose/accept Item Catalog；shelf/loot 仅引用已有 itemId，新名词挂起为物品草案；丢弃清客户端零残留；provenance=`ai-propose`。完整战斗/经济 runtime、放置真价 UI → 非目标 |
+| **M-item-2** shop / supply 硬内容 | BuildingAsset 增 `shop` / `supply`；检查器表单；放置 overrides 单价/库存 | **已提交**：空 shelf 合法；未知 itemId 拒存；roleHint-only target OK；inventoryDraft 保留。购买/补给桩已由 P1 实现；放置真价绑定 UI / draft 升格捷径仍待完成 |
+| **M-item-3** quest / encounter / boss | `quest.slots`、`encounter.loot`+trigger；loot 引用目录 | **已提交**：空 slots/loot 合法；未知 loot/giveItems itemId 拒存；Boss 无击败旗必填；lootDraft 保留。完整任务/战斗 runtime → 非目标 |
+| **M-item-4** AI 提议闭环 | propose-item → accept catalog → propose shelf/loot → accept building | **已提交**：propose/accept Item Catalog；shelf/loot 仅引用已有 itemId，新名词挂起为物品草案；丢弃清客户端零残留；provenance=`ai-propose`。完整战斗/经济 runtime、放置真价 UI → 非目标 |
 
 与地图填充分期关系：M-fill-3/4 可与 M-item-2 并行，但**商店试玩可购**以「世界放置实例有真价硬行」为准；仅有 draft labels 或**仅有库内空模板**不算该世界填充完成。  
 

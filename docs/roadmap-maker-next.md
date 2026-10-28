@@ -1,12 +1,12 @@
 # Maker 下一阶段路线图（可交付文字游戏生成工具）
 
-> **状态：定稿 · 2026-10-28**（已锁定 Q1–Q3；下一刀 **M1 切片**）  
+> **当前状态 · 2026-10-28：M1 玩家壳、M1b 导出及 S1 系统已落地；当前收尾金样本与体验问题，下一主线是 S2 → S3。**
 > 定位依据：用户确认——类似 **RPG Maker** 的文字游戏生成/搭建工具  
 > 玩法底座：[`player-loop.md`](./player-loop.md)（P0–P2 已落地）· [`playtest-rubric.md`](./playtest-rubric.md)  
 > 五层纪律：[`extensibility.md`](./extensibility.md) · [`architecture.md`](./architecture.md)  
 > 前序切片：[`p1-open-fill-playable-slice.md`](./p1-open-fill-playable-slice.md) · [`p2-encounter-playable-slice.md`](./p2-encounter-playable-slice.md)  
-> **M1 切片：** [`m1-player-shell-playable-slice.md`](./m1-player-shell-playable-slice.md)（待用户确认 · docs-only）  
-> 默认不 git commit/push；M1 切片经用户确认后再交 UI
+> **当前执行计划：** [`s1-game-production-flow-slice.md`](./s1-game-production-flow-slice.md) §8；M2 由 S2/S3 承接，M3 在 S3 之后评估，M4/M5 后置。进度与回归见 [`progress-2026-10-28.md`](./progress-2026-10-28.md)。
+> 下文保留最初 M0–M5 的目标与决定记录；涉及「下一刀 M1」「待确认」的旧时序按本页当前状态读取。默认不 git commit/push。
 
 相关术语：**Maker（生成/搭建工具）** · **纯玩家壳（Player Shell）** · **主线路（推进脊）** · **compile-down** · **Substrate / Catalog / AI adapters** · **GameRevision / WorldRevision** · **Perceive→Decide→Act→Feedback**。
 
@@ -64,7 +64,7 @@ P0–P2 证明「局里好玩」；M 期证明「工具能成局、成品能交�
 |---|---|---|
 | **生成快** | 有改编任务与提案；主线路「Maker 一键成局」感弱 | 想法/短设定入口；主脊+有效岔路的结构化产出；与 rubric D1/D4 对齐的生成门禁；一键落到可试玩草稿 |
 | **搭得住** | Catalog + fill 桩 + API/MCP 齐；作者放置/绑定 UX 仍夹具向 | 放置 UX；真价/loot 绑定表单；「生成结果 → 填充/货架」一条龙；题材包默认内容 |
-| **玩得出 / 交得出** | 发布+本机试玩有；**无**纯玩家最小交付 | 纯玩家壳 / 可分享包；离开作者面的开局路径；权限与内容包边界（本机优先） |
+| **玩得出 / 交得出** | M1 `/play` 玩家壳、M1b HTML/EXE 离线交付已落地 | 播放器重编、导出包体积优化与持续打包回归；公网权限与发行后台仍后置 |
 
 ---
 

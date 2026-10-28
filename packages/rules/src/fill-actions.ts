@@ -19,6 +19,7 @@ import type {
   WorldEffect,
 } from '@novel-game/contracts';
 import { findBuildingAsset, MAP_FILL_KIND_LABEL } from '@novel-game/contracts';
+import { resourceDisplayLabel as resourceLabel, resourceLabelsForWorld } from './resource-labels.js';
 
 export type FillKindHint = MapFillKind;
 
@@ -92,10 +93,6 @@ function itemLabel(itemId: string, catalog: ItemCatalog | undefined, override?: 
   if (override?.trim()) return override.trim();
   const hit = catalog?.items.find(i => i.id === itemId);
   return hit?.label ?? itemId.replace(/_/g, ' ');
-}
-
-function resourceLabel(id: string, labels?: Record<string, string>): string {
-  return labels?.[id] ?? ({ coin: '通货', primary_coin: '通货', hp: '体力', gold: '金币' } as Record<string, string>)[id] ?? id.replace(/_/g, ' ');
 }
 
 function stockResourceId(placementId: string, lineKey: string): string {
@@ -231,7 +228,7 @@ export function projectFillActions(world: WorldContent, opts: FillProjectOptions
   const groups: FillGroupView[] = [];
   const seedResources: Record<string, number> = {};
   const seedFacts: Record<string, boolean> = {};
-  const labels = opts.resourceLabels ?? {};
+  const labels = { ...resourceLabelsForWorld(world), ...opts.resourceLabels };
 
   for (const placement of collectPlacements(world)) {
     const resolved = resolvePlacement(placement, opts.library);
@@ -305,7 +302,7 @@ export function projectFillActions(world: WorldContent, opts: FillProjectOptions
             { kind: 'resource', resourceId: price.resourceId, atLeast: price.amount },
             { kind: 'resource', resourceId: stockId, atLeast: 1 },
           ],
-          blockedReason: '通货不足',
+          blockedReason: `${resourceLabel(price.resourceId, labels)}不足`,
           risk: '',
           timeCost: 1,
           once: false,
@@ -315,7 +312,7 @@ export function projectFillActions(world: WorldContent, opts: FillProjectOptions
           costHints: [costHint],
           kindHint: 'shop',
           fillGroupId: groupId,
-          fillBlockHints: { money: '通货不足', stock: '无货' },
+          fillBlockHints: { money: `${resourceLabel(price.resourceId, labels)}不足`, stock: '无货' },
         });
         lineIds.push(actionId);
       }
@@ -409,7 +406,7 @@ export function projectFillActions(world: WorldContent, opts: FillProjectOptions
           locationId: placement.locationId,
           availableWhen: [],
           requires,
-          blockedReason: usesId ? '次数已用尽' : (cost ? '通货不足' : '当前条件不满足'),
+          blockedReason: usesId ? '次数已用尽' : (cost ? `${resourceLabel(cost.resourceId, labels)}不足` : '当前条件不满足'),
           risk: '',
           timeCost: 1,
           once: false,
@@ -420,7 +417,7 @@ export function projectFillActions(world: WorldContent, opts: FillProjectOptions
           kindHint: 'supply',
           fillGroupId: groupId,
           fillBlockHints: {
-            money: '通货不足',
+            ...(cost ? { money: `${resourceLabel(cost.resourceId, labels)}不足` } : {}),
             uses: '次数已用尽',
             missingItem: '缺少所需物品',
           },

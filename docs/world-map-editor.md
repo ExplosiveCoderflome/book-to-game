@@ -189,10 +189,10 @@ WorldMap = {
 
 ## 9. 地图确认 → 内容填充 → 建筑库
 
-> 状态：**M-fill-1 + M-fill-2 已落地（工作区，未提交）**：结构锁 + 填充骨架；`BuildingLibrary` CRUD、独立建筑库页、AI 文本提议建筑、出图接缝（SVG 回退）。**把库建筑摆到已确认地图上的「建筑填充系统」见 §9.10（规划，未实现）**；AI `propose-map-fill` / 完整试玩图标按 §9.8 + §9.10。  
+> 状态：**M-fill-1 + M-fill-2 已提交**：结构锁 + 填充骨架；`BuildingLibrary` CRUD、独立建筑库页、AI 文本提议建筑、出图接缝（SVG 回退）。**把库建筑摆到已确认地图上的「建筑填充系统」见 §9.10（规划，未实现）**；AI `propose-map-fill` / 完整试玩图标按 §9.8 + §9.10。
 > 与 §7 M1–M4、题材地图模板、城市子地图正交：本段管的是「结构定稿之后」往地图上挂遭遇 / 商店 / 补给 / 任务等内容，以及跨城镇复用的**建筑库（Building Library）**编目。  
 > 纪律对齐 [`extensibility.md`](./extensibility.md)：Catalog 编译下行；AI 只出草稿；玩时只经 locations / conditions / effects。
-> **物品目录与分种类主要内容** → [`items-and-building-content.md`](./items-and-building-content.md)（**M-item-1…3 工作区已落地 · 尚未 commit** · 2026-10-28）。
+> **物品目录与分种类主要内容** → [`items-and-building-content.md`](./items-and-building-content.md)（**M-item-1…4 已提交** · 2026-10-28）。
 
 ### 9.1 约定流水线（Agreed pipeline）
 
@@ -320,7 +320,7 @@ BuildingLibrary = {
 | 阶段 | 内容 | 验收（规划） |
 |---|---|---|
 | **M-fill-1 确认锁 + 填充骨架** ✅ | `structureLocked`；结构写拒绝；填充 placement 挂地点；编辑器确认 / 解锁 UX；校验 warning/error | 未确认不能开填充层；锁定后改尺寸 / 绑定失败；无地图世界零回归 |
-| **M-fill-2 建筑库 v1** ✅（工作区未 commit） | 工作区 `BuildingLibrary` CRUD；创建默认入库（可取消）；手动「加入库」；同名 → `· 2` 后缀；放置 = ref + overrides；显式「升格变体」 | 无静默覆盖；跨城镇引用同一资产；覆写不改库 |
+| **M-fill-2 建筑库 v1** ✅（已提交） | 工作区 `BuildingLibrary` CRUD；创建默认入库（可取消）；手动「加入库」；同名 → `· 2` 后缀；放置 = ref + overrides；显式「升格变体」 | 无静默覆盖；跨城镇引用同一资产；覆写不改库 |
 | **M-fill-3 种类 · 桩效果 · 地图放置 UX** | 闭集种类 + KindRegistry 桩；地图填充层从建筑库放置 / 拖放；试玩图标 + 迷雾；详见 **§9.10** | 未锁定拒绝放置；互动只经规则引擎；无独立战斗 / 经济 runtime |
 | **M-fill-4 AI 地图填充草稿** | 确认后 `propose-map-fill`：优先引用库资产，新资产先经库审核；分类 accept/reject；默认新资产入库；详见 **§9.10** | AI 不改结构、不写 session；拒绝零残留；不发明未绑定地点 |
 | **M-fill-5 格/路段标记 + 道路结构（可选后置）** | cell/route markers（警告级）；道路 / 路程进结构层并纳入锁定 | 路上遇怪可无地点；路程消耗进数值模板 |
@@ -464,7 +464,7 @@ MapFillPlacement
 
 ### 9.11 物品目录与分种类主要内容（指针）
 
-> 状态：**M-item-1…3 工作区已落地（尚未 git commit，2026-10-28）**；M-item-4 未做。全文见 [`items-and-building-content.md`](./items-and-building-content.md)。
+> 状态：**M-item-1…4 已提交（2026-10-28，`66b4b2f`）**。M-item-4 已包含物品、货架、掉落的 AI 提议与审核接受入口；地图放置和世界真价绑定 UI 仍待完成。全文见 [`items-and-building-content.md`](./items-and-building-content.md)。
 
 建筑库「主要内容」**不是**只靠产物 prompt，也不是建筑内孤立物资表，而是 **Item Catalog（共享编目）+ 建筑按 kind 引用硬行**。货币沿用 world `resources`；`inventoryDraft` / `lootDraft` 仅过渡。分期 **M-item-1…4**（目录 → shop/supply → quest/encounter/boss → AI 闭环）与 §9.10 填充分期正交：有图无硬行 ≠ 可购可掉。**分层：** Catalog（物品/建筑库）只放可跨世界复用的形状与偏好；真价、`resourceId`、补给 target、任务/遭遇真 id 等在**确认地图后的世界绑定 / 放置实例**才规定（见 items-and-building-content **§6**）。实现细节、字段表与 TypeScript 示意不在此重复。
 
@@ -472,7 +472,7 @@ MapFillPlacement
 
 ## 10. 建筑展示图（BuildingImageProvider）
 
-> 状态：端口 + SVG 确定性插画回退已落地（工作区，**未 commit**）；xkrelay 探测（2026-10-28）仅有 gemini 聊天模型，`/images/generations` 对常见绘图模型返回 `model_not_found`。
+> 状态：端口 + SVG 确定性插画回退已提交；xkrelay 探测（2026-10-28）仅有 gemini 聊天模型，`/images/generations` 对常见绘图模型返回 `model_not_found`。真实绘图模型是否可用需按当前配置另行验证。
 
 - **端口**：`BuildingImageProvider`（contracts），与 `MapImageProvider` 同层——UI / 编目不直连厂商。
 - **默认**：`SvgBuildingImageProvider`（同 label+kind+tags+seed ⇒ 相同 SVG）。
