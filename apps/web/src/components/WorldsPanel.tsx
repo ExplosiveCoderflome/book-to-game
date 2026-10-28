@@ -11,6 +11,8 @@ import { withMap } from '../lib/world-map';
 import type { WorldMap } from '@novel-game/contracts';
 import { FactionRelationsEditor } from './FactionRelationsEditor';
 import { WorldLayerEditor } from './WorldLayerEditor';
+import { MapDraftReview } from './MapDraftReview';
+import type { MapDraftDiff } from '@novel-game/contracts';
 import { eraMap } from '@novel-game/rules';
 import { WorldOverview } from './WorldOverview';
 import { WorldActionRulesEditor } from './WorldActionRulesEditor';
@@ -50,6 +52,15 @@ export function WorldsPanel({
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [inspectorTab, setInspectorTab] = useState<'location' | 'meta' | 'all' | 'worldbook' | 'factions' | 'layer'>('location');
   const [eraId, setEraId] = useState('');
+  const [mapDraft, setMapDraft] = useState<MapDraftDiff | null>(null);
+  const [mapDraftBusy, setMapDraftBusy] = useState(false);
+  const [beforeImport, setBeforeImport] = useState<WorldContent | null>(null);
+  async function extractMap() {
+    if (!draft) return; setMapDraftBusy(true); setError(null);
+    try { setMapDraft(await request<MapDraftDiff>(token, `/worlds/drafts/${draft.id}/map-draft`, 'POST', {})); }
+    catch (e) { setError(errorMessage(e)); }
+    finally { setMapDraftBusy(false); }
+  }
   const activeEra = content?.eras?.some(e => e.id === eraId) ? eraId : '';
   const eraProps = content?.eras?.length ? {
     ...(activeEra ? { previewMap: (m: WorldMap) => eraMap(content, m, activeEra) } : {}),
@@ -229,6 +240,7 @@ export function WorldsPanel({
               )}
               <button type="button" className="small" disabled={busy || json !== null || canvasMode === 'play'} onClick={() => setMetaOpen(v => !v)}>{t(metaOpen ? '收起世界信息' : '世界信息')}</button>
               <button type="button" className="small" disabled={busy || json !== null || canvasMode === 'play' || !content.locations.length} onClick={() => { setInspectorTab('all'); setInspectorOpen(true); }}>{t('全览')}</button>
+              <button type="button" className="small" data-testid="ai-extract-map" disabled={busy || mapDraftBusy || !draft || dirty || json !== null || canvasMode === 'play'} title={dirty ? t('先保存草稿') : undefined} onClick={() => void extractMap()}>{mapDraftBusy ? t('AI 提取中…') : t('AI 提取地图')}</button>
               <button type="button" className="small" data-testid="open-worldbook" disabled={busy || json !== null || canvasMode === 'play'} onClick={() => { setInspectorTab('worldbook'); setInspectorOpen(true); }}>{t('世界书')}</button>
               <button type="button" className="small" disabled={busy || canvasMode === 'play'} onClick={() => json === null ? setJson(JSON.stringify(content, null, 2)) : apply()}>{json === null ? t('高级 JSON') : t('应用 JSON 到编辑器')}</button>
             </div>
@@ -236,6 +248,11 @@ export function WorldsPanel({
           {json !== null ? (
             <label>WorldContent JSON<textarea className="json-editor" rows={28} value={json} spellCheck={false} onChange={e => setJson(e.target.value)} /></label>
           ) : <>
+            {mapDraft && <MapDraftReview key={JSON.stringify(mapDraft.items.map(i => i.id))} content={content} diff={mapDraft} onClose={() => setMapDraft(null)}
+              onApply={next => { setBeforeImport(content); change(next); setMapDraft(null); setCanvasView('map'); }} />}
+            {!mapDraft && beforeImport && <div className="import-undo-strip"><span className="hint">{t('刚导入了 AI 地图草案')}</span>
+              <button type="button" className="small" data-testid="map-draft-undo" onClick={() => { change(beforeImport); setBeforeImport(null); }}>↶ {t('撤销导入')}</button>
+              <button type="button" className="small quiet" onClick={() => setBeforeImport(null)}>{t('保留')}</button></div>}
             {metaOpen && (
               <div className="draft-meta-strip">
                 <p className="hint">{t('来源：{source} · 改编范围 {chapters} 章。地点、行动、证据与条件可在高级 JSON 中完整编辑。', { source: sources.find(s => s.id === sourceId)?.title ?? t('尚未选择'), chapters: content.sourceChapterIds.length })}</p>

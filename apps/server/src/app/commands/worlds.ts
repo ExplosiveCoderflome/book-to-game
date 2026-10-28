@@ -1,10 +1,18 @@
 import { z } from 'zod';
-import { worldContentSchema } from '@novel-game/contracts';
+import { extractMapDraftInputSchema, worldContentSchema } from '@novel-game/contracts';
+import { extractMapDraft } from '../../modules/worlds/index.js';
+import { AppError } from '../../shared/errors.js';
 import type { Workbench } from '../workbench.js';
 import { command, emptySchema, idSchema } from './definition.js';
 
 export function worldCommands(w: Workbench) {
   return [
+    command('extract_map_draft', 'AI：从小说原文抽取地图草案（地点/势力/人物/通路），返回待作者逐项审阅的 diff；不修改草稿。',
+      extractMapDraftInputSchema.extend({id: z.string()}), true, async ({id, ...input}) => {
+        if (!w.providerConfigured) throw new AppError('MODEL_NOT_CONFIGURED', '尚未配置模型。请进入“模型设置”后再使用 AI 提取。', 503);
+        const provider = w.createPlayProvider();
+        return extractMapDraft(w.worlds, sid => w.sources.get(sid), id, input, provider, AbortSignal.timeout(180_000), provider.modelName);
+      }),
     command('get_world_schema', '获取v1开放世界JSON Schema；草稿需校验引用与来源后再发布。', emptySchema, true, () => z.toJSONSchema(worldContentSchema)),
     command('create_world_draft', '建立开放世界草稿；作者视图含隐藏事实和NPC私有目标，不可直接作为玩家上下文。',
       z.object({sourceId: z.string().min(1), content: worldContentSchema}), false, input => w.worlds.create(input)),

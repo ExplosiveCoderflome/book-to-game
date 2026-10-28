@@ -3036,3 +3036,17 @@ summary:focus:not(:focus-visible) {
 .stronghold-keep { stroke: #2d2a26; stroke-width: 1.5; fill: #8a8378; }
 .poi.selected .stronghold-keep { stroke: #d9480f; stroke-width: 2.5; }
 .play-npcs { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 6px; }
+/* P5 AI map draft review */
+.map-draft-review { margin: 6px 0; border: 1px solid #d9d2c5; border-radius: 8px; background: #fffdf9; padding: 8px 10px; }
+.mdr-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; } .mdr-head h3 { margin: 0; font-size: 15px; }
+.mdr-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.mdr-body { display: grid; grid-template-columns: minmax(380px, 1fr) minmax(480px, 1.3fr); gap: 12px; margin-top: 6px; }
+.mdr-list { max-height: 520px; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+.mdr-group { display: flex; flex-direction: column; gap: 2px; }
+.mdr-item { display: grid; grid-template-columns: 18px auto 1fr; column-gap: 6px; align-items: baseline; padding: 4px 6px; border-radius: 5px; font-size: 13px; opacity: .55; cursor: pointer; }
+.mdr-item.on { opacity: 1; background: #f4f0e8; } .mdr-item small { color: #8a8378; font-size: 11px; }
+.mdr-item .mdr-text { grid-column: 2 / -1; font-size: 11px; color: #6b655c; }
+.mdr-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+.mdr-item:has(.mdr-swatch) { grid-template-columns: 18px 12px auto 1fr; }
+.mdr-label { font-weight: 600; }
+.import-undo-strip { display: flex; gap: 6px; align-items: center; padding: 4px 8px; background: #fff6ec; border-radius: 6px; margin: 4px 0; }

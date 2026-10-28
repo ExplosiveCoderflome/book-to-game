@@ -69,3 +69,4 @@ export {
 } from './factions.js';
 export { childMapOf, mapPath, validateSubMaps, type SubMapIssue } from './sub-maps.js';
 export { eraMap, npcsOnMap, strongholds, validateWorldLayer, type WorldLayerIssue } from './world-layer.js';
+export { planMapDraft, applyMapDraft, mapDraftDependencies, slugId } from './map-draft.js';
