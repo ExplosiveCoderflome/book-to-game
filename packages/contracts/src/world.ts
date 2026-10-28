@@ -51,7 +51,9 @@ export const worldContentSchema = z.object({
   worldRules: z.array(z.string().min(1).max(1000)).min(1).max(20), adaptationNotes: z.string().max(4000),
   sourceChapterIds: z.array(z.string().min(1).max(80)).min(1).max(1000),
   initialLocationId: id, timeLimit: z.number().int().min(3).max(100), timeoutEnding: z.string().min(1).max(3000),
-  locations: z.array(z.object({id, title: z.string().min(1).max(200), text: z.string().min(1).max(4000), ...provenance})).min(3).max(12),
+  locations: z.array(z.object({id, title: z.string().min(1).max(200), text: z.string().min(1).max(4000),
+    /** Location hierarchy (city → district → room). Enter/exit are ordinary move actions. */
+    parentLocationId: id.optional(), ...provenance})).min(3).max(40),
   facts: z.array(z.object({id, label: z.string().min(1).max(120), description: z.string().max(1000),
     kind: z.enum(['clue', 'item', 'relationship', 'event']), initialValue: z.boolean(), playerKnown: z.boolean(), ...provenance})).max(80),
   npcs: z.array(z.object({id, name: z.string().min(1).max(120), description: z.string().max(1000),

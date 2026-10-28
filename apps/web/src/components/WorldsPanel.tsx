@@ -261,9 +261,9 @@ export function WorldsPanel({
                   playOverlay={canvasMode === 'play' ? playOverlay : null}
                   readOnly={canvasMode === 'play'}
                 />
-              ) : canvasView === 'map' ? <WorldMapCanvas content={content} selectedLocationId={selectedLocationId} onSelectLocation={selectLocationLinked} onMapChange={updateMap} historyKey={draft?.id ?? 'new-world'} /> : (
+              ) : canvasView === 'map' ? <WorldMapCanvas content={content} selectedLocationId={selectedLocationId} onSelectLocation={selectLocationLinked} onMapChange={updateMap} onContentChange={change} historyKey={draft?.id ?? 'new-world'} /> : (
                 <div className="world-split" data-testid="world-split">
-                  <WorldMapCanvas content={content} selectedLocationId={selectedLocationId} onSelectLocation={selectLocationLinked} onMapChange={updateMap} historyKey={draft?.id ?? 'new-world'} />
+                  <WorldMapCanvas content={content} selectedLocationId={selectedLocationId} onSelectLocation={selectLocationLinked} onMapChange={updateMap} onContentChange={change} historyKey={draft?.id ?? 'new-world'} />
                 <WorldGraphCanvas
                   primary
                   content={canvasMode === 'play' && latestRevision ? latestRevision.content : content}

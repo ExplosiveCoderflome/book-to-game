@@ -3004,3 +3004,13 @@ summary:focus:not(:focus-visible) {
 .faction-stat-add { display: flex; gap: 4px; flex-wrap: wrap; }
 .play-relations { display: flex; flex-wrap: wrap; gap: 5px; }
 .rel-pill { font-size: 12px; padding: 3px 8px; border-radius: 999px; border: 1px solid #0001; }
+
+/* ---- Sub-map breadcrumb (P3) ---- */
+.world-map-stack { display: flex; flex-direction: column; min-height: 0; min-width: 0; height: 100%; flex: 1; }
+.world-map-stack > .branch-canvas { flex: 1; min-height: 0; }
+.map-breadcrumb { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px; border-bottom: 1px solid var(--line, #e2ddd2); background: #fbfaf6; font-size: 13px; }
+.map-breadcrumb nav { display: flex; align-items: center; gap: 2px; min-width: 0; overflow: hidden; }
+.crumb { border: 0; background: transparent; padding: 3px 7px; border-radius: 6px; cursor: pointer; color: #5a5448; font-size: 13px; }
+.crumb:hover { background: #efebe2; } .crumb.current { font-weight: 700; color: #1f1c17; background: #efebe2; }
+.crumb-sep { margin: 0 2px; color: #b3ada0; }
+.map-breadcrumb-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }

@@ -67,3 +67,4 @@ export {
   relationKey, applyTerritoryOverlay, territoryTargetCells, applySetTerritory, authoredRelation, effectiveRelation,
   applySetFactionRelation, relationTable, worldFactions, STANCE_LABEL, type TerritoryOverlay, type RelationOverlay,
 } from './factions.js';
+export { childMapOf, mapPath, validateSubMaps, type SubMapIssue } from './sub-maps.js';

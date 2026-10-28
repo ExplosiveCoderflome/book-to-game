@@ -90,3 +90,49 @@ export function withMap(content: WorldContent, map: WorldMap | undefined): World
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, Math.round(Number.isFinite(n) ? n : lo)));
 }
+
+/* ---- Sub-maps (P3) — pure content transforms ---- */
+const ROOT = 'root';
+const safeId = (s: string) => s.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 70) || 'map';
+
+/** Replace one map (root or sub) in content; undefined removes it (removing a sub-map also drops its descendants). */
+export function withMapById(content: WorldContent, mapId: string, map: WorldMap | undefined): WorldContent {
+  if (mapId === ROOT) return withMap(content, map);
+  const subs = content.subMaps ?? [];
+  if (map) return { ...content, subMaps: subs.map(m => (m.id === mapId ? map : m)) };
+  const drop = new Set([mapId]); let grew = true;
+  while (grew) { grew = false; for (const m of subs) if (m.id && m.parent && drop.has(m.parent.mapId) && !drop.has(m.id)) { drop.add(m.id); grew = true; } }
+  const kept = subs.filter(m => !m.id || !drop.has(m.id));
+  const next: WorldContent = { ...content, subMaps: kept };
+  if (!kept.length) delete next.subMaps;
+  return next;
+}
+
+/** Create a child map owned by `locationId` on `parentMapId`. Returns content + new map id. */
+export function createSubMap(content: WorldContent, parentMapId: string, locationId: string, cols = 12, rows = 8): { content: WorldContent; mapId: string } {
+  const taken = new Set([ROOT, ...(content.subMaps ?? []).map(m => m.id)]);
+  let id = `${safeId(locationId)}_map`; for (let i = 2; taken.has(id); i++) id = `${safeId(locationId)}_map${i}`;
+  const title = content.locations.find(l => l.id === locationId)?.title ?? locationId;
+  const map: WorldMap = { ...createEmptyMap(cols, rows), id, name: title.slice(0, 80), parent: { mapId: parentMapId, locationId } };
+  return { content: { ...content, subMaps: [...(content.subMaps ?? []), map] }, mapId: id };
+}
+
+/** Hierarchy wiring for a sub-map: child locations get parentLocationId = owner, plus ordinary move actions
+ *  owner → entry (first POI) and child → owner for each child lacking one. Returns number of actions added. */
+export function linkSubMapLocations(content: WorldContent, mapId: string): { content: WorldContent; added: number } {
+  const map = content.subMaps?.find(m => m.id === mapId); const owner = map?.parent?.locationId;
+  if (!map || !owner) return { content, added: 0 };
+  const children = map.pois.map(p => p.locationId).filter(id => id !== owner && content.locations.some(l => l.id === id));
+  if (!children.length) return { content, added: 0 };
+  const title = (id: string) => content.locations.find(l => l.id === id)?.title ?? id;
+  const moves = (from: string, to: string) => content.actions.some(a => a.locationId === from && a.effects.some(e => e.kind === 'move' && e.locationId === to));
+  const ids = new Set(content.actions.map(a => a.id));
+  const uniq = (base: string) => { let v = safeId(base); for (let i = 2; ids.has(v); i++) v = `${safeId(base)}_${i}`; ids.add(v); return v; };
+  const mk = (from: string, to: string, label: string) => ({ id: uniq(`go_${from}_${to}`), label, description: '', locationId: from, availableWhen: [], requires: [],
+    blockedReason: '暂时无法通行', risk: '', timeCost: 1, once: false, effects: [{ kind: 'move' as const, locationId: to }], text: `你${label}。`, origin: 'adapted' as const, evidence: [] });
+  const added = [];
+  if (!children.some(c => moves(owner, c))) added.push(mk(owner, children[0], `进入${title(children[0])}`));
+  for (const c of children) if (!moves(c, owner)) added.push(mk(c, owner, `返回${title(owner)}`));
+  const locations = content.locations.map(l => (children.includes(l.id) && !l.parentLocationId ? { ...l, parentLocationId: owner } : l));
+  return { content: { ...content, locations, actions: [...content.actions, ...added] }, added: added.length };
+}

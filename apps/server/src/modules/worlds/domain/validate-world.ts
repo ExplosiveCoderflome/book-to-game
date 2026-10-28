@@ -1,5 +1,5 @@
 import {SYSTEM_WAIT_ACTION_ID, validateWorldbookContent, type WorldContent, type WorldCondition, type WorldEffect, type SourceDocument, type ValidationResult} from '@novel-game/contracts';
-import {assessOpeningActions, mapIdOf, validateWorldMap, worldFactions, worldMaps} from '@novel-game/rules';
+import {assessOpeningActions, mapIdOf, validateSubMaps, validateWorldMap, worldFactions, worldMaps} from '@novel-game/rules';
 export function validateWorld(world: WorldContent, source: SourceDocument): ValidationResult {
   const errors: string[] = []; const warnings: string[] = [];
   function ids(entries: {id: string}[], category: string): Set<string> {
@@ -122,6 +122,7 @@ export function validateWorld(world: WorldContent, source: SourceDocument): Vali
   });
   errors.push(...wb.errors);
   warnings.push(...wb.warnings);
-  if (world.map) for (const issue of validateWorldMap(world.map, world.locations.map(l => l.id))) (issue.level === 'error' ? errors : warnings).push(issue.message);
+  for (const issue of validateSubMaps(world)) (issue.level === 'error' ? errors : warnings).push(issue.message);
+  if (world.map) for (const issue of validateWorldMap(world.map, world.locations.map(l => l.id).filter(id => !(world.subMaps ?? []).some(m => m.pois.some(p => p.locationId === id))))) (issue.level === 'error' ? errors : warnings).push(issue.message);
   return {valid: errors.length === 0, errors, warnings};
 }
