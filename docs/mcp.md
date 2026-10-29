@@ -24,6 +24,22 @@
 
 Skill 的接入位置是以上工作流的薄说明层。后续封装 Skill 时只添加工具顺序、改编质量要求和作者交互约定，不直接读写 SQLite，也不绕过服务端校验。本轮提供可用 MCP，尚未自动安装 Skill 或改写任意 Agent 配置。
 
+## Agent 对话
+
+网页主导航“Agent 对话”或 `#agent` 提供聊天入口。API为 `/api/agent/chats` 的GET/POST、`/api/agent/chats/:id` GET、`/api/agent/chats/:id/messages` POST（requestId/text）、`/api/agent/chats/:id/actions/:actionId` POST（decision=confirm/reject）。
+
+MCP共用 `create_agent_chat`、`list_agent_chats`、`get_agent_chat`、`send_agent_message`、`decide_agent_action`。调用决定接口必须来自作者明确选择，不能由模型代替；该接口本身不在产品模型工具白名单中。消息使用固定requestId重试；确认使用固定actionId重试。既有任务在确认时检查updatedAt；世界摘要修改和发布沿用版本检查。写入回执丢失或进程中断显示uncertain，不自动执行第二遍。
+
+对话使用配置模型的原生tool_calls，并将真实工具回执送回模型。作者工具经过白名单，不提供模型密钥、文件系统、系统命令或对话自我确认能力。`edit_world_summary` 是共用应用命令，只按版本修改title/premise/goal/adaptationNotes；其余世界规则保持。需要完整JSON或复杂图改写时，继续使用既有作者界面/外部MCP流程，不能把截断预览当成完整草稿。
+
+协议实现参考：[DeepSeek官方工具调用说明](https://api-docs.deepseek.com/guides/tool_calls/)。本地HTTP供应商用例验证协议和业务闭环；真实已保存模型只做一次无小说、无工具的最小连通检查，两者证据分别记录。
+
+## Agent 修复候选
+
+监督进程与作者确认命令分开。`playtest_world_draft({id})` 先生成当前草稿的路线报告，再用 `create_agent_repair({id,version,endingId})` 生成规则候选。`list_agent_repairs({id})` 返回最近 20 份候选、修改前后差异、40 相同种子的预览对比及状态；不会修改草稿。
+
+把差异、有限样本结果和既有问题展示给作者。**只有作者明确确认后**才能调用 `apply_agent_repair({id: candidateId})`；驳回用 `reject_agent_repair({id: candidateId})`。应用时重新验证后，在同一事务中保存草稿、报告与候选状态，不发布；409 表示草稿已改或候选已处理，重新读取再决定。网络结果不确定时用同一 candidateId 重试，不能换候选绕过版本检查。已经应用的候选重试不会再增加版本。结构/内容修复范围目前仅已有报告中的 gate-trap/weight；不支持的内容需要作者手动处理。
+
 ## 协议隔离
 
 MCP SDK 被固定在依赖锁文件，当前适配器使用维护中的 v1 SDK 1.32.1，以真实 SDK 客户端验证。未来升级 SDK/增加传输只改 `adapters/mcp`，核心任务与游戏服务不依赖 MCP 类型。参考：[官方 SDK](https://github.com/modelcontextprotocol/typescript-sdk/tree/v1.x)。本项目不声称支持每种 Agent 的私有配置格式。

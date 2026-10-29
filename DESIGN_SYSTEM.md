@@ -2,6 +2,16 @@
 
 > Official design reference for **故事工坊 / Story Workshop**. Future UI work must follow this file.
 
+### Agent chat (2026-10-29)
+
+App/Product UI. The main navigation exposes Agent 对话 beside the bookshelf; `#agent` restores that surface on reload. A 220px conversation rail sits beside the chat, with a bounded scrolling log and a persistent composer. At narrow widths the rail stacks above the log. Uses existing paper/surface/line/accent tokens, native text, details for tool receipts and exact arguments, and explicit confirm/reject buttons. No decorative AI branding or new palette. Supports empty/loading/provider missing/error/running/pending/executed/rejected/uncertain states. Conversation IDs alone are kept in browser storage.
+
+Adversarial review found the initial 58vh log pushed Send below a 720px viewport. The stage now uses viewport height with a flex log and fixed composer, verified visually with Send visible. Pending operations show target, immutable arguments and before/after fields; a model answer is not an execution receipt. No generated imagery or new UI dependencies.
+
+### Agent repair review (2026-10-29)
+
+App/Product UI; extends the existing author preflight surface. Candidates use compact bordered rows (`--line`), plain status text, native `details` for exact diffs, wrapped technical values, and explicit apply/reject actions. No new palette or navigation surface. Empty/loading/error/stale/blocked/applied/rejected states stay inline. Dirty drafts cannot be applied to; author controls are locked during verification. Existing lint errors remain visible and are not represented as a publication pass. Adversarial review found that a single “verification passed” message could hide pre-existing errors; the panel now shows before/after error counts and explicitly retains the need to fix them. Use this file as the design guide for future pages, sections, and components so the website remains consistent.
+
 ## 1. Project overview
 
 - **Website / product name:** 故事工坊 (Story Workshop)

@@ -7,6 +7,13 @@ import { command, emptySchema, idSchema } from './definition.js';
 
 export function worldCommands(w: Workbench) {
   return [
+    command('edit_world_summary', '按指定版本修改世界草稿标题、背景、目标或改编说明，保留所有玩法及其余内容，不发布。',
+      z.object({id: z.string().min(1), version: z.number().int().positive(), title: z.string().min(1).max(200).optional(),
+        premise: z.string().min(1).max(4000).optional(), goal: z.string().min(1).max(2000).optional(), adaptationNotes: z.string().max(4000).optional()})
+        .refine(input => ['title', 'premise', 'goal', 'adaptationNotes'].some(key => input[key as keyof typeof input] !== undefined), '至少提供一项需要修改的内容'), false,
+      ({id, version, ...changes}) => {
+        const draft = w.worlds.get(id); return w.worlds.update(id, {version, content: {...draft.content, ...changes}});
+      }),
     command('extract_map_draft', 'AI：从小说原文抽取地图草案（地点/势力/人物/通路），返回待作者逐项审阅的 diff；不修改草稿。',
       extractMapDraftInputSchema.extend({id: z.string()}), true, async ({id, ...input}) => {
         if (!w.providerConfigured) throw new AppError('MODEL_NOT_CONFIGURED', '尚未配置模型。请进入“模型设置”后再使用 AI 提取。', 503);

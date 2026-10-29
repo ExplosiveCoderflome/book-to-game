@@ -4,11 +4,13 @@ import { useI18n } from '../../lib/i18n';
 import { errorMessage } from '../../lib/api';
 import { getWorldPreflight, lintTone, lintWorldDraft, percent1, playtestTone, playtestWorldDraft, preflightTime, type WorldPreflight } from '../../lib/preflight-api';
 import { CATEGORY_LABEL, EndingRateTable, PacingDiagnosis, PassLineTable, ResourceBandTable, RouteCoverageTable } from './PreflightTables';
+import { AgentRepairPanel } from './AgentRepairPanel';
 
 type Phase = 'idle' | 'running' | 'failed';
 
 /** U14 / §3.6: two in-place strips below `.validation`. Author-only: never imported by src/package/*. */
-export function PreflightPanel({ token, draft, dirty }: { token: string; draft: WorldDraft | null; dirty: boolean }) {
+export function PreflightPanel({ token, draft, dirty, onRepairApplied, onRepairBusyChange }: { token: string; draft: WorldDraft | null; dirty: boolean;
+  onRepairApplied?: (draft: WorldDraft) => Promise<void>; onRepairBusyChange?: (busy: boolean) => void }) {
   const { t } = useI18n();
   const [data, setData] = useState<WorldPreflight | null>(null);
   const [lintPhase, setLintPhase] = useState<Phase>('idle');
@@ -48,6 +50,8 @@ export function PreflightPanel({ token, draft, dirty }: { token: string; draft: 
       {s1
         ? <SimStrip report={sim} stale={simStale} phase={simPhase} failure={failure.sim} dirty={dirty} disabledTitle={disabledTitle} onRun={() => void runSim()} />
         : <div className="preflight-strip tone-muted" data-testid="preflight-sim-strip"><p>{t('模拟试玩只对声明了资源定义、时钟或剧情卡的世界开放。')}</p></div>}
+      {s1 && onRepairApplied && onRepairBusyChange && <AgentRepairPanel token={token} draft={draft} report={sim} dirty={dirty}
+        onApplied={onRepairApplied} onBusyChange={onRepairBusyChange} />}
     </section>
   );
 }

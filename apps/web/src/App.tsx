@@ -16,9 +16,10 @@ const WorldsPanel = lazy(() => import('./components/WorldsPanel').then(m => ({ d
 const AdventurePanel = lazy(() => import('./components/AdventurePanel').then(m => ({ default: m.AdventurePanel })));
 const BuildingLibraryPage = lazy(() => import('./components/building-library/BuildingLibraryPage').then(m => ({ default: m.BuildingLibraryPage })));
 const ItemCatalogPage = lazy(() => import('./components/item-catalog/ItemCatalogPage').then(m => ({ default: m.ItemCatalogPage })));
+const AgentChatPanel = lazy(() => import('./components/agent/AgentChatPanel').then(m => ({default: m.AgentChatPanel})));
 
-type Tab = 'sources' | 'generation' | 'worlds' | 'buildings' | 'items' | 'adventures' | 'drafts' | 'play' | 'settings';
-const tabs: { id: Tab; label: string; number: string }[] = [{ id: 'sources', label: '原作书架', number: '01' }, { id: 'generation', label: '改编生成', number: '02' }, {id: 'worlds', label: '世界草稿', number: '03'}, {id: 'buildings', label: '建筑库', number: '04'}, {id: 'items', label: '物品目录', number: '05'}, {id: 'adventures', label: '开放冒险', number: '06'}, { id: 'drafts', label: '分支草稿', number: '07' }, { id: 'play', label: '分支试玩', number: '08' }, {id: 'settings', label: '模型设置', number: '09'}];
+type Tab = 'sources' | 'agent' | 'generation' | 'worlds' | 'buildings' | 'items' | 'adventures' | 'drafts' | 'play' | 'settings';
+const tabs: { id: Tab; label: string; number: string }[] = [{ id: 'sources', label: '原作书架', number: '01' }, {id: 'agent', label: 'Agent 对话', number: 'AI'}, { id: 'generation', label: '改编生成', number: '02' }, {id: 'worlds', label: '世界草稿', number: '03'}, {id: 'buildings', label: '建筑库', number: '04'}, {id: 'items', label: '物品目录', number: '05'}, {id: 'adventures', label: '开放冒险', number: '06'}, { id: 'drafts', label: '分支草稿', number: '07' }, { id: 'play', label: '分支试玩', number: '08' }, {id: 'settings', label: '模型设置', number: '09'}];
 interface Data { runtime: RuntimeInfo; sources: SourceSummary[]; jobs: GenerationJob[]; drafts: Draft[]; revisions: GameRevision[]; sessions: SessionView[]; worlds: WorldDraft[]; worldRevisions: WorldRevision[]; adventures: AdventureView[] }
 
 function Workbench() {
@@ -27,7 +28,7 @@ function Workbench() {
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
-  const [tab, setTab] = useState<Tab>('sources');
+  const [tab, setTab] = useState<Tab>(() => typeof window !== 'undefined' && window.location.hash === '#agent' ? 'agent' : 'sources');
   const [sourceId, setSourceId] = useState('');
   const [draftId, setDraftId] = useState('');
   const [revisionId, setRevisionId] = useState('');
@@ -36,6 +37,10 @@ function Workbench() {
   const [worldDirty, setWorldDirty] = useState(false);
   const [showDemo, setShowDemo] = useState(false);
   useEffect(() => { window.scrollTo({top: 0}); }, [tab]);
+  useEffect(() => {
+    if (tab === 'agent') window.history.replaceState(null, '', '#agent');
+    else if (window.location.hash === '#agent') window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  }, [tab]);
   const refresh = useCallback(async () => {
     const [runtime, sources, jobs, drafts, revisions, sessions, worlds, worldRevisions, adventures] = await Promise.all([
       request<RuntimeInfo>(token, '/runtime'), request<SourceSummary[]>(token, '/sources'), request<GenerationJob[]>(token, '/jobs'),
@@ -96,6 +101,7 @@ function Workbench() {
         <Notice text={error} />
         <div hidden={tab !== 'sources'}><SourcePanel token={token} sources={data.sources} revisions={data.revisions} selectedId={sourceId} select={setSourceId} refresh={refresh} onGenerate={() => setTab('generation')} onDemoReady={revision => { setRevisionId(revision.id); setTab('play'); }} /></div>
         <div hidden={tab !== 'generation'}><GenerationPanel token={token} runtime={data.runtime} sources={data.sources} selectedId={sourceId} select={setSourceId} jobs={data.jobs} refresh={refresh} openDraft={openGeneratedDraft} onConfigure={() => setTab('settings')} /></div>
+        <div hidden={tab !== 'agent'}><Suspense fallback={null}><AgentChatPanel token={token} configured={data.runtime.providerConfigured} active={tab === 'agent'} onConfigure={() => setTab('settings')} onChanged={refresh} /></Suspense></div>
         <div hidden={tab !== 'drafts'}><Suspense fallback={null}><DraftPanel token={token} drafts={data.drafts} sources={data.sources} revisions={data.revisions} sessions={data.sessions} jobs={data.jobs} runtime={data.runtime} selectedId={draftId} select={setDraftId} refresh={refresh} onPublished={revision => { setRevisionId(revision.id); navigateHash(playStoryHash(revision.id)); }} onOpenPlay={id => { setRevisionId(id); setTab('play'); }} onOpenPlayerShell={id => navigateHash(playStoryHash(id))} onOpenGeneration={() => setTab('generation')} onConfigure={() => setTab('settings')} /></Suspense></div>
         <div hidden={tab !== 'play'}><Suspense fallback={null}><PlayPanel token={token} revisions={data.revisions} sessions={data.sessions} revisionId={revisionId} selectRevision={setRevisionId} refresh={refresh} /></Suspense></div>
         <div hidden={tab !== 'worlds'}><Suspense fallback={null}><WorldsPanel onDirtyChange={setWorldDirty} token={token} drafts={data.worlds} sources={data.sources} revisions={data.worldRevisions} adventures={data.adventures} selectedId={worldDraftId} select={setWorldDraftId} refresh={refresh} onPublished={revision => { setWorldRevisionId(revision.id); navigateHash(playWorldHash(revision.id)); }} onOpenAdventure={id => { setWorldRevisionId(id); setTab('adventures'); }} onOpenPlayerShell={id => navigateHash(playWorldHash(id))} onOpenBuildingLibrary={() => setTab('buildings')} /></Suspense></div>

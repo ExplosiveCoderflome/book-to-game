@@ -211,3 +211,5 @@ export {
 } from './fill-scene-text.js';
 
 
+export type { AgentRepairCandidate, AgentRepairChange, AgentRepairVerification } from './agent-repair.js';
+export type { AgentChatToolCall, AgentChatMessage, AgentChatAction, AgentChatConversation, AgentChatSummary } from './agent-chat.js';

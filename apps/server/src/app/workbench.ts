@@ -13,7 +13,10 @@ import { ModelConnectionProbe } from '../platform/model/connection-probe.js';
 import { WorldService, SqliteWorldRepository } from '../modules/worlds/index.js';
 import { PreflightService, SqlitePreflightRepository } from '../modules/preflight/index.js';
 import { AdventureService, SqliteAdventureRepository } from '../modules/adventure-sessions/index.js';
-import { SqliteDecisionRepository } from '../modules/agent/index.js';
+import { AgentChatService, AgentRepairService, SqliteChatRepository, SqliteDecisionRepository, SqliteRepairRepository } from '../modules/agent/index.js';
+import { AgentChatCompletionsModel } from '../platform/model/agent-chat.js';
+import { createAgentChatTools } from './agent-chat-tools.js';
+import { createCommands } from './commands/index.js';
 import type { Logger } from '../shared/logger.js';
 import { ChatCompletionsProvider } from '../platform/model/chat-completions.js';
 import { ExportService, FsMediaReader, FsPlayerTemplateReader, FsWindowsPlayerReader } from '../modules/exports/index.js';
@@ -44,6 +47,8 @@ export function createWorkbench(db: SqliteDatabase, modelSettings: ModelSettings
     itemCatalog: () => itemCatalog.get().catalog,
   });
   const preflight = new PreflightService(new SqlitePreflightRepository(db), {world: id => worlds.get(id), story: id => games.get(id)});
+  const agentRepairs = new AgentRepairService({worlds, preflight, repository: new SqliteRepairRepository(db),
+    atomic: operation => db.transaction(operation).immediate()});
   const jobs = new JobService(jobsRepository, sources, () => modelSettings.get().configured);
   const createProductionJob = (input: ProductionInput) => {
     const data = productionInputSchema.parse(input);
@@ -104,8 +109,38 @@ export function createWorkbench(db: SqliteDatabase, modelSettings: ModelSettings
     const n = provenanceBackfill.stories.length + provenanceBackfill.worlds.length;
     if (n) logger?.info('provenance.backfill', {stories: provenanceBackfill.stories.map(x => x.id), worlds: provenanceBackfill.worlds.map(x => x.id)});
   } catch (error) { logger?.error?.('provenance.backfill.failed', {message: error instanceof Error ? error.message : String(error)}); }
-  return {provenanceBackfill, backfillProvenance, sources, games, sessions, worlds, preflight, adventures, exporter, buildingLibrary, buildingImages, itemCatalog, jobs, agentDecisions, createProductionJob, createRunner, createPlayProvider, modelSettings, testModelConnection, listModels, mediaDir,
+  const agentChat: AgentChatService = new AgentChatService({repository: new SqliteChatRepository(db),
+    redact: text => {
+      try {const key = modelSettings.resolve().apiKey; return key ? text.replaceAll(key, '[REDACTED]') : text;}
+      catch {return text;}
+    },
+    model: () => {
+      if (!modelSettings.get().configured) throw new AppError('MODEL_NOT_CONFIGURED', '请先在模型设置配置Agent使用的模型', 503);
+      return new AgentChatCompletionsModel(modelSettings.resolve());
+    },
+    tools: () => createAgentChatTools(createCommands(workbench), (name, args) => {
+      const labels: Record<string, string> = {retry_job: '恢复生成任务', cancel_job: '取消生成任务', rewrite_production_unit: '重写指定正文',
+        edit_world_summary: '修改世界摘要', publish_world_draft: '发布世界版本', publish_draft: '发布分支游戏',
+        create_generation_job: '创建改编任务', create_production_job: '创建角色扮演制作任务', apply_agent_repair: '应用修复候选', reject_agent_repair: '驳回修复候选'};
+      const label = labels[name] ?? name;
+      if (['retry_job', 'cancel_job', 'rewrite_production_unit'].includes(name)) {
+        const job = jobs.get(String(args.id));
+        return {summary: `${label}：任务 ${job.id}（${job.status}，${job.stage}）`, guard: job.updatedAt};
+      }
+      if (['edit_world_summary', 'publish_world_draft'].includes(name)) {
+        const draft = worlds.get(String(args.id));
+        const fields: Record<string, string> = {title: '标题', premise: '背景', goal: '目标', adaptationNotes: '改编说明'};
+        const changes = Object.entries(args).filter(([key]) => !['id', 'version'].includes(key))
+          .map(([key, value]) => `${fields[key] ?? key}: ${JSON.stringify(draft.content[key as keyof typeof draft.content])} → ${JSON.stringify(value)}`).join('；');
+        return {summary: `${label}：「${draft.content.title}」v${draft.version}${changes ? `；${changes}` : ''}`, guard: String(draft.version)};
+      }
+      if (name === 'publish_draft') {const draft = games.get(String(args.id)); return {summary: `发布「${draft.content.title}」v${draft.version}`, guard: String(draft.version)};}
+      return {summary: `${label}：${JSON.stringify(args).slice(0, 1000)}`};
+    }),
+  });
+  const workbench = {provenanceBackfill, backfillProvenance, sources, games, sessions, worlds, preflight, adventures, exporter, buildingLibrary, buildingImages, itemCatalog, jobs, agentDecisions, agentRepairs, agentChat, createProductionJob, createRunner, createPlayProvider, modelSettings, testModelConnection, listModels, mediaDir,
     get providerConfigured() {return modelSettings.get().configured;}};
+  return workbench;
 }
 export type Workbench = ReturnType<typeof createWorkbench>;
 

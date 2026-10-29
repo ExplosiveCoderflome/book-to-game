@@ -50,7 +50,9 @@ export function WorldsPanel({
   const [content, setContent] = useState<WorldContent>(blank);
   const [sourceId, setSourceId] = useState(sources[0]?.id ?? '');
   const [dirty, setDirty] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [operationBusy, setBusy] = useState(false);
+  const [repairBusy, setRepairBusy] = useState(false);
+  const busy = operationBusy || repairBusy;
   const [json, setJson] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<number | null>(null);
@@ -145,7 +147,7 @@ export function WorldsPanel({
   });
   useEffect(() => { resetPlay(); }, [selectedId, resetPlay]);
 
-  function change(next: WorldContent) { setContent(next); setDirty(true); setValidation(null); setMessage(null); }
+  function change(next: WorldContent) { if (busy) return; setContent(next); setDirty(true); setValidation(null); setMessage(null); }
   function selectLocation(id: string) {
     setSelectedLocationId(id);
     setInspectorTab('location');
@@ -401,7 +403,11 @@ export function WorldsPanel({
               {validation.warnings.map((e, i) => <p className="hint" key={i}>{e}</p>)}
             </div>
           )}
-          <PreflightPanel token={token} draft={draft} dirty={dirty || json !== null} />
+          <PreflightPanel token={token} draft={draft} dirty={dirty || json !== null} onRepairBusyChange={setRepairBusy}
+            onRepairApplied={async saved => {
+              setDraft(saved); setContent(saved.content); setDirty(false); setValidation(null); setMessage(saved.version);
+              await refresh();
+            }} />
         </fieldset>
       </div>
     )}
