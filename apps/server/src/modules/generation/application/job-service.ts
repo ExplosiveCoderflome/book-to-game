@@ -1,10 +1,12 @@
-import { generationInputSchema, productionPlanSchema, type GenerationInput, type GenerationJob, type ProductionPlan } from '@novel-game/contracts';
+import { authorReadSchema, generationInputSchema, productionPlanSchema, type AuthorReadInput, type GenerationInput, type GenerationJob, type ProductionPlan } from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
 import { chunkSource } from '../domain/chunks.js';
 import { selectChapters } from '../domain/selection.js';
 import type { JobRepository, SourceReader, StoredJob } from '../domain/ports.js';
 import { assertProductionPlan, productionUnits } from '../domain/production.js';
 import { assertPlanMechanics, checkProductionPlan } from './plan-check.js';
+import { readAuthorValue } from '../../../shared/author-read.js';
+import { jobSummary } from './job-read.js';
 
 export function publicJob(job: StoredJob): GenerationJob {
   const {requestId: _requestId, checkpoints: _checkpoints, ...result} = job;
@@ -28,6 +30,23 @@ export class JobService {
     return publicJob(job);
   }
   list(): GenerationJob[] { return this.repository.list().map(publicJob); }
+  read(id: string, input: Partial<AuthorReadInput> = {}) {
+    const job = this.get(id), options = authorReadSchema.parse(input);
+    return options.path ? {id, updatedAt: job.updatedAt, data: readAuthorValue(job, options)} : jobSummary(job);
+  }
+  checkSavedProduction(id: string) {
+    const job = this.get(id);
+    if (!job.productionState) throw new AppError('PRODUCTION_PLAN_NOT_FOUND', '任务还没有玩法规划，请先查询生成进度', 409);
+    return {id, updatedAt: job.updatedAt, report: this.checkProductionPlan(job.productionState.plan)};
+  }
+  approveSavedProduction(id: string, expectedUpdatedAt: string): GenerationJob {
+    const job = this.get(id);
+    if (job.updatedAt !== expectedUpdatedAt) throw new AppError('JOB_STATE_CONFLICT', '任务已更新，请重新审阅当前规划', 409);
+    if (job.status !== 'awaiting_review' || !job.productionState || job.productionState.approved) {
+      throw new AppError('JOB_STATE_CONFLICT', '只有等待审阅的玩法规划可以确认', 409);
+    }
+    return this.approveProduction(id, job.productionState.plan);
+  }
   retry(id: string): GenerationJob {
     if (!this.providerAvailable()) throw new AppError('MODEL_NOT_CONFIGURED', '请先配置模型再恢复任务', 503);
     return publicJob(this.repository.retry(id));
@@ -39,7 +58,7 @@ export class JobService {
     const parsed = productionPlanSchema.parse(plan);
     assertProductionPlan(parsed, job.productionBrief, selectChapters(this.sources.get(job.sourceId), job.chapterIds));
     assertPlanMechanics(parsed); // S5: block approval (and prose generation) while the rules cannot work
-    return publicJob(this.repository.approveProduction(id, parsed));
+    return publicJob(this.repository.approveProduction(id, parsed, job.updatedAt));
   }
   /** S5: read-only rule check of a (possibly edited) plan; errors would block approval. */
   checkProductionPlan(plan: ProductionPlan) { return checkProductionPlan(productionPlanSchema.parse(plan)); }

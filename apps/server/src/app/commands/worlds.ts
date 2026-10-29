@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { extractMapDraftInputSchema, worldContentSchema } from '@novel-game/contracts';
+import { authorReadSchema, extractMapDraftInputSchema, worldContentSchema } from '@novel-game/contracts';
 import { extractMapDraft } from '../../modules/worlds/index.js';
 import { AppError } from '../../shared/errors.js';
 import type { Workbench } from '../workbench.js';
@@ -25,6 +25,8 @@ export function worldCommands(w: Workbench) {
       z.object({sourceId: z.string().min(1), content: worldContentSchema}), false, input => w.worlds.create(input)),
     command('list_world_drafts', '列出开放世界作者草稿，可能包含秘密。', emptySchema, true, () => w.worlds.list()),
     command('get_world_draft', '读取完整作者草稿。玩家只使用get_adventure返回的投影。', idSchema, true, ({id}) => w.worlds.get(id)),
+    command('read_world_draft', '分段读取作者世界草稿（含秘密）。省略path返回摘要和字段目录；path相对content，如["storylets"]、["storylets","0"]、["actions","2","effects"]。集合按offset/limit分页；reference条目按其path继续读取；长文本每页6000字符。每页返回version，版本变化须重新读取。',
+      authorReadSchema.extend({id: z.string().min(1)}), true, ({id, ...input}) => w.worlds.read(id, input)),
     command('update_world_draft', '替换世界草稿，version防止覆盖陈旧编辑。',
       z.object({id: z.string(), version: z.number().int().positive(), content: worldContentSchema}), false,
       ({id, ...input}) => w.worlds.update(id, input)),

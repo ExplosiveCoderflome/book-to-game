@@ -1,4 +1,5 @@
 export { JobService } from './application/job-service.js';
+export { jobSummary } from './application/job-read.js';
 export { GenerationRunner, generationProvenance, isMockModel } from './application/runner.js';
 export { ProvenanceTracer, type TracedProvenance } from './application/provenance-trace.js';
 export { JsonlModelLogReader } from './infrastructure/jsonl-model-log-reader.js';

@@ -123,6 +123,14 @@ export function createWorkbench(db: SqliteDatabase, modelSettings: ModelSettings
         edit_world_summary: '修改世界摘要', publish_world_draft: '发布世界版本', publish_draft: '发布分支游戏',
         create_generation_job: '创建改编任务', create_production_job: '创建角色扮演制作任务', apply_agent_repair: '应用修复候选', reject_agent_repair: '驳回修复候选'};
       const label = labels[name] ?? name;
+      if (name === 'approve_saved_production_plan') {
+        const job = jobs.get(String(args.id));
+        if (job.updatedAt !== args.expectedUpdatedAt || job.status !== 'awaiting_review' || !job.productionState || job.productionState.approved) {
+          throw new AppError('CHAT_ACTION_STALE', '任务已变化或不在待审阅状态，请重新读取规划', 409);
+        }
+        const plan = job.productionState.plan;
+        return {summary: `确认「${plan.world.title}」当前玩法并开始正文生成：扮演${plan.world.playerRole}；${plan.world.storylets?.length ?? 0}张剧情卡、${plan.world.actions.length}个行动；路线：${plan.routes.map(r => r.name).join('、')}。将使用配置的模型产生费用，不发布游戏。`, guard: job.updatedAt};
+      }
       if (['retry_job', 'cancel_job', 'rewrite_production_unit'].includes(name)) {
         const job = jobs.get(String(args.id));
         return {summary: `${label}：任务 ${job.id}（${job.status}，${job.stage}）`, guard: job.updatedAt};

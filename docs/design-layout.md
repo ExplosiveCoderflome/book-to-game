@@ -10,6 +10,7 @@ Content-first horizontal layout for the author workbench.
 4. **Canvas is primary** — The branch/world infinite canvas should expand with the viewport (width and usable height) and remain the largest surface. Side inspectors nest beside it; never bury the canvas under a wall of panels.
 5. **Prose is the exception** — Long reading text (e.g. `.reading-page`, connect/demo marketing copy) may keep a comfortable measure (`--prose-max` / ~70–75ch or an existing reading `max-width`). That exception must not leak into workbench chrome or canvas shells.
 6. **Panels nest inside fill** — Side inspectors and tool panels sit *inside* the full-width stage (grid columns), not outside a centered column.
+7. **Agent workspace** — A232px persistent navigation/history rail (248px at1680px) and300px context/activity pane (340px at1680px) use wide screens productively. Conversation reading measure is the prose exception inside the full-width center, not a constraint on the app shell. At≤1100px context opens on demand; at≤760px navigation/history use dialogs. Avoid stacking rails above the composer or scrolling the whole app to reach Send.
 
 ## Wide-viewport density (suggest ≥1440px)
 

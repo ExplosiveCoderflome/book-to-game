@@ -213,3 +213,4 @@ export {
 
 export type { AgentRepairCandidate, AgentRepairChange, AgentRepairVerification } from './agent-repair.js';
 export type { AgentChatToolCall, AgentChatMessage, AgentChatAction, AgentChatConversation, AgentChatSummary } from './agent-chat.js';
+export { authorReadSchema, type AuthorReadInput } from './author-read.js';

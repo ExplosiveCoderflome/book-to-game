@@ -1,10 +1,11 @@
 import { storyEnglish } from './story-translations';
 import { workspaceEnglish } from './workspace-translations';
+import { agentEnglish } from './agent-translations';
 
 export const supportedLocales = ['zh-CN', 'en-US'] as const;
 export type Locale = typeof supportedLocales[number];
 export const localeStorageKey = 'novel-game.locale';
-export const englishTranslations: Record<string, string> = {...storyEnglish, ...workspaceEnglish};
+export const englishTranslations: Record<string, string> = {...storyEnglish, ...workspaceEnglish, ...agentEnglish};
 export type TranslationParams = Record<string, string | number>;
 
 export function resolveLocale(input?: string | readonly string[] | null): Locale {

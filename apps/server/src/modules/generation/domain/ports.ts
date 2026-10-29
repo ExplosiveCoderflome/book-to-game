@@ -23,7 +23,7 @@ export interface JobRepository {
   saveAnalysis(id: string, owner: string, analysis: AnalysisResult): boolean;
   saveSkeleton(id: string, owner: string, skeleton: BranchSkeleton): boolean;
   saveProductionPlan(id: string, owner: string, plan: ProductionPlan): boolean;
-  approveProduction(id: string, plan: ProductionPlan): StoredJob;
+  approveProduction(id: string, plan: ProductionPlan, expectedUpdatedAt?: string): StoredJob;
   rewriteProduction(id: string, unitKey: string, direction: string): StoredJob;
   saveProductionText(id: string, owner: string, unit: ProductionUnit, text: ProductionNarrative, total: number): boolean;
   saveProductionLint(id: string, owner: string, lint: LintReport, playtest?: PlaytestReport): boolean;

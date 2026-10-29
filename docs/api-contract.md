@@ -15,6 +15,9 @@
 | POST | /api/jobs | GenerationInput → GenerationJob |
 | GET | /api/jobs | GenerationJob[] |
 | GET | /api/jobs/:id | GenerationJob |
+| POST | /api/jobs/:id/read | {path?:string[],offset?:number,limit?:number} → 任务摘要或带updatedAt的数据页 |
+| POST | /api/jobs/:id/plan-check | {} → {id,updatedAt,report:PlanCheckReport}，检查已存规划 |
+| POST | /api/jobs/:id/approve-saved-plan | {expectedUpdatedAt:string} → GenerationJob，确认已存规划并排队正文 |
 | POST | /api/jobs/:id/retry | {} → GenerationJob |
 | POST | /api/jobs/:id/cancel | {} → GenerationJob |
 | GET | /api/drafts | Draft[] |
@@ -35,6 +38,7 @@
 | GET | /api/worlds/drafts | WorldDraft[] |
 | POST | /api/worlds/drafts | {sourceId,content:WorldContent} → WorldDraft |
 | GET | /api/worlds/drafts/:id | WorldDraft |
+| POST | /api/worlds/drafts/:id/read | {path?:string[],offset?:number,limit?:number} → 世界摘要或带version的数据页（path相对content） |
 | PUT | /api/worlds/drafts/:id | {version,content:WorldContent} → WorldDraft |
 | POST | /api/worlds/drafts/:id/validate | {} → ValidationResult |
 | POST | /api/worlds/drafts/:id/publish | {version} → WorldRevision |

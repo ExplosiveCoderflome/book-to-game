@@ -30,8 +30,9 @@ Avoid cream paper fills, heavy inset seals, and multi-pastel “theater” boxes
 
 ## Shell & navigation
 
-- Compact top bar: quiet brand mark (no rotated seal), subtle connection status.
-- Workspace tabs: flat text + thin active underline; numbered prefixes stay tabular and muted.
+- Author shell: persistent navigation/history sidebar, quiet breadcrumb header, one content surface; Agent is the default. Auxiliary editors remain accessible under 创作工具. See DESIGN_SYSTEM.md「Agent workspace redesign」.
+- Agent: central conversation plus actual manuscript context/activity at the side. Persistent composer, readable tool receipts, inline approval, no raw JSON by default. Mobile uses native dialogs for navigation/history/context rather than stacking desktop columns above the conversation.
+- Player shell keeps its own compact header and does not inherit author navigation.
 - Hide decorative vertical edition labels (`.edition`); section eyebrows stay short and muted.
 
 ## Controls

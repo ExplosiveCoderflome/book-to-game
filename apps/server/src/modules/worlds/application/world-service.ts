@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { lintWorld } from '@novel-game/rules/preflight';
-import { worldContentSchema, type DraftProvenance, type WorldContent, type WorldDraft, type WorldRevision, type ValidationResult } from '@novel-game/contracts';
+import { authorReadSchema, worldContentSchema, type AuthorReadInput, type DraftProvenance, type WorldContent, type WorldDraft, type WorldRevision, type ValidationResult } from '@novel-game/contracts';
 import { canonicalJson } from '../../../shared/canonical-json.js';
 import { AppError } from '../../../shared/errors.js';
 import { validateWorld } from '../domain/validate-world.js';
 import type { SourceReader, WorldRepository } from './ports.js';
+import { readAuthorValue } from '../../../shared/author-read.js';
 export class WorldService {
   constructor(
     private readonly repository: WorldRepository,
@@ -35,6 +36,15 @@ export class WorldService {
     const draft = this.repository.getDraft(id); if (!draft) throw new AppError('DRAFT_NOT_FOUND', '世界草稿不存在', 404); return draft;
   }
   list(): WorldDraft[] {return this.repository.listDrafts();}
+  read(id: string, input: Partial<AuthorReadInput> = {}) {
+    const draft = this.get(id), options = authorReadSchema.parse(input);
+    const {content} = draft;
+    return options.path ? {id, version: draft.version, updatedAt: draft.updatedAt, data: readAuthorValue(content, options)}
+      : {id, sourceId: draft.sourceId, version: draft.version, updatedAt: draft.updatedAt,
+        title: content.title, playerRole: content.playerRole, premise: content.premise, goal: content.goal,
+        counts: {locations: content.locations.length, facts: content.facts.length, npcs: content.npcs.length,
+          actions: content.actions.length, storylets: content.storylets?.length ?? 0, endings: content.endings.length}, readableFields: Object.keys(content)};
+  }
   /** Soft-archive a draft (hidden from list, still readable by id; revisions untouched). */
   archive(id: string): {id: string; archived: true} {this.get(id); this.repository.archiveDraft(id); return {id, archived: true};}
   validate(id: string): ValidationResult {

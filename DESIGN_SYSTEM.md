@@ -2,11 +2,21 @@
 
 > Official design reference for **故事工坊 / Story Workshop**. Future UI work must follow this file.
 
-### Agent chat (2026-10-29)
+### Agent workspace redesign (2026-10-29 · current author shell)
 
-App/Product UI. The main navigation exposes Agent 对话 beside the bookshelf; `#agent` restores that surface on reload. A 220px conversation rail sits beside the chat, with a bounded scrolling log and a persistent composer. At narrow widths the rail stacks above the log. Uses existing paper/surface/line/accent tokens, native text, details for tool receipts and exact arguments, and explicit confirm/reject buttons. No decorative AI branding or new palette. Supports empty/loading/provider missing/error/running/pending/executed/rejected/uncertain states. Conversation IDs alone are kept in browser storage.
+App/Product UI + Redesign. **Concept:** a story production studio where the conversation, the agent's actual work, and the playable manuscript are adjacent. This overrides the old numbered top-tab shell below for author pages; the player shell remains separate. `#agent` is the default, with deep links for every author surface and browser back/forward support.
 
-Adversarial review found the initial 58vh log pushed Send below a 720px viewport. The stage now uses viewport height with a flex log and fixed composer, verified visually with Send visible. Pending operations show target, immutable arguments and before/after fields; a model answer is not an execution receipt. No generated imagery or new UI dependencies.
+One persistent left rail (232px / 248px at ≥1680px) combines navigation and conversation history. It exposes Agent, sources, production, and world drafts; auxiliary tools sit in a native disclosure and model settings stay at the foot. A 56px workspace header preserves orientation. The central conversation owns remaining space; the right 300px / 340px pane shows actual draft context and activity. The message measure (840px) and composer measure (940px including gutters) are reading exceptions inside the full-width stage, never a centered app shell. Below1101px context becomes a modal panel; below761px navigation and history become native dialogs. The composer remains in the viewport, including375px phones and720px-height laptops.
+
+Use `studio.css` and `agent-workspace.css` for this surface. Existing green (`#2f6b4f` / hover `#24553e`) and neutral paper remain. New semantic roles: `--studio-side:#f1f3f0`, `--studio-side-hover:#e7ebe5`, `--studio-accent-soft:#e6eee8`, `--studio-muted:#62695f`. Use background contrast for hierarchy, hairline dividers for navigation/data, one subtle shadow for the input surface. No gradients, sparkle marks, imaginary thumbnails, or invented progress. The custom outline icon family is `StudioIcon` (1.6 stroke), with a branching-story mark. Existing system UI fonts stay offline-safe. Reading text is16px; UI labels14px, metadata10–13px under the existing dense-workbench convention; welcome heading28px (24px phone), not a marketing hero.
+
+Verified contrast: muted on paper5.67:1, rail5.08:1, accent-soft4.79:1; active green on soft7.27:1; white on primary6.29:1. Keyboard rings use existing focus blue. Reduced motion disables the working opacity pulse and control transitions. Native modal focus/escape behavior, named icon controls and skip-to-content are required.
+
+Tool calls render as compact, readable steps; full JSON is disclosed only on demand. Model text is safe React text with paragraphs, headings, lists, emphasis and code; model HTML never executes. Approval cards stay beside the matching proposal and show actual status, exact arguments and confirm/reject controls. Failed, skipped, rejected and uncertain states are never labeled executed. Context chips disclose the selected draft and version; the actual metadata goes to the configured model with the message, without exposing internal IDs in conversation titles.
+
+Adversarial review: the previous screen was a form embedded in administrative tabs. The first redesign still inherited20px shell gutters, auto-scrolled the empty page, and inherited12px margins around each tool disclosure; these were removed. Phone title wrapping and unnamed icon controls were fixed. A live read-only DeepSeek conversation exposed raw context IDs in titles; legacy titles now display the project name and new messages place context after the author's text. No new UI package, raster asset, decorative motion, or dark theme was introduced.
+
+References translated into this product (not cloned): [Linear's hierarchy reset](https://linear.app/changelog/2024-03-20-new-linear-ui) → quiet navigation and compact actions; [Notion sidebar navigation](https://www.notion.com/help/guides/navigating-with-the-sidebar) → one navigation/history rail; [Claude artifacts](https://support.claude.com/en/articles/17153992-what-are-artifacts-and-how-do-i-use-them) → a persistent work product beside the conversation. The manuscript, source evidence and production states are specific to Story Workshop.
 
 ### Agent repair review (2026-10-29)
 
@@ -19,14 +29,14 @@ App/Product UI; extends the existing author preflight surface. Candidates use co
 - **Surface profile:** App/Product UI · Redesign
 - **Platform:** web (Vite + React + CSS tokens)
 - **Target users:** Novel adapters / interactive-fiction authors editing graphs, worldbooks, and playtests locally
-- **Main design goal:** Make the workbench feel like a normal modern productivity app — calm, dense, precise — not a literary brochure or pastel prototype
+- **Main design goal:** A conversation-led creation workspace with visible execution and adjacent artifacts; keep specialized graph editors available without making their controls the app's navigation.
 
 ## 2. Brand direction
 
 - **Visual style:** Restrained modern productivity (Linear-adjacent density)
 - **Mood & tone:** Calm, technical-authoring, low theater
 - **Design personality:** Minimal / swiss-rational grotesque UI; serif only for long reading prose
-- **Design concept (one sentence):** A story-graph workbench that feels like a precision instrument for branching narrative — calm neutral field, one signal accent, canvas dominates the viewport, chrome stays quiet and dense like Linear; status/generation/playability are compact tool signals, not posters.
+- **Design concept (one sentence):** A story production studio: the author's conversation, the agent's work, and the playable manuscript sit together on a quiet neutral field with green marking actions and approved progress; graph canvases remain primary inside their dedicated editors.
 - **Adversarial-review verdict:** Covering the brand name, the UI still reads as a graph authoring instrument (canvas primacy + quiet chrome + single green signal). Weakness found+fixed: “天道修正 / L2 自由输入” callouts used AI-purple and soft-blue pastel fills — replaced with neutral muted surfaces and the shared green accent language.
 - **Reference style used:** Named exemplars (no live web scrape this pass): Linear (quiet tabs, density), Notion (calm panels), Figma (canvas-as-primary). Adapted: underline tabs + compact status strips; not cloned marketing layouts.
 - **Voice & UX copy:** Plain Chinese-first (`t()`); CTAs are verbs (“开始新存档”, “保存”); empty/error/loading use specific next actions, not filler (“Elevate / Seamless”).
@@ -87,7 +97,7 @@ Anti-slop: no purple gradients, no AI lavender fills, no cream-literary chrome.
 - **Container widths:** App shell full-bleed (`max-width: none`); gutters `--shell-gutter` 16px / `--shell-gutter-lg` 20px. Prose exception: reading/connect may use measure.
 - **Section spacing:** Compact work-section padding (~10–20px); canvas height `calc(100vh - 168px)`.
 - **Grid rules:** Canvas primary column + inspector column(s); ≥1440 dual inspector side-by-side.
-- **Page anatomy:** site header → workspace tabs (01–07) → work section (toolbar / canvas / inspectors). Not a marketing funnel.
+- **Page anatomy:** persistent author sidebar → workspace breadcrumb → active creation surface. Agent: conversation + adjacent context/activity + persistent composer. Specialized editors retain their own toolbars/canvases/inspectors. Player chrome remains separate.
 - **Conversion / CTA flow:** N/A for workbench; primary action per screen (e.g. Save, Start new save).
 - **App/Product flows:** Nav placement constant; edit↔play mode toggle on canvas; deep-link via draft/revision selection.
 - **Hero composition:** N/A (no marketing hero on workbench). Connect page is utilitarian, not a landing hero.

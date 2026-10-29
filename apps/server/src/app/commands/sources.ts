@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { generationInputSchema, productionInputSchema, productionPlanSchema } from '@novel-game/contracts';
+import { authorReadSchema, generationInputSchema, productionInputSchema, productionPlanSchema } from '@novel-game/contracts';
 import type { Workbench } from '../workbench.js';
 import { command, emptySchema, idSchema } from './definition.js';
 import { AppError } from '../../shared/errors.js';
@@ -33,11 +33,18 @@ export function sourceCommands(w: Workbench) {
       z.object({id: z.string().min(1), plan: productionPlanSchema}), false, ({id, plan}) => w.jobs.approveProduction(id, plan)),
     command('check_production_plan', '只读检查玩法规划的规则（关键任务能否执行、证据与结局前置是否闭合、主线是否会被抽卡锁死、路线是否可达）；错误会阻止确认规划。不调用模型。',
       z.object({plan: productionPlanSchema}), true, ({plan}) => w.jobs.checkProductionPlan(plan)),
+    command('check_job_plan', '检查任务已保存的玩法规划，不需回传完整JSON，不调用模型或修改任务；返回带任务时间的规则与路线报告。',
+      idSchema, true, ({id}) => w.jobs.checkSavedProduction(id)),
+    command('approve_saved_production_plan', '确认任务当前已存规划并排队写正文（会使用配置模型产生费用）；不修改规划、不发布。先用read_job分段审阅及check_job_plan检查；expectedUpdatedAt取审阅时的任务时间。',
+      z.object({id: z.string().min(1), expectedUpdatedAt: z.string().min(1)}), false,
+      ({id, expectedUpdatedAt}) => w.jobs.approveSavedProduction(id, expectedUpdatedAt)),
     command('rewrite_production_unit', '按作者意见只重写一个制作单元，复用其他已保存文案和已确认玩法，完成后创建新的修订草稿；旧草稿和发布版本保留。',
       z.object({id: z.string().min(1), unitKey: z.string().min(1).max(160), direction: z.string().trim().min(5).max(2000)}), false,
       ({id, unitKey, direction}) => w.jobs.rewriteProduction(id, unitKey, direction)),
     command('list_jobs', '查询持久化任务进度。', emptySchema, true, () => w.jobs.list()),
     command('get_job', '读取任务和完整分析；客户端断开后可用同一ID继续查询。', idSchema, true, ({id}) => w.jobs.get(id)),
+    command('read_job', '分段读取任务。省略path返回进度和制作摘要；path为JSON字段/数组下标，如["productionState","plan","bible"]、["productionState","texts","storylet:card_id"]、["analysis"]。集合按offset/limit分页；reference条目按其path继续读取；文本每页6000字符。结果带updatedAt，跨版本须重新审阅。',
+      authorReadSchema.extend({id: z.string().min(1)}), true, ({id, ...input}) => w.jobs.read(id, input)),
     command('retry_job', '恢复失败或取消的任务，保留已完成的文本块。', idSchema, false, ({id}) => w.jobs.retry(id)),
     command('cancel_job', '取消未完成的任务并撤销worker的写入权；保留已完成分析。', idSchema, false, ({id}) => w.jobs.cancel(id)),
   ];

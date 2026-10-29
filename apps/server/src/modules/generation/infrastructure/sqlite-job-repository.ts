@@ -116,10 +116,11 @@ export class SqliteJobRepository implements JobRepository {
       job.status = 'awaiting_review'; job.stage = '请审阅人物与玩法规划'; job.progress = 0.25;
     });
   }
-  approveProduction(id: string, plan: ProductionPlan): StoredJob {
+  approveProduction(id: string, plan: ProductionPlan, expectedUpdatedAt?: string): StoredJob {
     return this.db.transaction(() => {
       const row = this.row(id); const job: StoredJob = JSON.parse(row.payload);
       if (job.status !== 'awaiting_review') throw new AppError('JOB_STATE_CONFLICT', '只有待审阅的规划可以确认', 409);
+      if (expectedUpdatedAt !== undefined && job.updatedAt !== expectedUpdatedAt) throw new AppError('JOB_STATE_CONFLICT', '任务已更新，请重新审阅当前规划', 409);
       job.productionState = {plan, approved: true, texts: {}};
       job.status = 'queued'; job.stage = '规划已确认，等待逐段生成';
       row.owner = null; row.lease_until = 0; this.write(row, job); return job;
