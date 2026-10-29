@@ -77,7 +77,12 @@ export function candidateEdits(world: WorldContent, endingId: string, suppliers 
     const action = world.actions.find(a => a.id === step.key);
     if (!action) continue;
     const sets = flat(action.effects).filter(e => e.kind === 'set') as Extract<WorldEffect, {kind: 'set'}>[];
-    let id = safeId(`guide_${action.id}`); for (let n = 2; usedIds.has(id); n++) id = safeId(`guide_${action.id}_${n}`);
+    const baseId = safeId(`guide_${action.id}`);
+    let id = baseId;
+    for (let n = 2; usedIds.has(id); n++) {
+      const suffix = `_${n}`;
+      id = `${baseId.slice(0, 70 - suffix.length)}${suffix}`;
+    }
     usedIds.add(id);
     const card: Storylet = {id, title: action.label, kind: 'trigger', urgent: true,
       when: [...action.availableWhen, ...action.requires, ...sets.map(e => ({kind: 'fact', factId: e.factId, value: !e.value}) as WorldCondition)].slice(0, 20),

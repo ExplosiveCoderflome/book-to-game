@@ -21,9 +21,35 @@ export const PLAN_MIN_STEPS = 10;
 
 export interface PlanCheckOptions {probeSeeds?: number; maxSteps?: number; probe?: boolean}
 
+/** Optimistic upper bound: ignore gates/order, retain finite use counts, and never reject a potentially reachable cap. */
+function possibleResourceMax(world: WorldContent, resourceId: string, suppliers: Supplier[]): number | undefined {
+  const initial = world.resourceDefs?.[resourceId]?.max;
+  if (initial === undefined) return undefined;
+  const sources = suppliers.map(s => {
+    const card = s.storyletId ? world.storylets?.find(sl => sl.id === s.storyletId) : undefined;
+    const uses = s.key.startsWith('event:') ? 1 : card ? (card.repeat ? card.repeat.maxTimes ?? Infinity : 1)
+      : world.actions.find(a => a.id === s.key)?.once ? 1 : Infinity;
+    return {effects: s.effects, uses};
+  });
+  for (const rule of world.clock?.rules ?? []) sources.push({effects: rule.effects, uses: Math.floor(world.clock!.limitMonths / rule.everyMonths)});
+  let maximum = initial;
+  let extra = 0;
+  for (const source of sources) {
+    if (source.uses === 0) continue;
+    for (const effect of flat(source.effects)) {
+      if (effect.kind !== 'resource_max' || effect.resourceId !== resourceId) continue;
+      if (effect.set !== undefined) maximum = Math.max(maximum, effect.set);
+      if ((effect.delta ?? 0) > 0) extra += effect.delta! * source.uses;
+    }
+  }
+  // Put positive deltas after the largest set as a safe overestimate, even if that ordering cannot actually occur.
+  return maximum + extra;
+}
+
 export function checkPlanWorld(world: WorldContent, routes: SimRoute[], opts: PlanCheckOptions = {}): PlanCheckReport {
   const suppliers = suppliersOf(world);
   const defs = world.resourceDefs ?? {};
+  const maxBounds = new Map(Object.keys(defs).map(id => [id, possibleResourceMax(world, id, suppliers)]));
   const facts0 = new Map(world.facts.map(f => [f.id, !!(f as {initialValue?: boolean}).initialValue]));
   const factLabel = (id: string) => world.facts.find(f => f.id === id)?.label ?? id;
   const resLabel = (id: string) => defs[id]?.label ?? id;
@@ -49,7 +75,7 @@ export function checkPlanWorld(world: WorldContent, routes: SimRoute[], opts: Pl
     for (const [bound, sign] of [[c.atLeast, 1], [c.atMost, -1]] as const) {
       if (bound === undefined) continue;
       const need = (bound - v0) * sign; if (need <= 0) continue;
-      const lim = sign > 0 ? def?.max : def?.min;
+      const lim = sign > 0 ? maxBounds.get(id) : def?.min;
       if (lim !== undefined && (sign > 0 ? bound > lim : bound < lim)) {
         out.push({severity: 'error', ruleId: 'plan.threshold-open', target: id, message: `条件「${resLabel(id)}${sign > 0 ? '≥' : '≤'}${bound}」超出资源${sign > 0 ? '上限' : '下限'} ${lim}，永远无法满足`,
           suggestion: `把门槛改到 ${lim} 以内，或调整「${resLabel(id)}」的${sign > 0 ? '上限' : '下限'}`});
@@ -84,7 +110,7 @@ export function checkPlanWorld(world: WorldContent, routes: SimRoute[], opts: Pl
         out = best ?? [];
         break;
       }
-      case 'known': if (!suppliers.some(s => flat(s.effects).some(e => e.kind === 'reveal' && e.factId === c.factId))) out = [{severity: 'error', ruleId: 'plan.fact-unsettable', target: c.factId,
+      case 'known': if (!world.facts.some(f => f.id === c.factId && f.playerKnown) && !suppliers.some(s => flat(s.effects).some(e => e.kind === 'reveal' && e.factId === c.factId))) out = [{severity: 'error', ruleId: 'plan.fact-unsettable', target: c.factId,
         message: `需要玩家已知「${factLabel(c.factId)}」，但没有任何选项会揭示它`, suggestion: '加一个 reveal 效果的行动或卡牌选项'}]; break;
       case 'resource': out = thresholdOpen(c); break;
       case 'storylet_seen': {

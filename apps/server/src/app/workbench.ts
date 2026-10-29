@@ -13,6 +13,7 @@ import { ModelConnectionProbe } from '../platform/model/connection-probe.js';
 import { WorldService, SqliteWorldRepository } from '../modules/worlds/index.js';
 import { PreflightService, SqlitePreflightRepository } from '../modules/preflight/index.js';
 import { AdventureService, SqliteAdventureRepository } from '../modules/adventure-sessions/index.js';
+import { SqliteDecisionRepository } from '../modules/agent/index.js';
 import type { Logger } from '../shared/logger.js';
 import { ChatCompletionsProvider } from '../platform/model/chat-completions.js';
 import { ExportService, FsMediaReader, FsPlayerTemplateReader, FsWindowsPlayerReader } from '../modules/exports/index.js';
@@ -21,6 +22,7 @@ export function createWorkbench(db: SqliteDatabase, modelSettings: ModelSettings
   const sources = new SourceService(new SqliteSourceRepository(db));
   const allowMockPublish = options?.allowMockPublish ?? allowMockPublishFromEnv();
   const jobsRepository = new SqliteJobRepository(db);
+  const agentDecisions = new SqliteDecisionRepository(db);
   // S1 ⑦: legacy drafts without a stamp are traced from their generation run (job.model, else worker/api logs).
   const tracer = new ProvenanceTracer(jobsRepository, new JsonlModelLogReader(path.join(options?.dataDir ?? 'data', 'logs')));
   const traceProvenance = (draftId: string) => tracer.trace(draftId);
@@ -102,7 +104,7 @@ export function createWorkbench(db: SqliteDatabase, modelSettings: ModelSettings
     const n = provenanceBackfill.stories.length + provenanceBackfill.worlds.length;
     if (n) logger?.info('provenance.backfill', {stories: provenanceBackfill.stories.map(x => x.id), worlds: provenanceBackfill.worlds.map(x => x.id)});
   } catch (error) { logger?.error?.('provenance.backfill.failed', {message: error instanceof Error ? error.message : String(error)}); }
-  return {provenanceBackfill, backfillProvenance, sources, games, sessions, worlds, preflight, adventures, exporter, buildingLibrary, buildingImages, itemCatalog, jobs, createProductionJob, createRunner, createPlayProvider, modelSettings, testModelConnection, listModels, mediaDir,
+  return {provenanceBackfill, backfillProvenance, sources, games, sessions, worlds, preflight, adventures, exporter, buildingLibrary, buildingImages, itemCatalog, jobs, agentDecisions, createProductionJob, createRunner, createPlayProvider, modelSettings, testModelConnection, listModels, mediaDir,
     get providerConfigured() {return modelSettings.get().configured;}};
 }
 export type Workbench = ReturnType<typeof createWorkbench>;

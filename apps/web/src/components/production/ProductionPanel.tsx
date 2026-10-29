@@ -5,6 +5,7 @@ import { useI18n } from '../../lib/i18n';
 import { errorMessage, request, RequestError } from '../../lib/api';
 import { Empty, Notice } from '../Notice';
 import { ProductionJobCard } from './ProductionJobCard';
+import { AgentFeed } from './AgentFeed';
 
 export function ProductionPanel({token, configured, sources, jobs, refresh, openDraft, onConfigure}: {
   token: string; configured: boolean; sources: SourceSummary[]; jobs: GenerationJob[]; refresh: () => Promise<void>;
@@ -59,6 +60,7 @@ export function ProductionPanel({token, configured, sources, jobs, refresh, open
       <div className="panel production-records"><h3>{t('游戏制作记录')}</h3>
         {productionJobs.length ? <ul className="job-list">{productionJobs.map(job => <ProductionJobCard key={job.id} job={job} token={token} refresh={refresh} openDraft={openDraft} />)}</ul>
           : <Empty>{t('提交简报后，先审阅角色与策略，再确认生成正文。')}</Empty>}
+        <AgentFeed token={token} />
       </div>
     </div>
   </div>;

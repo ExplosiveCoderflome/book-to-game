@@ -7,3 +7,5 @@ export type { GenerationProvider, ModelRepairFeedback, ModelRepairIssue, SourceC
 export { extendDraftScene } from './application/extend-scene-service.js';
 export { fillDraftSceneText } from './application/fill-scene-text.js';
 export { productionUnits, productionTarget, assertProductionPlan, assertProductionNarrative, assembleProduction } from './domain/production.js';
+export { selectChapters } from './domain/selection.js';
+export { assertPlanMechanics } from './application/plan-check.js';

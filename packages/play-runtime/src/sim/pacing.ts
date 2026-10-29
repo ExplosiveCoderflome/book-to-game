@@ -97,7 +97,8 @@ export function estimateMinSteps(world: WorldContent, suppliers = suppliersOf(wo
     switch (c.kind) {
       case 'fact': out = facts0.get(c.factId) === c.value ? empty()
         : cheapest(suppliers.filter(s => !firesEnding(s) && flat(s.effects).some(e => e.kind === 'set' && e.factId === c.factId && e.value === c.value))); break;
-      case 'known': out = cheapest(suppliers.filter(s => !firesEnding(s) && flat(s.effects).some(e => e.kind === 'reveal' && e.factId === c.factId))); break;
+      case 'known': out = world.facts.some(f => f.id === c.factId && f.playerKnown) ? empty()
+        : cheapest(suppliers.filter(s => !firesEnding(s) && flat(s.effects).some(e => e.kind === 'reveal' && e.factId === c.factId))); break;
       case 'resource': {
         const v0 = initialResource(world, c.resourceId);
         out = empty();
