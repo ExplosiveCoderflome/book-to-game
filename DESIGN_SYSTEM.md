@@ -2,6 +2,20 @@
 
 > Official design reference for **故事工坊 / Story Workshop**. Future UI work must follow this file.
 
+### Specialist surfaces (2026-10-30 · current author tools)
+
+App/Product UI + Redesign. **Concept:** follow a manuscript through source evidence, production, editing and playtesting, with the Agent always one discussion away. Extends the conversation studio to all nine author tools: sources, production, worlds, stories, buildings, items, both playtests and model settings. The standalone reader remains a reading surface.
+
+`WorkspaceHeader` supplies one page h1, a concrete description and right-aligned actions. `workspace-surfaces.css` uses existing tokens: surface-muted page, white working surfaces, restrained green actions, 24px headings, 18px section headings, 16px prose, 14px controls, 12–13px metadata. Dense control labels retain the established workbench scale. Neutral surface hierarchy replaces old numbered/marketing introductions and decorative selection stripes. Reuse `StudioIcon`; no new dependency, raster asset, font download or animation.
+
+The specialist stage scrolls inside the viewport below the 56px header (52px phone); the navigation stays available. Pages mount on first visit and retain local forms/editor state when hidden. Production/adaptation forms also stay mounted across workflow switches. Sources use a 280px shelf and reading area above1100px, one column below. Production records precede the collapsible creation brief; actual status totals, keyword/status filters and selected task highlights come from saved data. Model connection facts are saved-state facts, with a separate test result; advanced timeout controls are disclosed. Mobile editor toolbars retain edit/play and view selectors; `EditorTools` reveals advanced tools inline, so it cannot run offscreen. Canvas inspectors stack below the graph under1101px.
+
+`WorkspaceSearch` is a native modal, available by button or Ctrl/Cmd+K. It searches page names and actual sources/drafts/tasks, shows up to30 matches, supports arrows/Enter/Escape and restores focus. `#play` is the author playtest; `#/play` is the standalone reader. Search/recent-work/task links share the same draft-switch checks as editor selection, including unfinished new drafts and in-flight operations. Completing a background job never steals the current page.
+
+Every specialist header can prepare an Agent discussion. A visible handoff strip lets the author load and edit it; sending invokes the model. It preserves existing composer input and attaches only the selected saved draft/version or source. Local unsaved graph changes are not passed as saved content. This entry does not grant new model tools or replace existing write/publish confirmations.
+
+Adversarial pass found a cramped tablet reading column, a phone toolbar that pushed the actual canvas offscreen, the author/player play-route collision, and a cross-page draft-switch bypass. Fixed by stacking the reading layout, disclosing advanced tools, separating the hashes and sharing one navigation check. No fake assets or fabricated task progress. Computed contrast: muted/paper5.67:1, muted/surface-muted5.28:1, muted/accent-soft4.79:1, primary/paper6.29:1, ink/surface-muted15.91:1. See [workspace UI acceptance](docs/workspace-surfaces-2026-10-30.md) for actual browser and build evidence. Prior reference choices below remain: Linear hierarchy, Notion wayfinding, adjacent Claude artifacts, adapted to this manuscript workflow.
+
 ### Agent workspace redesign (2026-10-29 · current author shell)
 
 App/Product UI + Redesign. **Concept:** a story production studio where the conversation, the agent's actual work, and the playable manuscript are adjacent. This overrides the old numbered top-tab shell below for author pages; the player shell remains separate. `#agent` is the default, with deep links for every author surface and browser back/forward support.

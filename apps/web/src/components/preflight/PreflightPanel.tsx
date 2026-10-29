@@ -16,15 +16,21 @@ export function PreflightPanel({ token, draft, dirty, onRepairApplied, onRepairB
   const [lintPhase, setLintPhase] = useState<Phase>('idle');
   const [simPhase, setSimPhase] = useState<Phase>('idle');
   const [failure, setFailure] = useState<{ lint?: string; sim?: string }>({});
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false), [reload, setReload] = useState(0);
   const scope = useRef<string | null>(null);
   const draftId = draft?.id ?? null;
   const s1 = !!draft && !!(draft.content.resourceDefs || draft.content.clock || draft.content.storylets);
 
   useEffect(() => {
-    scope.current = draftId; setData(null); setFailure({}); setLintPhase('idle'); setSimPhase('idle');
+    let cancelled = false;
+    scope.current = draftId; setData(null); setFailure({}); setLintPhase('idle'); setSimPhase('idle'); setLoadError(null); setLoading(false);
     if (!draftId) return;
-    getWorldPreflight(token, draftId).then(d => { if (scope.current === draftId) setData(d); }).catch(() => undefined);
-  }, [token, draftId, draft?.version]);
+    setLoading(true);
+    getWorldPreflight(token, draftId).then(d => { if (!cancelled) setData(d); })
+      .catch(e => {if (!cancelled) setLoadError(errorMessage(e));}).finally(() => {if (!cancelled) setLoading(false);});
+    return () => {cancelled = true;};
+  }, [token, draftId, draft?.version, reload]);
 
   if (!draft) return null;
   const lint = data?.lint; const sim = data?.playtest;
@@ -45,10 +51,12 @@ export function PreflightPanel({ token, draft, dirty, onRepairApplied, onRepairB
 
   return (
     <section className="preflight" data-testid="preflight-panel" aria-label={t('发布前体检')}>
-      <h4>{t('发布前体检')}</h4>
-      <LintStrip report={lint} stale={lintStale} phase={lintPhase} failure={failure.lint} dirty={dirty} disabledTitle={disabledTitle} onRun={() => void runLint()} blocking={s1} />
+      <h2>{t('发布前体检')}</h2>
+      {loading && <p className="hint" role="status">{t('正在读取已保存的检查报告…')}</p>}
+      {loadError && <div className="notice error" role="alert"><p>{loadError}</p><button type="button" onClick={() => setReload(value => value + 1)}>{t('重新读取检查报告')}</button></div>}
+      <LintStrip report={lint} stale={lintStale} phase={lintPhase} failure={failure.lint} dirty={dirty || loading} disabledTitle={disabledTitle} onRun={() => void runLint()} blocking={s1} />
       {s1
-        ? <SimStrip report={sim} stale={simStale} phase={simPhase} failure={failure.sim} dirty={dirty} disabledTitle={disabledTitle} onRun={() => void runSim()} />
+        ? <SimStrip report={sim} stale={simStale} phase={simPhase} failure={failure.sim} dirty={dirty || loading} disabledTitle={disabledTitle} onRun={() => void runSim()} />
         : <div className="preflight-strip tone-muted" data-testid="preflight-sim-strip"><p>{t('模拟试玩只对声明了资源定义、时钟或剧情卡的世界开放。')}</p></div>}
       {s1 && onRepairApplied && onRepairBusyChange && <AgentRepairPanel token={token} draft={draft} report={sim} dirty={dirty}
         onApplied={onRepairApplied} onBusyChange={onRepairBusyChange} />}

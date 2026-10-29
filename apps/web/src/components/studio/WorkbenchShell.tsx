@@ -2,11 +2,17 @@ import { useRef, useState, type ReactNode } from 'react';
 import { useI18n } from '../../lib/i18n';
 import { workspacePages, type WorkspaceTab } from '../../lib/workbench-navigation';
 import { StudioIcon } from './StudioIcon';
+import { WorkspaceAssist } from '../../lib/workspace-assist';
+import { WorkspaceSearch } from './WorkspaceSearch';
+import type { WorkspaceSearchEntry } from '../../lib/workspace-search';
 import './studio.css';
+import './workspace-surfaces.css';
 
-export function WorkbenchShell({tab, onNavigate, connected, connecting, configured, onRefresh, historyHost, children}: {
+export function WorkbenchShell({tab, onNavigate, connected, connecting, configured, onRefresh, historyHost, children, searchEntries, onSearchSelect, onAskAgent, onScrollPosition}: {
   tab: WorkspaceTab; onNavigate: (tab: WorkspaceTab) => void; connected: boolean; connecting: boolean; configured: boolean;
   onRefresh: () => void; historyHost: (node: HTMLDivElement | null) => void; children: ReactNode;
+  searchEntries: WorkspaceSearchEntry[]; onSearchSelect: (entry: WorkspaceSearchEntry) => void; onAskAgent: (topic: string) => void;
+  onScrollPosition: (tab: WorkspaceTab, top: number) => void;
 }) {
   const {t, locale, setLocale} = useI18n();
   const [navigationOpen, setNavigationOpen] = useState(false);
@@ -33,6 +39,9 @@ export function WorkbenchShell({tab, onNavigate, connected, connecting, configur
     <a className="studio-skip" href="#studio-main" onClick={e => {e.preventDefault(); document.getElementById('studio-main')?.focus();}}>{t('跳到主要内容')}</a>
     <aside className="studio-sidebar">
       {navigation}<div className="studio-history-host" ref={historyHost} />
+      {tab !== 'agent' && <div className="studio-recent-work"><p>{t('最近作品')}</p>{searchEntries.filter(entry => entry.entityId && ['worlds', 'drafts'].includes(entry.tab)).slice(0, 4).map(entry => <button key={entry.key} onClick={() => onSearchSelect(entry)}><StudioIcon name={entry.tab === 'worlds' ? 'world' : 'branch'} /><span><strong>{entry.title}</strong><small>{entry.detail}</small></span></button>)}
+        {!searchEntries.some(entry => entry.entityId && ['worlds', 'drafts'].includes(entry.tab)) && <span className="hint">{t('制作完成的草稿会出现在这里。')}</span>}
+      </div>}
       <div className="studio-sidebar-bottom">{workspacePages.filter(p => p.group === 'settings').map(navItem)}
         <div className="studio-local-state"><span className={`studio-status-dot ${connected ? 'is-online' : ''}`} /><span>{t(connected ? '本地工作空间' : connecting ? '正在连接…' : '本地服务未连接')}</span><small>v0.2</small></div>
       </div>
@@ -46,12 +55,12 @@ export function WorkbenchShell({tab, onNavigate, connected, connecting, configur
         <div className="studio-breadcrumb"><button className="studio-icon-button studio-mobile-menu" aria-label={t('打开导航')} aria-expanded={navigationOpen} onClick={() => {dialog.current?.showModal(); setNavigationOpen(true);}}><StudioIcon name="menu" /></button>
           <span>{t('工作空间')}</span><StudioIcon name="chevron" /><strong>{t(workspacePages.find(p => p.id === tab)!.label)}</strong>
         </div>
-        <div className="studio-topbar-tools"><span className="studio-model-state"><span className={`studio-status-dot ${configured ? 'is-online' : ''}`} />{t(configured ? '模型已配置' : '未配置模型')}</span>
+        <div className="studio-topbar-tools"><WorkspaceSearch entries={searchEntries} onSelect={onSearchSelect} /><span className="studio-model-state"><span className={`studio-status-dot ${configured ? 'is-online' : ''}`} />{t(configured ? '模型已配置' : '未配置模型')}</span>
           <button className="studio-icon-button" aria-label={t('刷新工作空间')} onClick={onRefresh}><StudioIcon name="refresh" /></button>
           <label className="studio-language"><span className="sr-only">{t('界面语言')}</span><select aria-label={t('界面语言')} value={locale} onChange={e => setLocale(e.target.value as 'zh-CN' | 'en-US')}><option value="zh-CN">中</option><option value="en-US">EN</option></select></label>
         </div>
       </header>
-      <main id="studio-main" className="studio-content" tabIndex={-1}>{children}</main>
+      <main id="studio-main" className="studio-content" tabIndex={-1} onScroll={e => onScrollPosition(tab, e.currentTarget.scrollTop)}><WorkspaceAssist.Provider value={onAskAgent}>{children}</WorkspaceAssist.Provider></main>
     </div>
   </div>;
 }

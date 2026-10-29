@@ -1,3 +1,5 @@
+import { EditorTools } from './studio/EditorTools';
+import { WorkspaceHeader } from './studio/WorkspaceHeader';
 import { WorldSystemInspector } from './WorldSystemInspector';
 import { PreflightPanel } from './preflight/PreflightPanel';
 import { useEffect, useMemo, useState } from 'react';
@@ -40,10 +42,11 @@ interface Props {
   onOpenAdventure?: (revisionId: string) => void;
   onOpenPlayerShell?: (revisionId: string) => void;
   onOpenBuildingLibrary?: () => void;
+  onBusyChange?: (busy: boolean) => void;
 }
 
 export function WorldsPanel({
-  token, drafts, sources, revisions, adventures, selectedId, select, refresh, onPublished, onDirtyChange, onOpenAdventure, onOpenPlayerShell, onOpenBuildingLibrary,
+  token, drafts, sources, revisions, adventures, selectedId, select, refresh, onPublished, onDirtyChange, onOpenAdventure, onOpenPlayerShell, onOpenBuildingLibrary, onBusyChange,
 }: Props) {
   const { t } = useI18n();
   const [draft, setDraft] = useState<WorldDraft | null>(null);
@@ -90,6 +93,7 @@ export function WorldsPanel({
     catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   }
   useEffect(() => { onDirtyChange(dirty || json !== null); }, [dirty, json, onDirtyChange]);
+  useEffect(() => {onBusyChange?.(busy || mapDraftBusy);}, [busy, mapDraftBusy, onBusyChange]);
   useEffect(() => {
     let active = true;
     setDraft(null); setContent(blank()); setDirty(false); setJson(null); setValidation(null);
@@ -199,14 +203,7 @@ export function WorldsPanel({
   const exportPackage = useExportPackage({ token, kind: 'world', draftId: draft?.id, revision: latestWorldRevision, dirty: dirty || json !== null });
 
   return <section className="work-section draft-workspace world-workspace">
-    <div className="section-heading">
-      <div>
-        <p className="eyebrow">{t('世界校样')}</p>
-        <h2>{t('开放世界画布')}</h2>
-        <p>{t('地点拓扑是主操作面：编辑与试玩可在同一画布切换；曲边是移动行动，试玩时高亮足迹。')}</p>
-      </div>
-      <span className="edition">WORLD CANVAS</span>
-    </div>
+    <WorkspaceHeader title="世界编辑器" description="在地点画布上打磨行动与后果，校验后发布可玩版本。" />
     <div className="panel draft-toolbar">
       <label>{t('打开世界草稿')}
         <select disabled={busy || dirty || json !== null} value={selectedId} onChange={e => select(e.target.value)}>
@@ -255,11 +252,13 @@ export function WorldsPanel({
                   ))}
                 </div>
               )}
+<EditorTools>
               <button type="button" className="small" disabled={busy || json !== null || canvasMode === 'play'} onClick={() => setMetaOpen(v => !v)}>{t(metaOpen ? '收起世界信息' : '世界信息')}</button>
               <button type="button" className="small" disabled={busy || json !== null || canvasMode === 'play' || !content.locations.length} onClick={() => { setInspectorTab('all'); setInspectorOpen(true); }}>{t('全览')}</button>
               <button type="button" className="small" data-testid="ai-extract-map" disabled={busy || mapDraftBusy || !draft || dirty || json !== null || canvasMode === 'play'} title={dirty ? t('先保存草稿') : undefined} onClick={() => void extractMap()}>{mapDraftBusy ? t('AI 提取中…') : t('AI 提取地图')}</button>
               <button type="button" className="small" data-testid="open-worldbook" disabled={busy || json !== null || canvasMode === 'play'} onClick={() => { setInspectorTab('worldbook'); setInspectorOpen(true); }}>{t('世界书')}</button>
               <button type="button" className="small" disabled={busy || canvasMode === 'play'} onClick={() => json === null ? setJson(JSON.stringify(content, null, 2)) : apply()}>{json === null ? t('高级 JSON') : t('应用 JSON 到编辑器')}</button>
+</EditorTools>
             </div>
           </div>
           {json !== null ? (

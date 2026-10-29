@@ -1,3 +1,4 @@
+import { WorkspaceHeader } from '../studio/WorkspaceHeader';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   BUILDING_KIND_COLOR, BUILDING_KIND_LABEL, ITEM_CATEGORIES, ITEM_CATEGORY_LABEL, MAP_FILL_KINDS,
@@ -761,12 +762,7 @@ export function BuildingLibraryPage({ token }: Props) {
 
   return (
     <section className="work-section building-library-page" data-testid="building-library-page">
-      <header className="building-library-page-header">
-        <div className="building-library-page-heading">
-          <p className="eyebrow">{t('工作区目录')}</p>
-          <h2>{t('建筑库')}</h2>
-          <p className="hint">{t('可复用的建筑图鉴：生成草案、审核入库、挂展示图。地图填充只引用这里的资产。')}</p>
-        </div>
+      <WorkspaceHeader title="建筑库" description="整理可复用建筑，审阅生成草案，供地图与世界引用。">
         <div className="building-library-page-actions">
           <span className="building-library-stat" data-testid="building-library-page-count">{t('{n} 项', { n: total })}</span>
           <button type="button" className="quiet small" disabled={busy || generating || loading} onClick={() => void refresh()}>{t('刷新')}</button>
@@ -780,7 +776,7 @@ export function BuildingLibraryPage({ token }: Props) {
             {manualOpen ? t('取消新建') : t('手动新建')}
           </button>
         </div>
-      </header>
+      </WorkspaceHeader>
 
       {(error || note) && (
         <div className={`building-library-page-banner${error ? ' is-error' : ''}`} data-testid="building-library-page-banner" role="status">
@@ -798,7 +794,7 @@ export function BuildingLibraryPage({ token }: Props) {
           {proposalModel && <span className="hint building-ai-model">{proposalModel}</span>}
         </div>
         <div className="building-ai-prompt-row">
-          <input data-testid="building-library-ai-prompt" value={aiPrompt} maxLength={2000}
+          <input aria-label={t("描述想生成的建筑")} data-testid="building-library-ai-prompt" value={aiPrompt} maxLength={2000}
             disabled={generating || busy} placeholder={t('描述想要的建筑，例如：雾港码头边的补给与委托')}
             onChange={e => setAiPrompt(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void onGenerate(); } }} />

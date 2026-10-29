@@ -2,6 +2,10 @@
 
 Visual language for the author workbench. Layout density rules live in `design-layout.md`; this file covers chrome, type, color, and controls.
 
+## Current specialist surfaces (2026-10-30)
+
+Use `WorkspaceHeader`, `WorkspaceSearch`, `EditorTools` and `workspace-surfaces.css` for author operations. Keep one h1 per visible tool, group actions by importance, and disclose advanced controls inline. Sources start with existing material; production starts with actual saved tasks. The shared Agent discussion entry prepares an editable request and never auto-sends. See [acceptance and limitations](workspace-surfaces-2026-10-30.md) and the current section of [DESIGN_SYSTEM.md](../DESIGN_SYSTEM.md).
+
 ## Goal
 
 Feel like a normal modern productivity app (Linear / Notion / Figma-adjacent): clean, calm, dense, consistent. Not a literary brochure, cream-paper demo, or ornate prototype.

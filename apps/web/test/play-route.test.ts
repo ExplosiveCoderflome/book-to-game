@@ -13,6 +13,11 @@ describe('play-route hash parse', () => {
     assert.deepEqual(parsePlayRoute('#/play'), { kind: 'play-landing' });
     assert.equal(isPlayerRoute(parsePlayRoute('#/play')), true);
   });
+  it('keeps the author playtest deep link in the workbench', () => {
+    assert.deepEqual(parsePlayRoute('#play'), {kind: 'workbench'});
+    assert.equal(isPlayerRoute(parsePlayRoute('#play')), false);
+    assert.equal(isPlayerRoute(parsePlayRoute('#/play')), true);
+  });
   it('parses story with session', () => {
     assert.deepEqual(parsePlayRoute('#/play/story/abc?session=s1'), {
       kind: 'play-story', revisionId: 'abc', sessionId: 's1',

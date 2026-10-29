@@ -13,6 +13,8 @@ function stripHash(hash: string): string {
 }
 
 export function parsePlayRoute(hash = typeof window !== 'undefined' ? window.location.hash : ''): PlayRoute {
+  // The author's playtest tab is #play; the standalone reader starts at #/play.
+  if (hash === '#play') return {kind: 'workbench'};
   const full = stripHash(hash || '/');
   const [pathPart, queryPart = ''] = full.split('?');
   const path = pathPart.replace(/\/+$/, '') || '/';

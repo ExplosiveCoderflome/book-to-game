@@ -1,3 +1,4 @@
+import { WorkspaceHeader } from './studio/WorkspaceHeader';
 import { useI18n } from '../lib/i18n';
 import { useEffect, useState } from 'react';
 import type { ModelConnectionResult, ModelListResult, ModelSettingsView } from '@novel-game/contracts';
@@ -6,6 +7,7 @@ import { modelListInput, settingsInput, type ModelSettingsFields } from '../lib/
 import { applyProviderPreset, MODEL_PROVIDER_PRESETS, providerPresetForBaseUrl, type ModelProviderPresetId } from '../lib/model-provider-presets';
 import { Notice } from './Notice';
 import './ModelSettingsPanel.css';
+import { StudioIcon } from './studio/StudioIcon';
 
 interface Props {token: string; onSaved: () => Promise<void>}
 export function ModelSettingsPanel({token, onSaved}: Props) {
@@ -76,8 +78,7 @@ export function ModelSettingsPanel({token, onSaved}: Props) {
   }
   const selectedPreset = MODEL_PROVIDER_PRESETS.find(preset => preset.id === providerPreset);
   return <section className="work-section">
-    <div className="section-heading"><div><p className="eyebrow">{t("SETTINGS / 模型设置")}</p>
-      <h2>{t("为故事接上创作引擎")}</h2><p>{t("在这里设置模型服务，保存后即可回到“改编生成”。")}</p></div></div>
+    <WorkspaceHeader title="模型与连接" description="配置创作助手使用的模型，保存后对后续任务生效。" />
     <div className="model-settings-layout">
       <form className="panel stack" onSubmit={event => {event.preventDefault(); void operate('save');}}>
         <div className="panel-heading"><h3>{t("生成模型")}</h3><span className="hint">{saved?.source === 'workspace' ? t('工作台配置 · v{version}', {version: saved.revision}) : t("尚未在工作台保存配置")}</span></div>
@@ -111,8 +112,8 @@ export function ModelSettingsPanel({token, onSaved}: Props) {
             <p className="hint">{saved.hasApiKey ? t("已保存 API Key，原值不会回传到页面。") : t("尚未保存 API Key；本机无鉴权模型服务可留空。")} {t('模型密钥只保存在本地服务端，不写入浏览器存储。')}</p>
             {saved.hasApiKey && <label className="model-key-clear"><input type="checkbox" checked={fields.clearApiKey}
               onChange={event => {change('clearApiKey', event.target.checked); if (event.target.checked) change('apiKey', '');}} />{t("保存时清除已有模型 API Key")}</label>}
-            <label>{t("请求超时（秒）")}<input type="number" min="1" max="300" step="1" required
-              value={fields.timeoutSeconds} onChange={event => change('timeoutSeconds', event.target.value)} /></label>
+            <details className="workspace-advanced"><summary>{t('高级连接选项')}</summary><label>{t("请求超时（秒）")}<input type="number" min="1" max="300" step="1" required
+              value={fields.timeoutSeconds} onChange={event => change('timeoutSeconds', event.target.value)} /></label></details>
             <div className="actions"><button className="primary" type="submit">{busy === 'save' ? t("正在保存…") : t("保存模型配置")}</button>
               <button type="button" onClick={() => void operate('test')}>{busy === 'test' ? t("正在测试…") : t("测试连接")}</button>
               <button type="button" className="quiet" onClick={() => setReload(n => n + 1)}>{t("重新载入已保存配置")}</button></div>
@@ -120,7 +121,14 @@ export function ModelSettingsPanel({token, onSaved}: Props) {
           <p className="hint">{t("测试连接不会保存表单，也不调用文本生成。正在执行的任务沿用开始时的配置；后续执行和重试读取新配置。")}</p>
         </>}
       </form>
-      <aside className="panel stack model-key-explanation"><p className="eyebrow">{t("两种凭据，各有用途")}</p>
+      <aside className="panel stack model-key-explanation">
+        <div className="workspace-connection-status"><strong><StudioIcon name="settings" />{t('当前连接')}</strong><dl>
+          <div><dt>{t('配置状态')}</dt><dd>{t(saved?.configured ? '模型已配置' : '尚未就绪')}</dd></div>
+          <div><dt>{t('生成模型')}</dt><dd>{saved?.model || '—'}</dd></div>
+          <div><dt>{t('密钥状态')}</dt><dd>{t(saved?.hasApiKey ? '已保存' : '未保存')}</dd></div>
+          <div><dt>{t('连接测试')}</dt><dd>{t(probe ? probe.modelAvailable ? '本次测试通过' : '本次测试未通过' : '本次尚未测试')}</dd></div>
+        </dl><p className="hint">{t('这里显示已保存的配置。修改左侧表单后，请保存再创建新任务。')}</p></div>
+        <h2>{t('模型与资料')}</h2>
         <h3>{t("模型 API Key")}</h3><p>{t("由模型服务商提供，用于让本地后端调用你的模型服务。分析和生成时，正文会发送给这里指定的模型服务。")}</p>
         <div className="divider" /><h3>{t("MCP 工作台访问码")}</h3><p>{t("仅用于外部 Agent 通过 MCP 控制项目。浏览器中的本地 Web 工作台通过本机来源校验访问，不需要输入访问码。")}</p>
         <p className="hint">{t("访问码来自 data/access-token.txt，与这里的模型 API Key 无关。")}</p>

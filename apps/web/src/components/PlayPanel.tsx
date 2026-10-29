@@ -1,3 +1,4 @@
+import { WorkspaceHeader } from './studio/WorkspaceHeader';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { actSchema, type GameRevision, type NarrateResult, type ProposeActResult, type SessionView } from '@novel-game/contracts';
 import { errorMessage, request, RequestError } from '../lib/api';
@@ -113,7 +114,7 @@ export function PlayPanel({ token, revisions, sessions, revisionId, selectRevisi
   }
   const activeRevision = revisions.find(r => r.id === session?.gameRevisionId) ?? revisions.find(r => r.id === revisionId);
   return <section className="work-section">
-    <div className="section-heading"><div><p className="eyebrow">{t('04 / 读者席')}</p><h2>{t('现在，由你走进故事')}</h2><p>{t('每份存档固定一个发布版本。回到这里，继续上一次的选择。')}</p></div><div className="stack" style={{alignItems:'flex-end',gap:8}}><span className="edition">READ & PLAY</span>{revisionId ? <div className="player-open-actions"><OpenPlayerShellButton mode="story" revisionId={revisionId} className="quiet small" /><CopyPlayLinkButton hash={playStoryHash(revisionId)} /></div> : null}</div></div>
+    <WorkspaceHeader title="分支故事试玩" description="从读者视角检查选择与后果，每份存档固定一个发布版本。">{revisionId ? <div className="player-open-actions"><OpenPlayerShellButton mode="story" revisionId={revisionId} className="quiet small" /><CopyPlayLinkButton hash={playStoryHash(revisionId)} /></div> : null}</WorkspaceHeader>
     <Notice text={error} /><Notice kind="info" text={uncertain ? t('上一选择的请求结果尚未确认。请重试原选择，服务会返回同一结果，不会重复推进故事。') : null} />
     <div className="play-layout"><aside className="panel stack">
       <h3>{t('发布书目')}</h3><label>{t('选择发布版本')}<select value={revisionId} disabled={busy || uncertain} onChange={e => selectRevision(e.target.value)}><option value="">{t('请选择一个已发布游戏')}</option>{revisions.map(r => <option key={r.id} value={r.id}>{r.content.title} · v{r.version}</option>)}</select></label>

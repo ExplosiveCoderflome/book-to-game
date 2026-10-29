@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { productionInputSchema, type ProductionBrief, type ProductionInput, type GenerationJob, type SourceSummary } from '@novel-game/contracts';
 import preset from '../../../../../examples/wulin-waizhuan.production.json';
 import { useI18n } from '../../lib/i18n';
@@ -6,10 +6,13 @@ import { errorMessage, request, RequestError } from '../../lib/api';
 import { Empty, Notice } from '../Notice';
 import { ProductionJobCard } from './ProductionJobCard';
 import { AgentFeed } from './AgentFeed';
+import { JobFilters } from './JobFilters';
+import { matchesJobFilter, type JobFilter } from '../../lib/workspace-search';
 
-export function ProductionPanel({token, configured, sources, jobs, refresh, openDraft, onConfigure}: {
+export function ProductionPanel({token, configured, sources, jobs, refresh, openDraft, onConfigure, jobFocus}: {
   token: string; configured: boolean; sources: SourceSummary[]; jobs: GenerationJob[]; refresh: () => Promise<void>;
   openDraft: (id: string, mode: 'story' | 'open') => void; onConfigure: () => void;
+  jobFocus?: {id: string; request: number} | null;
 }) {
   const {t} = useI18n();
   const [brief, setBrief] = useState<ProductionBrief>(preset as ProductionBrief);
@@ -34,11 +37,23 @@ export function ProductionPanel({token, configured, sources, jobs, refresh, open
       if (!unknown) pending.current = null;
     } finally { setBusy(false); }
   }
+  const focusedJobId = jobFocus?.id;
   const productionJobs = jobs.filter(job => job.productionBrief);
+  const [query, setQuery] = useState(''), [filter, setFilter] = useState<JobFilter>('all');
+  const visibleJobs = productionJobs.filter(job => matchesJobFilter(job, filter, query));
+  useEffect(() => {if (focusedJobId) {setQuery(''); setFilter('all');}}, [jobFocus]);
   return <div data-testid="production-panel">
     <ol className="production-stages"><li>{t('设定与角色')}</li><li>{t('审阅玩法规划')}</li><li>{t('逐段写作与体检')}</li><li>{t('试玩、发布与导出')}</li></ol>
     <div className="generation-layout production-layout">
-      <form className="panel stack" onSubmit={submit}>
+      <div className="panel production-records"><div className="panel-heading"><h2>{t('游戏制作记录')}</h2><span className="hint">{t('运行中自动刷新')}</span></div>
+        <JobFilters query={query} setQuery={setQuery} filter={filter} setFilter={setFilter} count={visibleJobs.length} />
+        {productionJobs.length ? visibleJobs.length ? <ul className="job-list">{visibleJobs.map(job => <ProductionJobCard key={job.id} job={job} token={token} refresh={refresh} openDraft={openDraft} selected={job.id === focusedJobId} />)}</ul> : <Empty>{t('没有匹配的制作记录，试试其他状态或关键词。')}</Empty>
+          : <Empty>{t('提交简报后，先审阅角色与策略，再确认生成正文。')}</Empty>}
+        <AgentFeed token={token} />
+      </div>
+      <details className="panel workspace-brief" open={!productionJobs.length || undefined}>
+        <summary><span><strong>{t("新建制作任务")}</strong><small>{t("填写角色、目标与创作设定")}</small></span></summary>
+      <form className="stack workspace-brief-form" onSubmit={submit}>
         <div className="panel-heading"><h3>{t('角色扮演游戏简报')}</h3><button type="button" className="quiet small" disabled={busy || uncertain} onClick={() => { setBrief(preset as ProductionBrief); setSourceId(''); }}>{t('使用白展堂样本')}</button></div>
         <p className="hint">{t('先确定人物边界、行动与后果，再生成完整内容。规划需要你确认。')}</p>
         <Notice text={error} />
@@ -57,11 +72,7 @@ export function ProductionPanel({token, configured, sources, jobs, refresh, open
         <button className="primary" disabled={!configured || busy}>{t(busy ? '正在提交…' : uncertain ? '确认并重试同一生成请求' : '生成玩法规划')}</button>
         {uncertain && <p className="hint">{t('请求结果未确认，重试会使用同一任务标识与方向。')}</p>}
       </form>
-      <div className="panel production-records"><h3>{t('游戏制作记录')}</h3>
-        {productionJobs.length ? <ul className="job-list">{productionJobs.map(job => <ProductionJobCard key={job.id} job={job} token={token} refresh={refresh} openDraft={openDraft} />)}</ul>
-          : <Empty>{t('提交简报后，先审阅角色与策略，再确认生成正文。')}</Empty>}
-        <AgentFeed token={token} />
-      </div>
+      </details>
     </div>
   </div>;
 }

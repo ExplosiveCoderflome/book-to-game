@@ -1,3 +1,4 @@
+import { WorkspaceHeader } from '../studio/WorkspaceHeader';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ITEM_CATEGORIES, ITEM_CATEGORY_COLOR, ITEM_CATEGORY_LABEL,
@@ -278,12 +279,7 @@ export function ItemCatalogPage({ token }: Props) {
 
   return (
     <section className="work-section building-library-page item-catalog-page" data-testid="item-catalog-page">
-      <header className="building-library-page-header">
-        <div className="building-library-page-heading">
-          <p className="eyebrow">{t('工作区目录')}</p>
-          <h2>{t('物品目录')}</h2>
-          <p className="hint">{t('跨世界可复用的物品编目。AI 出草案后勾选入库；价格提示不绑死某世界货币。')}</p>
-        </div>
+      <WorkspaceHeader title="物品目录" description="整理可复用物品，审阅草案并维护属性与用途。">
         <div className="building-library-page-actions">
           <span className="building-library-stat" data-testid="item-catalog-page-count">{t('{n} 项', { n: total })}</span>
           <button type="button" className="quiet small" disabled={busy || generating || loading} onClick={() => void refresh()}>{t('刷新')}</button>
@@ -297,7 +293,7 @@ export function ItemCatalogPage({ token }: Props) {
             {manualOpen ? t('取消新建') : t('新建物品')}
           </button>
         </div>
-      </header>
+      </WorkspaceHeader>
 
       {(error || note || warnings.length > 0) && (
         <div className={`building-library-page-banner${error ? ' is-error' : ''}`} data-testid="item-catalog-page-banner" role="status">
@@ -316,7 +312,7 @@ export function ItemCatalogPage({ token }: Props) {
           {proposalModel && <span className="hint building-ai-model">{proposalModel}</span>}
         </div>
         <div className="building-ai-prompt-row">
-          <input data-testid="item-catalog-ai-prompt" value={aiPrompt} maxLength={2000}
+          <input aria-label={t("描述想生成的物品")} data-testid="item-catalog-ai-prompt" value={aiPrompt} maxLength={2000}
             disabled={generating || busy} placeholder={t('描述想要的物品，例如：雾港码头的干粮、绳索与伤药')}
             onChange={e => setAiPrompt(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void onGenerate(); } }} />

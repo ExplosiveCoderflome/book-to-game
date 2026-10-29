@@ -8,8 +8,9 @@ const statusText: Record<GenerationJob['status'], string> = {
   queued: '等待处理', running: '正在生成', awaiting_review: '待审阅规划', succeeded: '已完成', failed: '失败', cancelled: '已取消',
 };
 
-export function ProductionJobCard({job, token, refresh, openDraft}: {
+export function ProductionJobCard({job, token, refresh, openDraft, selected}: {
   job: GenerationJob; token: string; refresh: () => Promise<void>; openDraft: (id: string, mode: 'story' | 'open') => void;
+  selected?: boolean;
 }) {
   const {t} = useI18n();
   const [busy, setBusy] = useState(false);
@@ -35,7 +36,7 @@ export function ProductionJobCard({job, token, refresh, openDraft}: {
       await refresh();
     } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   }
-  return <li className="production-job" data-testid="production-job">
+  return <li className="production-job" data-testid="production-job" id={`job-${job.id}`} data-selected={selected || undefined}>
     <div className="job-heading"><strong>{job.productionBrief!.title}</strong><span className={`status ${job.status}`}>{t(statusText[job.status])}</span></div>
     <p>{job.playerRole}</p>
     <p className="hint">{t(job.stage)} · {Math.round(job.progress * 100)}%</p>

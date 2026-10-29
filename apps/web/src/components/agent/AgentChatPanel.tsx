@@ -9,6 +9,7 @@ import { AgentHistory } from './AgentHistory';
 import { AgentTimeline } from './AgentTimeline';
 import { useAgentConversation } from './useAgentConversation';
 import { conversationLabel } from './agent-presenter';
+import type { AgentHandoff } from '../../lib/workspace-search';
 import './agent-workspace.css';
 
 const starters: {icon: StudioIconName; title: string; detail: string; prompt: string}[] = [
@@ -18,10 +19,11 @@ const starters: {icon: StudioIconName; title: string; detail: string; prompt: st
   {icon: 'tasks', title: '推进制作任务', detail: '查看进度与待办问题', prompt: '请查看我的制作任务，说明哪些任务需要我确认或处理，以及下一步可以做什么。'},
 ];
 
-export function AgentChatPanel({token, configured, active, historyHost, worlds, jobs, sources, revisions, onConfigure, onChanged, onOpenDraft, onOpenJobs, onOpenSources}: {
+export function AgentChatPanel({token, configured, active, historyHost, worlds, jobs, sources, revisions, onConfigure, onChanged, onOpenDraft, onOpenJobs, onOpenSources, handoff, onHandoffConsumed}: {
   token: string; configured: boolean; active: boolean; historyHost: HTMLDivElement | null;
   worlds: WorldDraft[]; jobs: GenerationJob[]; sources: SourceSummary[]; revisions: WorldRevision[];
   onConfigure: () => void; onChanged: () => Promise<void>; onOpenDraft: (id: string) => void; onOpenJobs: () => void; onOpenSources: () => void;
+  handoff?: AgentHandoff | null; onHandoffConsumed?: () => void;
 }) {
   const {t} = useI18n();
   const chat = useAgentConversation(token, active, onChanged);
@@ -73,6 +75,7 @@ export function AgentChatPanel({token, configured, active, historyHost, worlds, 
           {chat.running && <div className="agent-processing" role="status"><span className="agent-working-dot" /><span>{t('正在处理，进展会自动保存…')}</span><button className="quiet small" onClick={() => {setMode('activity'); if (window.matchMedia('(max-width: 1100px)').matches) contextDialog.current?.showModal(); else setShowContext(true);}}>{t('查看执行记录')}</button></div>}
         </div>
         <div className="agent-compose-area">
+          {handoff && <div className="workspace-handoff" role="status"><div><strong>{t('来自 {page}', {page: handoff.label})}</strong><p>{t('请求已准备好。载入后可编辑，发送后才会调用模型。')}</p></div><button disabled={!!chat.running || !!chat.text.trim()} title={chat.text.trim() ? t('请先发送或清空当前输入') : undefined} onClick={() => {setContextId(handoff.worldId ?? ''); prompt(handoff.prompt); onHandoffConsumed?.();}}>{t('载入请求')}</button><button className="studio-icon-button" aria-label={t('关闭准备的请求')} onClick={onHandoffConsumed}><StudioIcon name="close" /></button></div>}
           {chat.error && <div className="agent-inline-error" role="alert"><p>{chat.error}</p><button onClick={() => void chat.refresh()}>{t('重新读取对话')}</button></div>}
           {!configured && <div className="agent-setup-notice"><span>{t('连接模型，开始与创作助手协作。')}</span><button onClick={onConfigure}>{t('配置模型')}<StudioIcon name="arrow" /></button></div>}
           <form className="agent-composer" onSubmit={e => {e.preventDefault(); follow.current = true; void chat.send(context);}}>

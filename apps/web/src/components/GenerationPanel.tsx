@@ -1,3 +1,4 @@
+import { WorkspaceHeader } from './studio/WorkspaceHeader';
 import { useI18n } from '../lib/i18n';
 import { useEffect, useRef, useState } from 'react';
 import { generationInputSchema, type GenerationInput, type GenerationJob, type RuntimeInfo, type ScanDepth, type SourceSummary, type SourceDocument, type StatTemplateId } from '@novel-game/contracts';
@@ -6,6 +7,8 @@ import { selectedChapters } from '../lib/generation-scope';
 import { errorMessage, request, RequestError } from '../lib/api';
 import { Empty, Notice, dateLabel } from './Notice';
 import { ProductionPanel } from './production/ProductionPanel';
+import { JobFilters } from './production/JobFilters';
+import { matchesJobFilter, type JobFilter } from '../lib/workspace-search';
 
 const statuses: Record<GenerationJob['status'], string> = { queued: '等待处理', running: '正在生成', awaiting_review: '待审阅规划', succeeded: '已完成', failed: '失败', cancelled: '已取消' };
 const pendingKey = 'novel-game.pending-generation';
@@ -15,12 +18,22 @@ function restoreGeneration(): GenerationInput | null {
     return result.success ? result.data : null;
   } catch { return null; }
 }
-interface Props { token: string; runtime: RuntimeInfo; sources: SourceSummary[]; selectedId: string; select: (id: string) => void; jobs: GenerationJob[]; refresh: () => Promise<void>; openDraft: (id: string, mode: 'story' | 'open') => void; onConfigure: () => void }
+interface Props { token: string; runtime: RuntimeInfo; sources: SourceSummary[]; selectedId: string; select: (id: string) => void; jobs: GenerationJob[]; refresh: () => Promise<void>; openDraft: (id: string, mode: 'story' | 'open') => void; onConfigure: () => void; jobFocus?: {id: string; request: number} | null; active?: boolean }
 
-export function GenerationPanel({ token, runtime, sources, selectedId, select, jobs, refresh, openDraft, onConfigure }: Props) {
+export function GenerationPanel({ token, runtime, sources, selectedId, select, jobs, refresh, openDraft, onConfigure, jobFocus, active }: Props) {
   const { t, locale } = useI18n();
   const [workflow, setWorkflow] = useState<'production' | 'adaptation'>('production');
   const adaptationJobs = jobs.filter(job => !job.productionBrief);
+  const [query, setQuery] = useState(''), [filter, setFilter] = useState<JobFilter>('all');
+  const visibleJobs = adaptationJobs.filter(job => matchesJobFilter({...job, productionBrief: {title: sources.find(source => source.id === job.sourceId)?.title ?? ''}}, filter, query));
+  const focusedJobId = jobFocus?.id;
+  const focusedIsProduction = !!jobs.find(job => job.id === focusedJobId)?.productionBrief;
+  useEffect(() => {
+    if (!focusedJobId || !active) return;
+    setWorkflow(focusedIsProduction ? 'production' : 'adaptation'); setQuery(''); setFilter('all');
+    const frame = requestAnimationFrame(() => window.document.getElementById(`job-${focusedJobId}`)?.scrollIntoView({block: 'center'}));
+    return () => cancelAnimationFrame(frame);
+  }, [focusedJobId, active, focusedIsProduction, jobFocus?.request]);
   const [direction, setDirection] = useState(() => t('尊重原作世界规则，设计一次有明确选择后果的短篇冒险'));
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,12 +74,18 @@ export function GenerationPanel({ token, runtime, sources, selectedId, select, j
     catch (e) { setError(errorMessage(e)); } finally { setBusy(null); }
   }
   return <section className="work-section">
-    <div className="section-heading"><div><p className="eyebrow">{t("02 / 改编桌")}</p><h2>{t(workflow === 'production' ? '为角色设计一局游戏' : '为原作打开另一条路')}</h2><p>{t(workflow === 'production' ? '先规划行动、关系和结局，再分段写作与试玩。' : '选择章节与玩家身份，生成可审阅的世界或分支故事。')}</p></div><span className="edition">ADAPTATION DESK</span></div>
+    <WorkspaceHeader title="制作任务" description="从创作简报到可玩草稿，跟踪规划、写作与审阅。" />
+    <div className="workspace-task-summary" aria-label={t('制作概况')}>{([
+      ['运行中', jobs.filter(job => ['running', 'queued'].includes(job.status)).length],
+      ['待审阅规划', jobs.filter(job => job.status === 'awaiting_review').length],
+      ['需要处理', jobs.filter(job => ['failed', 'cancelled'].includes(job.status)).length],
+      ['已完成', jobs.filter(job => job.status === 'succeeded').length],
+    ] as const).map(([label, count]) => <div key={label}><span>{t(label)}</span><strong>{count}</strong></div>)}</div>
     <div className="actions production-workflow" role="group" aria-label={t('生成方式')}>
       <button type="button" className={workflow === 'production' ? 'primary' : 'quiet'} aria-pressed={workflow === 'production'} onClick={() => setWorkflow('production')}>{t('制作角色扮演游戏')}</button>
       <button type="button" className={workflow === 'adaptation' ? 'primary' : 'quiet'} aria-pressed={workflow === 'adaptation'} onClick={() => setWorkflow('adaptation')}>{t('原作快速改编')}</button>
     </div>
-    {workflow === 'production' ? <ProductionPanel token={token} configured={runtime.providerConfigured} sources={sources} jobs={jobs} refresh={refresh} openDraft={openDraft} onConfigure={onConfigure} /> : <>
+    <div hidden={workflow !== 'production'}><ProductionPanel token={token} configured={runtime.providerConfigured} sources={sources} jobs={jobs} refresh={refresh} openDraft={openDraft} onConfigure={onConfigure} jobFocus={jobFocus} /></div><div hidden={workflow !== 'adaptation'}>
     <Notice text={error} /><Notice kind="info" text={!runtime.providerConfigured ? t("尚未配置模型服务。前往“模型设置”填写并保存后即可生成，无需重启。也可在草稿页手动提交内容。") : null} />
     {!runtime.providerConfigured && <p><button onClick={onConfigure}>{t("前往模型设置 →")}</button></p>}
     <div className="generation-layout"><form className="panel stack" onSubmit={generate}>
@@ -116,7 +135,8 @@ export function GenerationPanel({ token, runtime, sources, selectedId, select, j
       {uncertain && <p className="hint">{t("请求结果未确认，重试会使用同一任务标识与方向。")}</p>}
     </form>
     <div className="panel"><div className="panel-heading"><h3>{t("生成记录")}</h3><span className="hint">{t("运行中自动刷新")}</span></div>
-      {adaptationJobs.length === 0 ? <Empty>{t("生成任务会保存在这里。关闭网页后，可回来查看进度。")}</Empty> : <ul className="job-list">{adaptationJobs.map(job => <li key={job.id}>
+      <JobFilters query={query} setQuery={setQuery} filter={filter} setFilter={setFilter} count={visibleJobs.length} />
+      {adaptationJobs.length === 0 ? <Empty>{t("生成任务会保存在这里。关闭网页后，可回来查看进度。")}</Empty> : !visibleJobs.length ? <Empty>{t('没有匹配的制作记录，试试其他状态或关键词。')}</Empty> : <ul className="job-list">{visibleJobs.map(job => <li key={job.id} id={`job-${job.id}`} data-selected={job.id === focusedJobId || undefined}>
         <div className="job-heading"><strong>{sources.find(s => s.id === job.sourceId)?.title ?? t("原作任务")}</strong><span className={`status ${job.status}`}>{t(statuses[job.status])}</span></div>
         <p>{job.mode === 'open' ? t("开放冒险") : t("分支故事")} · {job.stage.startsWith('分析小说 ') ? t('分析小说 {completed}/{total}', {completed: job.completedChunks, total: job.totalChunks}) : t(job.stage || '准备中')} <span className="hint">· {t('{completed} / {total} 块', {completed: job.completedChunks, total: job.totalChunks})}</span></p>
         <progress max={1} value={Math.min(1, Math.max(0, job.progress))} aria-label={t("生成进度")} /><div className="job-meta"><small>{dateLabel(job.updatedAt, locale)}</small><small>{Math.round(job.progress * 100)}%</small></div>
@@ -125,6 +145,6 @@ export function GenerationPanel({ token, runtime, sources, selectedId, select, j
         <div className="actions">{job.draftId && <button className="primary small" onClick={() => openDraft(job.draftId!, job.mode ?? 'story')}>{t("打开草稿 →")}</button>}{(job.status === 'failed' || job.status === 'cancelled') && <button disabled={busy !== null} onClick={() => operate(job.id, 'retry')}>{t("重试任务")}</button>}{(job.status === 'queued' || job.status === 'running') && <button className="quiet" disabled={busy !== null} onClick={() => operate(job.id, 'cancel')}>{t("取消任务")}</button>}</div>
       </li>)}</ul>}
     </div></div>
-    </>}
+    </div>
   </section>;
 }

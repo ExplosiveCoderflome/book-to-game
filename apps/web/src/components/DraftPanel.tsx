@@ -1,3 +1,5 @@
+import { EditorTools } from './studio/EditorTools';
+import { WorkspaceHeader } from './studio/WorkspaceHeader';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { gameContentSchema, type CanvasLayout, type Draft, type GameContent, type GameRevision, type GenerationJob, type RuntimeInfo, type ScanDepth, type FillSceneTextResult, type SessionView, type SourceDocument, type SourceSummary, type ValidationResult } from '@novel-game/contracts';
 import { StatTemplateSelect, type StatTemplateSelectValue } from './StatTemplateSelect';
@@ -33,9 +35,11 @@ interface Props {
   onOpenPlayerShell?: (revisionId: string) => void;
   onOpenGeneration?: () => void;
   onConfigure?: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
+  onBusyChange?: (busy: boolean) => void;
 }
 
-export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, runtime, selectedId, select, refresh, onPublished, onOpenPlay, onOpenPlayerShell, onOpenGeneration, onConfigure }: Props) {
+export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, runtime, selectedId, select, refresh, onPublished, onOpenPlay, onOpenPlayerShell, onOpenGeneration, onConfigure, onDirtyChange, onBusyChange }: Props) {
   const { t } = useI18n();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [content, setContent] = useState<GameContent>(blankContent);
@@ -63,6 +67,8 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
   const [scanStatTemplateId, setScanStatTemplateId] = useState<StatTemplateSelectValue>('');
   const [scanDirection, setScanDirection] = useState(() => t('尊重原作世界规则，设计一次有明确选择后果的短篇冒险'));
   const [scanBusy, setScanBusy] = useState(false);
+  useEffect(() => {onDirtyChange?.(dirty || jsonMode);}, [dirty, jsonMode, onDirtyChange]);
+  useEffect(() => {onBusyChange?.(busy || extendBusy || fillBusy || scanBusy);}, [busy, extendBusy, fillBusy, scanBusy, onBusyChange]);
   const [extendFailedSceneId, setExtendFailedSceneId] = useState<string | null>(null);
   const [focusSceneIds, setFocusSceneIds] = useState<string[]>([]);
   const [focusNonce, setFocusNonce] = useState(0);
@@ -487,7 +493,7 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
 
   const scene = content.scenes[sceneIndex];
   return <section className="work-section draft-workspace">
-    <div className="section-heading"><div><p className="eyebrow">{t('05 / 分支草稿')}</p><h2>{t('无限画布工作台')}</h2><p>{t('分支图是主操作面：编辑与试玩可在同一画布切换；侧栏写场景，试玩时高亮路径。')}</p></div><span className="edition">CANVAS FIRST</span></div>
+    <WorkspaceHeader title="分支编辑器" description="连接场景与选择，在画布中编辑、校验和试玩。" />
     <div className="draft-toolbar panel"><label>{t('打开草稿')}<select value={selectedId} disabled={dirty || busy || jsonMode} onChange={e => select(e.target.value)}><option value="">{t('新建手动草稿')}</option>{drafts.map(d => <option key={d.id} value={d.id}>{d.content.title} · v{d.version}</option>)}</select></label><span className="hint">{draft ? t('当前 v{version}', { version: draft.version }) : t('手动创作')}{dirty || jsonMode ? t(' · 有未保存编辑') : ''}</span>{(dirty || conflict || jsonMode) && <button onClick={() => setReload(v => v + 1)} disabled={busy}>{t('放弃编辑并重新载入')}</button>}</div>
     <Notice text={error} /><Notice kind="success" text={message} />
     {extendConflict && (
@@ -516,10 +522,12 @@ export function DraftPanel({ token, drafts, sources, revisions, sessions, jobs, 
               <button type="button" className={`small${canvasMode === 'play' ? ' active' : ''}`} disabled={busy || playBusy || !canPlayOnCanvas} title={!canPlayOnCanvas ? t('需已发布版本，且无未保存编辑') : undefined} onClick={() => setCanvasMode('play')}>{t('试玩')}</button>
             </div>
           )}
+<EditorTools>
           <button type="button" className="small" disabled={busy || canvasMode === 'play'} onClick={() => setMetaOpen(v => !v)}>{t(metaOpen ? '收起故事信息' : '故事信息')}</button>
           <button type="button" className="small" disabled={busy || canvasMode === 'play'} onClick={() => openInspector('variables')}>{t('变量')}</button>
           <button type="button" className="small" data-testid="open-worldbook" disabled={busy || canvasMode === 'play'} onClick={() => openInspector('worldbook')}>{t('世界书')}</button>
           <button type="button" className="small" disabled={busy || canvasMode === 'play'} onClick={() => { if (jsonMode) applyJson(); else { setJsonText(JSON.stringify(content, null, 2)); setJsonMode(true); } }}>{t(jsonMode ? '应用 JSON 到编辑器' : '高级 JSON')}</button>
+</EditorTools>
         </div>
       </div>
       {jsonMode ? <><label>GameContent JSON<textarea className="json-editor" rows={28} value={jsonText} onChange={e => setJsonText(e.target.value)} spellCheck={false} /></label><p className="hint">{t('应用后仍需保存草稿。JSON 必须符合 GameContent，模式只能为 story。')}</p></> : <>

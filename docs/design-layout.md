@@ -47,3 +47,8 @@ Defined in `apps/web/src/styles.css` `:root`:
 
 Visual chrome, type, and control principles: [`design-ui.md`](./design-ui.md).
 - Full system: [`../DESIGN_SYSTEM.md`](../DESIGN_SYSTEM.md)
+
+
+## 2026-10-30 specialist tools
+
+Author tools use the fixed studio navigation/header and one internal main scroll area. Mount a route at first visit, then preserve its local editor/form state; do not mount every canvas on the initial Agent route. The 280px source shelf stacks below1101px; production records and its disclosed creation brief share wide screens. On phones, canvas modes and views remain visible while advanced tools expand inline; inspector panes stack below the graph. Search is a viewport-bounded native dialog. All nine author tools were rendered at375/768/1280px; the manuscript's tablet overflow was corrected. Exact evidence and bounds: [workspace surfaces](workspace-surfaces-2026-10-30.md).

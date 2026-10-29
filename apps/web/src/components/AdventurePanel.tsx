@@ -1,3 +1,4 @@
+import { WorkspaceHeader } from './studio/WorkspaceHeader';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { type AdventureView, type NarrateResult, type WorldRevision } from '@novel-game/contracts';
 import { errorMessage, request, RequestError } from '../lib/api';
@@ -90,17 +91,8 @@ export function AdventurePanel({ token, revisions, adventures, revisionId, selec
   const revision = revisions.find(r => r.id === session?.worldRevisionId);
 
   return <section className="work-section">
-    <div className="section-heading">
-      <div>
-        <p className="eyebrow">{t('开放冒险')}</p>
-        <h2>{t('去哪里，做什么，由你决定')}</h2>
-        <p>{t('观察、交谈与行动会留下后果。每份存档固定一个世界版本。画布上可见当前位置与移动足迹。')}</p>
-      </div>
-      <div className="stack" style={{alignItems:'flex-end',gap:8}}>
-        <span className="edition">EXPLORE & ACT</span>
-        {revisionId ? <div className="player-open-actions"><OpenPlayerShellButton mode="world" revisionId={revisionId} className="quiet small" /><CopyPlayLinkButton hash={playWorldHash(revisionId)} /></div> : null}
-      </div>
-    </div>
+    <WorkspaceHeader title="开放冒险试玩" description="选择发布版本，验证行动、资源与结局，或继续上次的存档。">{revisionId ? <div className="player-open-actions"><OpenPlayerShellButton mode="world" revisionId={revisionId} className="quiet small" /><CopyPlayLinkButton hash={playWorldHash(revisionId)} /></div> : null}
+      </WorkspaceHeader>
     <Notice text={error} />
     <Notice kind="info" text={uncertain ? t('上一行动结果尚未确认。请重试原请求；重试使用相同存档与请求标识，不会重复耗时。') : null} />
     <div className={`play-layout${session?.map && revision ? ' with-map' : ''}`}>
