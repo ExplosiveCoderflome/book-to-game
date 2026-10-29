@@ -1,6 +1,6 @@
 # Maker 下一阶段路线图（可交付文字游戏生成工具）
 
-> **当前状态 · 2026-10-28：M1 玩家壳、M1b 导出及 S1 系统已落地；S2 分阶段制作正在开发，以《武林外传》白展堂为首个真实内容验收目标，尚待接入模型完成生成验收。S3 后续承接审改。**
+> **当前状态 · 2026-10-29：M1 玩家壳、M1b 导出及 S1 系统已落地；S2已用《武林外传》白展堂完成首个真实生成、作者审改、三路线试玩及离线HTML验证，仍需优化节奏、结局分布和自动生成的稳定性。S3 后续承接完整审改回路，详见[真实测试记录](wulin-waizhuan-real-test-2026-10-29.md)。**
 > 定位依据：用户确认——类似 **RPG Maker** 的文字游戏生成/搭建工具  
 > 玩法底座：[`player-loop.md`](./player-loop.md)（P0–P2 已落地）· [`playtest-rubric.md`](./playtest-rubric.md)  
 > 五层纪律：[`extensibility.md`](./extensibility.md) · [`architecture.md`](./architecture.md)  

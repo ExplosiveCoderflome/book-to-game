@@ -1,7 +1,8 @@
 import { analysisSchema, branchSkeletonSchema, fillSceneTextModelOutputSchema, gameContentSchema, narrateModelOutputSchema, proposeActModelOutputSchema, proposeAdventureModelOutputSchema, sceneExtensionSchema, worldContentSchema, type Analysis, type AnalysisResult, type BranchSkeleton, type FillSceneTextModelOutput, type GameContent, type NarrateModelOutput, type ProposeActModelOutput, type ProposeAdventureModelOutput, type ProposeCandidate, type ScanDepth, type SceneExtension, type WorldContent } from '@novel-game/contracts';
 import { setTimeout as delay } from 'node:timers/promises';
 import { z, type ZodType } from 'zod';
-import { productionPlanSchema, productionNarrativeSchema, type ProductionBrief, type ProductionPlan, type ProductionUnit, type ProductionNarrative } from '@novel-game/contracts';
+import { productionPlanSchema, productionNarrativeSchema, storyletSchema, type ProductionBrief, type ProductionPlan, type ProductionUnit, type ProductionNarrative } from '@novel-game/contracts';
+import { VOLUME_TIERS } from '@novel-game/rules/preflight';
 import { productionTarget } from '../../modules/generation/index.js';
 import { PRODUCTION_PLAN_SYSTEM, PRODUCTION_TEXT_SYSTEM } from './production-prompts.js';
 import type { GenerationProvider, ModelRepairIssue, SourceChunk, WorldGenerationOptions } from '../../modules/generation/index.js';
@@ -35,17 +36,26 @@ export class ChatCompletionsProvider implements GenerationProvider {
     return this.complete('analyze', ANALYSIS_SYSTEM, chunk, signal, analysisSchema, feedback?.errors ?? []);
   }
   async planProduction(analysis: AnalysisResult, brief: ProductionBrief, chapterIds: string[], signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}): Promise<ProductionPlan> {
+    const sizedPlan = productionPlanSchema.extend({world: worldContentSchema.safeExtend({
+      storylets: z.array(storyletSchema).min(VOLUME_TIERS[brief.tier].cards),
+    })});
     return this.complete('plan_production', PRODUCTION_PLAN_SYSTEM, {
       brief, chapterIds, dossier: compactWorldDossier(analysis),
-      schema: z.toJSONSchema(productionPlanSchema, {unrepresentable: 'any'}),
+      schema: z.toJSONSchema(sizedPlan, {unrepresentable: 'any', reused: 'ref'}),
     }, signal, productionPlanSchema, feedback?.errors ?? []);
   }
-  async writeProductionUnit(plan: ProductionPlan, unit: ProductionUnit, previousTexts: ProductionNarrative[], signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}): Promise<ProductionNarrative> {
-    return this.complete('write_production_unit', PRODUCTION_TEXT_SYSTEM, {
+  async writeProductionUnit(plan: ProductionPlan, unit: ProductionUnit, _previousTexts: ProductionNarrative[], signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}): Promise<ProductionNarrative> {
+    const minChars = unit.kind === 'storylet' ? 120 : unit.kind === 'location' ? 150 : ['ending', 'timeout'].includes(unit.kind) ? 180 : unit.kind === 'action' ? 20 : 60;
+    const textSchema = productionNarrativeSchema.extend({texts: z.array(z.string().min(minChars)
+      .max(unit.kind === 'action' ? 1000 : unit.kind === 'timeout' ? 3000 : 4000)).length(unit.variants)});
+    const written = await this.complete('write_production_unit', PRODUCTION_TEXT_SYSTEM, {
       bible: plan.bible, playerRole: plan.world.playerRole, goal: plan.world.goal, routes: plan.routes,
       resources: plan.world.resourceDefs, facts: plan.world.facts, unit, target: productionTarget(plan, unit),
-      variants: unit.variants, nearbyWriting: previousTexts.map(text => text.texts[0]).slice(-2),
+      variants: unit.variants, requirements: {minCharsPerBody: minChars, targetCharsPerBody: minChars * 2, outcomeMinChars: 60},
+      schema: z.toJSONSchema(textSchema),
     }, signal, productionNarrativeSchema, feedback?.errors ?? []);
+    // Extra prose alternatives do not change mechanics; retain only the requested variants.
+    return {...written, texts: written.texts.slice(0, unit.variants)};
   }
   async generateSkeleton(analysis: AnalysisResult, direction: string, signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}, scanDepth: ScanDepth = 'medium', options?: { statTemplateId?: string }): Promise<BranchSkeleton> {
     return this.complete('generate_skeleton', SKELETON_SYSTEM, skeletonUserPayload(analysis, direction, scanDepth, options), signal, branchSkeletonSchema, feedback?.errors ?? []);
@@ -211,7 +221,10 @@ export class ChatCompletionsProvider implements GenerationProvider {
     const messages = [{role: 'system', content: system}, {role: 'user', content: JSON.stringify(data)}];
     if (feedback.length) messages.push({role: 'user', content: repairPrompt(feedback)});
     const body = JSON.stringify({model: this.config.model, response_format: {type: 'json_object'}, messages,
-      ...(operation === 'plan_production' ? {max_tokens: 20000} : operation === 'write_production_unit' ? {max_tokens: 4000} : {})});
+      // Keep planning reasoning modest, and reserve prose budgets for the answer itself.
+      ...(new URL(this.config.baseUrl).hostname === 'api.deepseek.com' ? (operation === 'plan_production'
+        ? {thinking: {type: 'enabled'}, reasoning_effort: 'low'} : {thinking: {type: 'disabled'}}) : {}),
+      ...(operation === 'plan_production' ? {max_tokens: 32768} : operation === 'write_production_unit' ? {max_tokens: (data as {variants: number}).variants === 2 ? 8000 : 4000} : {})});
     const requestBytes = Buffer.byteLength(body, 'utf8');
     let last: AppError | undefined;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {

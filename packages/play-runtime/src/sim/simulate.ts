@@ -143,13 +143,14 @@ export function defaultStrategies(world: WorldContent): Strategy[] {
   const defs = world.resourceDefs ?? {};
   const ids = Object.keys(defs).filter(id => defs[id]!.display !== 'hidden');
   const prefer = (wanted: string[], fallback: number) => wanted.find(id => ids.includes(id)) ?? ids[fallback] ?? ids[0] ?? '';
-  const growth = prefer(['xiuwei', 'reputation', 'trust'], 0); const money = prefer(['lingshi', 'coin', 'gold', 'primary_coin'], 1);
+  const money = prefer(['lingshi', 'money', 'coin', 'gold', 'primary_coin'], 1);
+  const growth = prefer(['xiuwei', 'reputation', 'trust', ...ids.filter(id => /_(trust|reputation)$/.test(id))], ids.findIndex(id => id !== money));
   // 魔道: chase the resource whose max ends the game (xinmo in 《寿灯》).
   const dark = ids.includes('xinmo') ? 'xinmo' : ids.find(id => defs[id]!.onMax?.ending) ?? growth;
   const label = (id: string) => defs[id]?.label ?? id;
   return [
     {id: 'random', label: '随机', pick: (o, _v, r) => pickRandom(o, r)},
-    {id: `greedy-${growth}`, label: `只顾${label(growth)}`, pick: greedy(growth)},
+    {id: growth === money ? `greedy-growth-${growth}` : `greedy-${growth}`, label: `只顾${label(growth)}`, pick: greedy(growth)},
     {id: `greedy-${money}`, label: `只顾${label(money)}`, pick: greedy(money)},
     {id: 'modao', label: ids.includes('xinmo') ? '魔道优先' : `追求${label(dark)}`, pick: greedy(dark)},
     {id: 'merchant', label: `跑商（攒${label(money)}）`, pick: merchantStrategy(world, money)},

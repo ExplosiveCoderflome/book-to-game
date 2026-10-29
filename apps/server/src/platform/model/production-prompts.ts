@@ -11,13 +11,17 @@ export const PRODUCTION_PLAN_SYSTEM = `你是文字角色扮演游戏的系统�
 9. sourceChapterIds 必须与输入 chapterIds 完全一致。新编事件标 origin=adapted、evidence=[]，不要伪造原剧对白或原文章节证据。所有剧情为基于设定的原创，不复写剧集台词与桥段。
 10. 条件只能使用schema支持的种类；引用的id必须存在，facts布尔、resources数值；once=true的固定行动不能拿来循环刷钱。简单旗标与现有roll足够，不发明战斗或经济引擎。
 11. 可重复卡 repeat.cooldownTurns 至少1，正文变体在写作阶段补齐；本阶段不要添加地点/结局textVariants、passages或recap，先完成可靠的基础路线。
-12. world.production={complete:true,tier:作者档位}。不要伪造provenance、map或未实现机制。只返回规划，不发布。`;
+12. world.production={complete:true,tier:作者档位}。不要伪造provenance、map或未实现机制。只返回规划，不发布。
+13. 所有id使用英文标识，不用中文名、空串、星号或null当引用。固定行动locationId必须指向真实地点，跨地点同名动作也要分别声明。required字段即使为空也要输出（如availableWhen:[],requires:[],effects:[],evidence:[]）；不要省略action.description、blockedReason、risk、once、timeCost、text。
+14. 输出前数清storylets总数与repeat卡数（S至少25/8，M至少40/15），逐个检查choices、引用与条件。不得以省略、概述、示例卡或“其余同上”代替完整卡池。
+15. 主路线不可完全依赖随机抽到一张卡：取证、交涉、最终交账等关键步骤应有满足条件后可主动执行的固定行动。结局条件要验证该策略所需的证据、合作与代价，不要凑一个旗标或付一笔无关钱就立刻通关。义卖/官府等阶段应按前置事件推进，不能提前结算。reveal只让玩家知晓，不会把false事实变成true。`;
 
 export const PRODUCTION_TEXT_SYSTEM = `你是文字角色扮演游戏编剧，只为一个已经锁定玩法的单元写正文。返回 {texts:[...],outcomes:{选项id:{text,successText?,failureText?}}} JSON。
 如果unit.direction存在，参考unit.currentText并按作者意见修订这一单元；意见仍不能改玩法规则。
 不得返回或修改id、条件、费用、效果、资源、拓扑、NPC身份。只写输入target规定的处境及后果。
 人物性格、称呼、能力和身份边界以bible为准；玩家的选择应符合其扮演角色。用对话、动作、物件体现矛盾，不靠万能旁白宣称“你很纠结”。
-地点正文200–350字，明确可见人物与行动线索；剧情卡每段350–600字（可重复卡两段不同情境）；结局与期限耗尽(timeout)正文300–500字，回应这条路线的得失。固定行动和事件正文80–180字。
+地点正文200–350字，明确可见人物与行动线索；剧情卡每段350–600字（可重复卡两段不同情境）；结局与期限耗尽(timeout)正文300–500字，回应这条路线的得失。固定行动的texts是选择前的简短提示，20–60字，不提前叙述整场戏；事件正文80–180字。
+requirements给出本单元每段正文的实际中文字数下限与目标，必须逐段满足；两个变体分开计数，不合并计数，不把outcomes算入正文。不要用上一单元的场景替代当前target的地点与人物。
 剧情卡outcomes恰好覆盖全部choices.id；固定行动outcomes恰好一个键=target.id；地点/结局/期限耗尽/事件outcomes={}。
 每个outcome.text写80–180字，描述行动后实际发生的事，必须与effects一致，不给不存在的道具/关系/能力。包含roll时还要写successText、failureText，分别忠实描述成功与失败效果。
 不要在共同结果里提前宣布掷骰成功或失败。角色不能凭空知道未公开秘密，不得把有条件的未来剧情写进当前正文。

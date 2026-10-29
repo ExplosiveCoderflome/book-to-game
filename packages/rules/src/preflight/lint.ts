@@ -142,7 +142,9 @@ export function lintWorld(world: WorldContent, opts: LintOptions = {}): LintRepo
   const resCount = Object.keys(defs).length;
   const gated = Object.keys(defs).filter(id => (gates.get(id) ?? 0) >= 3).length;
   const underGated = Object.keys(defs).filter(id => (gates.get(id) ?? 0) < 3).map(id => `${defs[id]!.label} ${gates.get(id) ?? 0} 处`);
-  const consequences = Object.values(defs).filter(d => d.onMin || d.onMax).length;
+  const consequences = Object.entries(defs).filter(([id,d]) => d.onMin || d.onMax || world.events.some(event =>
+    event.when.length === 1 && event.effects.length > 0 && event.when.some(condition => condition.kind === 'resource' && condition.resourceId === id &&
+      ((condition.atMost !== undefined && condition.atMost <= d.min) || (d.max !== undefined && condition.atLeast !== undefined && condition.atLeast >= d.max))))).length;
   const textErrors = c.issues.filter(i => i.category === 'text' && i.severity === 'error');
   const banned = textErrors.filter(i => i.ruleId === 'text.banned-phrase').length;
   const short = textErrors.filter(i => i.ruleId === 'text.too-short').length;
@@ -151,10 +153,11 @@ export function lintWorld(world: WorldContent, opts: LintOptions = {}): LintRepo
   const changeShare = choiceCount ? changingChoices / choiceCount : 0;
   const timeoutEnding = !!world.clock?.timeoutEndingId || world.endings.some(e => e.kind === 'timeout') || !!world.timeoutEnding;
   const checks: PassCheck[] = [
-    check('G2-count', '结局数量', '≥ 4 普通 + ≥ 2 失败 + 1 时限', `${normalEndings} 普通 · ${failureEndings} 失败 · ${timeoutEnding ? 1 : 0} 时限`, normalEndings >= 4 && failureEndings >= 2 && timeoutEnding),
+    check('G2-count', '结局数量', `≥ ${target.endings} 普通 + ≥ ${target.failureEndings} 失败 + 1 时限`, `${normalEndings} 普通 · ${failureEndings} 失败 · ${timeoutEnding ? 1 : 0} 时限`, normalEndings >= target.endings && failureEndings >= target.failureEndings && timeoutEnding),
     check('G3', '资源', '≥ 4 种且都有上下限；每种 ≥ 3 处门控；≥ 2 种触底/封顶有后果', `${resCount} 种（${bounded} 有上限）；${gated} 种门控 ≥ 3${underGated.length ? `（不足：${underGated.join('、')}）` : ''}；${consequences} 种有后果`, resCount >= 4 && bounded === resCount && gated === resCount && consequences >= 2),
-    check('G4-count', '卡池', `≥ 40 张，其中 ≥ 15 张可重复且各 ≥ 2 段变体`, `${storylets.length} 张 · 可重复 ${repeatable.length} 张 · 变体不足 ${repeatable.filter(sl => storyletBodies(sl).length < 2).length} 张`, storylets.length >= 40 && repeatable.length >= 15 && repeatable.every(sl => storyletBodies(sl).length >= 2)),
-    check('G6-structure', '时钟', '可见年月 + 倒计时；≥ 2 个限时窗口', world.clock ? `${world.clock.windows?.length ?? 0} 个窗口 · 倒计时 ${world.clock.countdownResourceId ? defs[world.clock.countdownResourceId]?.label ?? world.clock.countdownResourceId : '无'}` : '没有时钟', !!world.clock && (world.clock.windows?.length ?? 0) >= 2 && !!world.clock.countdownResourceId),
+    check('G4-count', '卡池', `≥ ${target.cards} 张，其中 ≥ ${target.repeatable} 张可重复且各 ≥ 2 段变体`, `${storylets.length} 张 · 可重复 ${repeatable.length} 张 · 变体不足 ${repeatable.filter(sl => storyletBodies(sl).length < 2).length} 张`, storylets.length >= target.cards && repeatable.length >= target.repeatable && repeatable.every(sl => storyletBodies(sl).length >= 2)),
+    world.clock ? check('G6-structure', '时钟', '可见年月 + 倒计时；≥ 2 个限时窗口', `${world.clock.windows?.length ?? 0} 个窗口 · 倒计时 ${world.clock.countdownResourceId ? defs[world.clock.countdownResourceId]?.label ?? world.clock.countdownResourceId : '无'}`, (world.clock.windows?.length ?? 0) >= 2 && !!world.clock.countdownResourceId)
+      : check('G6-structure', '期限', '有行动耗时上限与期限结局', `${world.timeLimit} 行动耗时 · ${timeoutEnding ? '有期限结局' : '无期限结局'}`, world.timeLimit >= 3 && timeoutEnding),
     check('G7', '正文', '禁用句 0；剧情卡 ≥ 120 字、地点 ≥ 150 字；相似度 < 0.6', `禁用句 ${banned} · 过短 ${short} · 近重复 ${dup}`, banned === 0 && short === 0 && dup === 0),
     check('G8-structure', '取舍', '开局 ≥ 3 个去向不同的行动；≥ 70% 选项改动资源或事实', `开局去向 ${destinations.size + opening.executableIds.filter(id => id.startsWith('sl__')).length} · 改动占比 ${Math.round(changeShare * 100)}%`, opening.count >= 3 && changeShare >= 0.7),
   ];

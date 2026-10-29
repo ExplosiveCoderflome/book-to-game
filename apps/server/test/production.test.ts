@@ -153,10 +153,18 @@ test('OpenAI-compatible adapter sends a schema for planning and a single locked 
     assert.equal(payload(0).brief.playerRole, brief.playerRole);
     assert.deepEqual(payload(1).target.id, unit.id);
     assert.equal(payload(1).variants, unit.variants);
+    assert.equal(payload(1).requirements.minCharsPerBody, 120);
+    assert.equal(payload(1).schema.properties.texts.items.minLength, 120);
+    assert.equal(payload(1).schema.properties.texts.minItems, unit.variants);
+    assert.equal(payload(1).schema.properties.texts.maxItems, unit.variants);
+    assert.equal(captured[1]!.max_tokens, unit.variants === 2 ? 8000 : 4000);
+    assert.equal(payload(1).nearbyWriting, undefined, 'the next unit must not copy the preceding scene as its own body');
     assert.equal(payload(1).unit.direction, feedback.direction);
     assert.deepEqual(payload(1).unit.currentText, feedback.currentText);
     assert.equal(payload(1).world, undefined, 'prose step cannot rewrite the whole world');
-    assert.equal(captured[0]!.max_tokens, 20000);
+    assert.equal(captured[0]!.max_tokens, 32768);
+    assert.equal(payload(0).schema.properties.world.properties.storylets.minItems, 25);
+    assert.ok(JSON.stringify(payload(0).schema).length < 60000, 'shared schemas are referenced instead of expanded at every use');
   } finally { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
 });
 
@@ -167,12 +175,32 @@ test('three successful strategies cannot be satisfied by substituting a failure 
   assert.throws(() => assertProductionPlan(p, brief, source), /失败结局不能替代通关策略/);
 });
 
+test('official DeepSeek uses modest planning reasoning and direct prose without changing other providers', async t => {
+  const p = plan(); const unit = productionUnits(p)[0]!; const requests: Record<string, unknown>[] = [];
+  t.mock.method(globalThis, 'fetch', async (_url: string, options: RequestInit) => {
+    const request = JSON.parse(options.body as string); requests.push(request);
+    const extraAlternative = narrative(p, unit); extraAlternative.texts.push('模型多给出的备用文案，只需保留本次请求的变体数量。');
+    return new Response(JSON.stringify({choices: [{message: {content: JSON.stringify(request.max_tokens === 32768 ? p : extraAlternative)}, finish_reason: 'stop'}]}));
+  });
+  for (const baseUrl of ['https://api.deepseek.com', 'https://example.invalid/v1']) {
+    const written = await new ChatCompletionsProvider({baseUrl, model: 'test', apiKey: '', timeoutMs: 10000})
+      .writeProductionUnit(p, unit, [], AbortSignal.timeout(10000));
+    assert.equal(written.texts.length, unit.variants, 'an unused extra alternative does not trigger regeneration');
+  }
+  assert.deepEqual(requests[0]!.thinking, {type: 'disabled'});
+  assert.equal(requests[1]!.thinking, undefined);
+  await new ChatCompletionsProvider({baseUrl: 'https://api.deepseek.com', model: 'test', apiKey: '', timeoutMs: 10000})
+    .planProduction({...analysis, coverage: {chapterIds: ['shoudeng-c1'], totalChapters: 1}}, brief, ['shoudeng-c1'], AbortSignal.timeout(10000));
+  assert.deepEqual(requests[2]!.thinking, {type: 'enabled'});
+  assert.equal(requests[2]!.reasoning_effort, 'low');
+});
+
 test('text-only assembly preserves choices and rejects missing outcomes, short bodies and template prose', () => {
   const p = plan(); const unit = productionUnits(p).find(unit => unit.kind === 'storylet')!;
   const valid = narrative(p, unit);
   assert.doesNotThrow(() => assertProductionNarrative(p, unit, valid));
   assert.throws(() => assertProductionNarrative(p, unit, {...valid, outcomes: {}}), /恰好覆盖/);
-  assert.throws(() => assertProductionNarrative(p, unit, {...valid, texts: ['气氛紧绷。']}), /正文至少|模板句/);
+  assert.throws(() => assertProductionNarrative(p, unit, {...valid, texts: ['气氛紧绷。']}), /至少需要|模板句/);
   const rollingUnit = productionUnits(p).find(unit => unit.kind === 'storylet' && p.world.storylets!.find(card => card.id === unit.id)!.choices.some(choice => choice.effects.some(effect => effect.kind === 'roll')))!;
   const rollingText = narrative(p, rollingUnit);
   assert.doesNotThrow(() => assertProductionNarrative(p, rollingUnit, rollingText));
@@ -211,15 +239,31 @@ test('production creation is idempotent including its source; unavailable models
 test('non-cultivation playtests use the actual currency and action time, not months and cultivation labels', async () => {
   const world = fillDemoWorld();
   world.resourceDefs = {
+    money: {label: '银两', min: 0, max: 100, initial: 5},
     hp: {label: '体力', min: 0, max: 10, initial: 3},
-    coin: {label: '银两', min: 0, max: 100, initial: 5},
-    trust: {label: '掌柜信任', min: 0, max: 100, initial: 20},
+    tong_trust: {label: '掌柜信任', min: 0, max: 100, initial: 20},
   };
   const report = await simulateWorld({id: 'r', draftId: 'd', sourceId: 's', content: world, version: 1, createdAt: source.createdAt}, {seeds: 1, maxSteps: 8});
   assert.equal(report.timeUnit, 'turn');
   assert.match(report.checks.find(check => check.id === 'G1')!.measured, /行动耗时/);
   assert.doesNotMatch(report.strategies.map(strategy => strategy.label).join(' '), /修炼|魔道/);
   assert.match(report.strategies.find(strategy => strategy.id === 'merchant')!.label, /银两/);
+  assert.equal(new Set(report.strategies.map(s=>s.id)).size,report.strategies.length,'money and growth strategies have distinct result buckets');
+  assert.ok(report.strategies.some(s=>s.id==='greedy-tong_trust'),'relationship resources are recognized without a cultivation id');
+  assert.equal(lintWorld(world).checks.find(check=>check.id==='G6-structure')!.pass,true,'an action deadline does not require a cultivation calendar');
+});
+
+test('S pass-line counts use the selected tier and recognize boundary consequences implemented as events', () => {
+  const world=plan().world; const all=world.storylets!;
+  world.production={complete:true,tier:'S'};
+  world.storylets=[...all.filter(c=>c.repeat).slice(0,8),...all.filter(c=>!c.repeat).slice(0,17)];
+  for(const d of Object.values(world.resourceDefs!)){delete d.onMin;delete d.onMax;}
+  world.events=Object.entries(world.resourceDefs!).slice(0,2).map(([id,d],i)=>({id:`boundary-${i}`,label:'资源触底',when:[{kind:'resource' as const,resourceId:id,atMost:d.min}],effects:[{kind:'set' as const,factId:world.facts[0]!.id,value:true}],text:'资源触底后产生持续后果。',visibility:'public' as const}));
+  const checks=lintWorld(world).checks;
+  assert.equal(checks.find(c=>c.id==='G4-count')!.pass,true,'25 cards / 8 repeats meet S instead of M');
+  world.storylets=all;
+  assert.equal(lintWorld(world).checks.find(c=>c.id==='G3')!.pass,true,'event-based boundary triggers count too');
+  assert.match(checks.find(c=>c.id==='G2-count')!.line,/≥ 2 普通/);
 });
 
 test('production creation and approval are available through the same HTTP command layer', async () => {

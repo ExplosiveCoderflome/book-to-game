@@ -63,10 +63,11 @@ function outcomeIds(plan: ProductionPlan, unit: ProductionUnit): string[] {
 /** Text quality is checked per unit; repairs do not touch accepted mechanics. */
 export function assertProductionNarrative(plan: ProductionPlan, unit: ProductionUnit, text: ProductionNarrative): void {
   const issues: {path: string; message: string}[] = [];
-  const min = ['storylet', 'ending', 'timeout'].includes(unit.kind) ? 250 : unit.kind === 'location' ? 180 : 60;
+  // Match publication's scene floors; total volume is checked once the game is assembled.
+  const min = unit.kind === 'storylet' ? 120 : unit.kind === 'location' ? 150 : ['ending', 'timeout'].includes(unit.kind) ? 180 : unit.kind === 'action' ? 20 : 60;
   if (text.texts.length !== unit.variants) issues.push({path: 'texts', message: `需要 ${unit.variants} 段独立正文`});
   text.texts.forEach((body, i) => {
-    if (textLength(body) < min) issues.push({path: `texts.${i}`, message: `正文至少 ${min} 字，须呈现具体人物、处境和可行动线索`});
+    if (textLength(body) < min) issues.push({path: `texts.${i}`, message: `第 ${i + 1} 段正文实际只有 ${textLength(body)} 字，至少需要 ${min} 字；请写到 ${min * 2} 字左右，须呈现具体人物、处境和可行动线索`});
   });
   const ids = outcomeIds(plan, unit);
   if (Object.keys(text.outcomes).length !== ids.length || ids.some(id => !text.outcomes[id])) issues.push({path: 'outcomes', message: `结果文案须恰好覆盖这些行动/选项：${ids.join(', ')}`});
