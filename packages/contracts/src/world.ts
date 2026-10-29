@@ -132,12 +132,19 @@ export const storyletSchema = z.object({id, title: z.string().min(1).max(120),
   text: z.string().min(1).max(4000).optional(),
   textVariants: z.array(z.string().min(1).max(4000)).min(1).max(10).optional(),
   variantMode: z.enum(['random', 'sequential']).optional(),
+  /** S4: state-dependent bodies. When the card is shown, the first case whose `when` holds (facts, resources, storylet_seen …,
+   *  evaluated against the current state) replaces the rotated `text`/`textVariants` body; none holding → the old rotation. */
+  textCases: z.array(z.object({id: id.optional(), when: z.array(worldConditionSchema).min(1).max(10), text: z.string().min(1).max(4000)})).max(10).optional(),
   /** Authoring batch number. Metadata only. */
   batch: z.number().int().min(0).max(100).optional(),
   choices: z.array(storyletChoiceSchema).min(1).max(6)}).refine(sl => !!sl.text || !!sl.textVariants?.length, '剧情卡需要 text 或 textVariants');
 /** All body variants of a storylet (text first when both exist). */
 export function storyletBodies(sl: {text?: string; textVariants?: string[]}): string[] {
   return sl.textVariants?.length ? sl.textVariants : sl.text ? [sl.text] : [];
+}
+/** S4: every body a storylet can show (rotation bodies, then state cases). */
+export function storyletAllBodies(sl: {text?: string; textVariants?: string[]; textCases?: {text: string}[]}): string[] {
+  return [...storyletBodies(sl), ...(sl.textCases ?? []).map(c => c.text)];
 }
 export type Storylet = z.infer<typeof storyletSchema>;
 export type StoryletChoice = z.infer<typeof storyletChoiceSchema>;

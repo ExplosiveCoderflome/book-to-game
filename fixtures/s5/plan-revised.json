@@ -1,0 +1,777 @@
+{
+ "routes": [
+  {
+   "id": "coop",
+   "name": "合作线",
+   "strategy": "攒人望→见旧识→作保→联手",
+   "endingIds": [
+    "coop",
+    "caught"
+   ]
+  },
+  {
+   "id": "evidence",
+   "name": "有限证据线",
+   "strategy": "拿密信、线索 2–3 条时指认",
+   "endingIds": [
+    "evidence"
+   ]
+  },
+  {
+   "id": "duel",
+   "name": "武力线",
+   "strategy": "练满功力、保住气血后约斗",
+   "endingIds": [
+    "duel",
+    "fall"
+   ]
+  }
+ ],
+ "world": {
+  "schemaVersion": 1,
+  "mode": "open",
+  "title": "三路试炼（引擎测试夹具）",
+  "premise": "引擎测试夹具：模拟《武林外传》式三条路线（合作 / 有限证据 / 武力），各自由不同地点的事实链门控，另有资源失败与时限结局。不是剧情内容。",
+  "playerRole": "测试角色",
+  "goal": "覆盖每个规划结局",
+  "worldRules": [
+   "时间以月计；时限 48 个月。"
+  ],
+  "adaptationNotes": "SYNTHETIC ENGINE FIXTURE — route-coverage tests only (docs/next-work-2026-10-29.md S1). Mirrors the Wulin route shape; contains no story content.",
+  "sourceChapterIds": [
+   "fixture"
+  ],
+  "initialLocationId": "town",
+  "timeLimit": 100,
+  "timeoutEnding": "时限已到。",
+  "locations": [
+   {
+    "id": "town",
+    "title": "镇口",
+    "text": "镇口（测试地点）。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "inn",
+    "title": "客栈",
+    "text": "客栈（测试地点）。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "yamen",
+    "title": "县衙",
+    "text": "县衙（测试地点）。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "hill",
+    "title": "后山",
+    "text": "后山（测试地点）。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "cave",
+    "title": "山洞",
+    "text": "山洞（测试地点）。",
+    "origin": "adapted",
+    "evidence": []
+   }
+  ],
+  "facts": [
+   {
+    "id": "ally_met",
+    "label": "见到旧识",
+    "description": "",
+    "kind": "event",
+    "initialValue": false,
+    "playerKnown": true,
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "ally_betrayed",
+    "label": "出卖旧识",
+    "description": "",
+    "kind": "event",
+    "initialValue": false,
+    "playerKnown": true,
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "ally_trust",
+    "label": "旧识作保",
+    "description": "",
+    "kind": "event",
+    "initialValue": false,
+    "playerKnown": true,
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "has_letter",
+    "label": "拿到密信",
+    "description": "",
+    "kind": "event",
+    "initialValue": false,
+    "playerKnown": true,
+    "origin": "adapted",
+    "evidence": []
+   }
+  ],
+  "npcs": [],
+  "actions": [
+   {
+    "id": "go_town_inn",
+    "label": "去客栈",
+    "description": "",
+    "locationId": "town",
+    "availableWhen": [],
+    "requires": [],
+    "blockedReason": "条件未满足",
+    "risk": "",
+    "timeCost": 1,
+    "once": false,
+    "effects": [
+     {
+      "kind": "move",
+      "locationId": "inn"
+     }
+    ],
+    "text": "去客栈。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "go_inn_town",
+    "label": "回镇口",
+    "description": "",
+    "locationId": "inn",
+    "availableWhen": [],
+    "requires": [],
+    "blockedReason": "条件未满足",
+    "risk": "",
+    "timeCost": 1,
+    "once": false,
+    "effects": [
+     {
+      "kind": "move",
+      "locationId": "town"
+     }
+    ],
+    "text": "回镇口。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "go_town_yamen",
+    "label": "去县衙",
+    "description": "",
+    "locationId": "town",
+    "availableWhen": [],
+    "requires": [],
+    "blockedReason": "条件未满足",
+    "risk": "",
+    "timeCost": 1,
+    "once": false,
+    "effects": [
+     {
+      "kind": "move",
+      "locationId": "yamen"
+     }
+    ],
+    "text": "去县衙。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "go_yamen_town",
+    "label": "回镇口",
+    "description": "",
+    "locationId": "yamen",
+    "availableWhen": [],
+    "requires": [],
+    "blockedReason": "条件未满足",
+    "risk": "",
+    "timeCost": 1,
+    "once": false,
+    "effects": [
+     {
+      "kind": "move",
+      "locationId": "town"
+     }
+    ],
+    "text": "回镇口。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "go_town_hill",
+    "label": "去后山",
+    "description": "",
+    "locationId": "town",
+    "availableWhen": [],
+    "requires": [],
+    "blockedReason": "条件未满足",
+    "risk": "",
+    "timeCost": 1,
+    "once": false,
+    "effects": [
+     {
+      "kind": "move",
+      "locationId": "hill"
+     }
+    ],
+    "text": "去后山。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "go_hill_town",
+    "label": "回镇口",
+    "description": "",
+    "locationId": "hill",
+    "availableWhen": [],
+    "requires": [],
+    "blockedReason": "条件未满足",
+    "risk": "",
+    "timeCost": 1,
+    "once": false,
+    "effects": [
+     {
+      "kind": "move",
+      "locationId": "town"
+     }
+    ],
+    "text": "回镇口。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "go_town_cave",
+    "label": "去山洞",
+    "description": "",
+    "locationId": "town",
+    "availableWhen": [],
+    "requires": [],
+    "blockedReason": "条件未满足",
+    "risk": "",
+    "timeCost": 1,
+    "once": false,
+    "effects": [
+     {
+      "kind": "move",
+      "locationId": "cave"
+     }
+    ],
+    "text": "去山洞。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "go_cave_town",
+    "label": "回镇口",
+    "description": "",
+    "locationId": "cave",
+    "availableWhen": [],
+    "requires": [],
+    "blockedReason": "条件未满足",
+    "risk": "",
+    "timeCost": 1,
+    "once": false,
+    "effects": [
+     {
+      "kind": "move",
+      "locationId": "town"
+     }
+    ],
+    "text": "回镇口。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "work",
+    "label": "打短工",
+    "description": "",
+    "locationId": "town",
+    "availableWhen": [],
+    "requires": [],
+    "blockedReason": "条件未满足",
+    "risk": "",
+    "timeCost": 1,
+    "once": false,
+    "effects": [
+     {
+      "kind": "resource",
+      "resourceId": "money",
+      "delta": 5
+     }
+    ],
+    "text": "打短工。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "ask_around",
+    "label": "四处打听",
+    "description": "",
+    "locationId": "town",
+    "availableWhen": [],
+    "requires": [],
+    "blockedReason": "条件未满足",
+    "risk": "",
+    "timeCost": 1,
+    "once": false,
+    "effects": [
+     {
+      "kind": "resource",
+      "resourceId": "clue",
+      "delta": 1
+     },
+     {
+      "kind": "resource",
+      "resourceId": "heat",
+      "delta": 1
+     }
+    ],
+    "text": "四处打听。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "drink",
+    "label": "请人喝酒",
+    "description": "",
+    "locationId": "inn",
+    "availableWhen": [],
+    "requires": [
+     {
+      "kind": "resource",
+      "resourceId": "money",
+      "atLeast": 2
+     }
+    ],
+    "blockedReason": "条件未满足",
+    "risk": "",
+    "timeCost": 1,
+    "once": false,
+    "effects": [
+     {
+      "kind": "resource",
+      "resourceId": "money",
+      "delta": -2
+     },
+     {
+      "kind": "resource",
+      "resourceId": "trust",
+      "delta": 1
+     }
+    ],
+    "text": "请人喝酒。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "meet_ally",
+    "label": "约见江湖旧识",
+    "description": "",
+    "locationId": "inn",
+    "availableWhen": [],
+    "requires": [
+     {
+      "kind": "resource",
+      "resourceId": "trust",
+      "atLeast": 3
+     }
+    ],
+    "blockedReason": "条件未满足",
+    "risk": "",
+    "timeCost": 1,
+    "once": true,
+    "effects": [
+     {
+      "kind": "set",
+      "factId": "ally_met",
+      "value": true
+     }
+    ],
+    "text": "约见江湖旧识。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "sell_out",
+    "label": "把旧识的行踪卖给官府",
+    "description": "",
+    "locationId": "inn",
+    "availableWhen": [],
+    "requires": [],
+    "blockedReason": "条件未满足",
+    "risk": "",
+    "timeCost": 1,
+    "once": true,
+    "effects": [
+     {
+      "kind": "set",
+      "factId": "ally_betrayed",
+      "value": true
+     },
+     {
+      "kind": "resource",
+      "resourceId": "money",
+      "delta": 30
+     }
+    ],
+    "text": "把旧识的行踪卖给官府。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "plead",
+    "label": "带旧识去县衙作保",
+    "description": "",
+    "locationId": "yamen",
+    "availableWhen": [],
+    "requires": [
+     {
+      "kind": "fact",
+      "factId": "ally_met",
+      "value": true
+     },
+     {
+      "kind": "fact",
+      "factId": "ally_betrayed",
+      "value": false
+     },
+     {
+      "kind": "resource",
+      "resourceId": "clue",
+      "atLeast": 2
+     }
+    ],
+    "blockedReason": "条件未满足",
+    "risk": "",
+    "timeCost": 1,
+    "once": true,
+    "effects": [
+     {
+      "kind": "set",
+      "factId": "ally_trust",
+      "value": true
+     }
+    ],
+    "text": "带旧识去县衙作保。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "accuse",
+    "label": "凭有限证据当堂指认",
+    "description": "",
+    "locationId": "yamen",
+    "availableWhen": [],
+    "requires": [
+     {
+      "kind": "fact",
+      "factId": "has_letter",
+      "value": true
+     },
+     {
+      "kind": "resource",
+      "resourceId": "clue",
+      "atLeast": 2,
+      "atMost": 3
+     }
+    ],
+    "blockedReason": "条件未满足",
+    "risk": "",
+    "timeCost": 1,
+    "once": false,
+    "effects": [
+     {
+      "kind": "ending",
+      "endingId": "evidence"
+     }
+    ],
+    "text": "凭有限证据当堂指认。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "bribe",
+    "label": "塞钱压下风声",
+    "description": "",
+    "locationId": "yamen",
+    "availableWhen": [],
+    "requires": [
+     {
+      "kind": "resource",
+      "resourceId": "money",
+      "atLeast": 20
+     }
+    ],
+    "blockedReason": "条件未满足",
+    "risk": "",
+    "timeCost": 1,
+    "once": false,
+    "effects": [
+     {
+      "kind": "resource",
+      "resourceId": "money",
+      "delta": -20
+     },
+     {
+      "kind": "resource",
+      "resourceId": "heat",
+      "delta": -3
+     }
+    ],
+    "text": "塞钱压下风声。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "train",
+    "label": "后山练功",
+    "description": "",
+    "locationId": "hill",
+    "availableWhen": [],
+    "requires": [],
+    "blockedReason": "条件未满足",
+    "risk": "",
+    "timeCost": 2,
+    "once": false,
+    "effects": [
+     {
+      "kind": "resource",
+      "resourceId": "strength",
+      "delta": 1
+     },
+     {
+      "kind": "resource",
+      "resourceId": "hp",
+      "delta": -1
+     }
+    ],
+    "text": "后山练功。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "rest",
+    "label": "山泉调息",
+    "description": "",
+    "locationId": "hill",
+    "availableWhen": [],
+    "requires": [],
+    "blockedReason": "条件未满足",
+    "risk": "",
+    "timeCost": 1,
+    "once": false,
+    "effects": [
+     {
+      "kind": "resource",
+      "resourceId": "hp",
+      "delta": 2
+     }
+    ],
+    "text": "山泉调息。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "joint_raid",
+    "label": "与旧识联手夜袭",
+    "description": "",
+    "locationId": "hill",
+    "availableWhen": [],
+    "requires": [
+     {
+      "kind": "fact",
+      "factId": "ally_trust",
+      "value": true
+     }
+    ],
+    "blockedReason": "条件未满足",
+    "risk": "",
+    "timeCost": 1,
+    "once": false,
+    "effects": [
+     {
+      "kind": "ending",
+      "endingId": "coop"
+     }
+    ],
+    "text": "与旧识联手夜袭。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "search",
+    "label": "搜查山洞",
+    "description": "",
+    "locationId": "cave",
+    "availableWhen": [],
+    "requires": [],
+    "blockedReason": "条件未满足",
+    "risk": "",
+    "timeCost": 1,
+    "once": true,
+    "effects": [
+     {
+      "kind": "set",
+      "factId": "has_letter",
+      "value": true
+     },
+     {
+      "kind": "resource",
+      "resourceId": "heat",
+      "delta": 2
+     }
+    ],
+    "text": "搜查山洞。",
+    "origin": "adapted",
+    "evidence": []
+   },
+   {
+    "id": "duel",
+    "label": "洞中约斗",
+    "description": "",
+    "locationId": "cave",
+    "availableWhen": [],
+    "requires": [
+     {
+      "kind": "resource",
+      "resourceId": "strength",
+      "atLeast": 6
+     },
+     {
+      "kind": "resource",
+      "resourceId": "hp",
+      "atLeast": 5
+     }
+    ],
+    "blockedReason": "条件未满足",
+    "risk": "",
+    "timeCost": 1,
+    "once": false,
+    "effects": [
+     {
+      "kind": "ending",
+      "endingId": "duel"
+     }
+    ],
+    "text": "洞中约斗。",
+    "origin": "adapted",
+    "evidence": []
+   }
+  ],
+  "events": [],
+  "endings": [
+   {
+    "id": "coop",
+    "title": "联手破案",
+    "text": "【测试结局】联手破案。",
+    "when": []
+   },
+   {
+    "id": "evidence",
+    "title": "证据有限的指认",
+    "text": "【测试结局】证据有限的指认。",
+    "when": []
+   },
+   {
+    "id": "duel",
+    "title": "洞中一战",
+    "text": "【测试结局】洞中一战。",
+    "when": []
+   },
+   {
+    "id": "fall",
+    "title": "力竭倒下",
+    "text": "【测试结局】力竭倒下。",
+    "when": [],
+    "kind": "failure"
+   },
+   {
+    "id": "caught",
+    "title": "被官府盯上",
+    "text": "【测试结局】被官府盯上。",
+    "when": [],
+    "kind": "failure"
+   },
+   {
+    "id": "drift",
+    "title": "不了了之",
+    "text": "【测试结局】不了了之。",
+    "when": [],
+    "kind": "timeout"
+   }
+  ],
+  "resourceDefs": {
+   "money": {
+    "label": "铜钱",
+    "min": 0,
+    "max": 999,
+    "initial": 10,
+    "display": "number"
+   },
+   "trust": {
+    "label": "人望",
+    "min": 0,
+    "max": 10,
+    "initial": 0,
+    "display": "bar"
+   },
+   "hp": {
+    "label": "气血",
+    "min": 0,
+    "max": 10,
+    "initial": 10,
+    "display": "bar",
+    "onMin": {
+     "ending": "fall"
+    }
+   },
+   "heat": {
+    "label": "风声",
+    "min": 0,
+    "max": 10,
+    "initial": 0,
+    "display": "bar",
+    "onMax": {
+     "ending": "caught"
+    }
+   },
+   "clue": {
+    "label": "线索",
+    "min": 0,
+    "max": 5,
+    "initial": 0,
+    "display": "pips"
+   },
+   "strength": {
+    "label": "功力",
+    "min": 0,
+    "max": 6,
+    "initial": 0,
+    "display": "pips"
+   }
+  },
+  "clock": {
+   "unit": "month",
+   "startYear": 1,
+   "startMonth": 1,
+   "limitMonths": 48,
+   "timeoutEndingId": "drift"
+  },
+  "production": {
+   "complete": true,
+   "note": "synthetic engine fixture"
+  }
+ }
+}

@@ -31,6 +31,8 @@ export function sourceCommands(w: Workbench) {
     command('create_production_job', '从创作简报或原作生成角色扮演游戏：先生成可审阅玩法规划，作者确认后逐段写作并体检。每段持久化，失败恢复复用已有内容；不是一次性生成整个世界。', productionInputSchema, false, input => w.createProductionJob(input)),
     command('approve_production_plan', '确认角色扮演游戏的人物边界和玩法规划，然后排队生成正文。可先编辑plan；不发布游戏，不改已有存档。',
       z.object({id: z.string().min(1), plan: productionPlanSchema}), false, ({id, plan}) => w.jobs.approveProduction(id, plan)),
+    command('check_production_plan', '只读检查玩法规划的规则（关键任务能否执行、证据与结局前置是否闭合、主线是否会被抽卡锁死、路线是否可达）；错误会阻止确认规划。不调用模型。',
+      z.object({plan: productionPlanSchema}), true, ({plan}) => w.jobs.checkProductionPlan(plan)),
     command('rewrite_production_unit', '按作者意见只重写一个制作单元，复用其他已保存文案和已确认玩法，完成后创建新的修订草稿；旧草稿和发布版本保留。',
       z.object({id: z.string().min(1), unitKey: z.string().min(1).max(160), direction: z.string().trim().min(5).max(2000)}), false,
       ({id, unitKey, direction}) => w.jobs.rewriteProduction(id, unitKey, direction)),

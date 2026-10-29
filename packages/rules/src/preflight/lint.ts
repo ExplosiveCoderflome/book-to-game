@@ -2,7 +2,8 @@
  * Lint v2 (§6.6). Pure: content in, LintReport out. Runs on every world and story draft; per D7 only
  * content that uses the S1 systems (resourceDefs / clock / storylets) gets `blocking: true`.
  */
-import { storyletBodies, type GameContent, type LintCategory, type LintIssue, type LintReport, type LintTarget, type PassCheck, type VolumeTier, type WorldCondition, type WorldContent, type WorldEffect } from '@novel-game/contracts';
+import { lintStateVariants } from './state-variants.js';
+import { storyletAllBodies, storyletBodies, type GameContent, type LintCategory, type LintIssue, type LintReport, type LintTarget, type PassCheck, type VolumeTier, type WorldCondition, type WorldContent, type WorldEffect } from '@novel-game/contracts';
 import { assessOpeningActions } from '../world-opening.js';
 import { validateS1References, walkWorldLogic } from '../s1-references.js';
 import { DEFAULT_BANNED_PHRASES, frequentFragments, similarPairs, textLength, type TextUnit } from './text-metrics.js';
@@ -86,7 +87,8 @@ export function lintWorld(world: WorldContent, opts: LintOptions = {}): LintRepo
   }
   // ── pool
   const repeatable = storylets.filter(sl => sl.repeat);
-  for (const sl of repeatable) if (storyletBodies(sl).length < 2) c.add('warning', 'pool', 'pool.few-variants', `可重复卡「${sl.title}」只有 ${storyletBodies(sl).length} 段正文，建议 ≥ 2 段变体`, {kind: 'storylet', id: sl.id, label: sl.title});
+  for (const sl of repeatable) if (storyletAllBodies(sl).length < 2) c.add('warning', 'pool', 'pool.few-variants', `可重复卡「${sl.title}」只有 ${storyletAllBodies(sl).length} 段正文，建议 ≥ 2 段变体（轮换变体或按状态的条件变体）`, {kind: 'storylet', id: sl.id, label: sl.title});
+  for (const i of lintStateVariants(world)) c.add('warning', 'pool', i.ruleId, i.message, {kind: 'storylet', id: i.storyletId, label: i.title});
   if (s1 && storylets.length && repeatable.length < target.repeatable) c.add(tierSeverity, 'pool', 'pool.repeatable-below-tier', `可重复卡 ${repeatable.length} 张，低于 ${tier} 档目标 ${target.repeatable}${tierNote}`);
   // ── choices: empty labels + G8 cost/effect share
   const allChoices = [...world.actions.map(a => ({id: a.id, label: a.label, effects: a.effects, owner: `行动 ${a.id}`})),
@@ -100,6 +102,7 @@ export function lintWorld(world: WorldContent, opts: LintOptions = {}): LintRepo
   const minSl = opts.minStoryletChars ?? 120; const minLoc = opts.minLocationChars ?? 150;
   const units: TextUnit[] = [];
   for (const sl of storylets) storyletBodies(sl).forEach((text, i, all) => units.push({owner: sl.id, ownerKind: 'storylet', label: `剧情卡「${sl.title}」${all.length > 1 ? `变体 ${i + 1}` : ''}`, text, minLength: minSl}));
+  for (const sl of storylets) (sl.textCases ?? []).forEach((cs, i) => units.push({owner: sl.id, ownerKind: 'storylet', label: `剧情卡「${sl.title}」条件变体 ${cs.id ?? i + 1}`, text: cs.text, minLength: minSl}));
   for (const loc of world.locations) {
     units.push({owner: loc.id, ownerKind: 'location', label: `地点「${loc.title}」`, text: loc.text, minLength: minLoc});
     // Conditional variants: similarity/banned rules apply; length is checked separately as a warning.

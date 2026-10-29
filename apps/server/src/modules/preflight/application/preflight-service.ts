@@ -40,7 +40,9 @@ export class PreflightService {
     if (pending) return pending;
     const run = (async () => {
       const report = await simulateWorld({id: `preflight-${draft.id}`, draftId: draft.id, sourceId: draft.sourceId, version: draft.version, content, createdAt: new Date().toISOString()},
-        {seeds, ...(input.strategies?.length ? {strategies: input.strategies} : {}), draftId: draft.id, draftVersion: draft.version, yieldEvery: this.yieldFn});
+        {seeds, ...(input.strategies?.length ? {strategies: input.strategies} : {}), draftId: draft.id, draftVersion: draft.version, yieldEvery: this.yieldFn,
+          // S2: suggestions for goal-only endings (extra random-only trials; nothing is written back).
+          guidance: true});
       // Merge lint-side rows (G3 / G7 / structure) so one report answers all of §1.
       const lint = lintWorld(content, {draftId: draft.id, draftVersion: draft.version});
       const merged: PlaytestReport = {...report, checks: mergeChecks(report.checks, lint.checks)};

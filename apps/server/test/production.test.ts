@@ -88,6 +88,17 @@ test('production pauses for review; retry resumes saved units without redoing an
     assert.equal(calls.size, 0);
     const invalid = structuredClone(p); invalid.world.playerRole = '路过的新人';
     assert.throws(() => service.approveProduction(job.id, invalid), /玩家身份/);
+    // S5: a plan whose rules cannot work is blocked before any prose (no model calls): nothing can reveal 闻人 any more.
+    const broken = structuredClone(p);
+    type Fx = {kind: string; factId?: string; value?: unknown; success?: Fx[]; failure?: Fx[]};
+    const unset = (effects: Fx[] = []): void => { for (const e of effects) { if (e.kind === 'set' && e.factId === 'wenren_exposed') e.value = false; unset(e.success); unset(e.failure); } };
+    for (const a of broken.world.actions) unset(a.effects);
+    for (const c of broken.world.storylets!.flatMap(sl => sl.choices)) unset(c.effects);
+    for (const ev of broken.world.events) unset(ev.effects);
+    assert.throws(() => service.approveProduction(job.id, broken), (e: Error & {code?: string; details?: {planCheck?: {blocking: boolean}}}) =>
+      e.code === 'PLAN_CHECK_BLOCKED' && e.details?.planCheck?.blocking === true && /闻人|wenren/.test(e.message));
+    assert.equal(service.get(job.id).status, 'awaiting_review', 'a blocked plan stays in review');
+    assert.ok(service.checkProductionPlan(p).errors === 0, 'the real plan only has warnings');
     service.approveProduction(job.id, p);
     await runner.runOnce();
     assert.equal(service.get(job.id).status, 'failed');
@@ -105,6 +116,9 @@ test('production pauses for review; retry resumes saved units without redoing an
     assert.deepEqual(created!.production, {complete: true, tier: 'S'});
     assert.ok(service.get(job.id).productionState!.lint, 'quality report remains visible even if author edits are needed');
     assert.equal(service.get(job.id).productionState!.playtest?.seeds, 20, 'assembled content is exercised by the actual play runtime');
+    const coverage = service.get(job.id).productionState!.playtest?.routeCoverage;
+    assert.deepEqual(coverage?.routes.filter(r => r.source === 'plan').map(r => r.id), ['route-0', 'route-1', 'route-2'], 'planned routes get route-following strategies');
+    assert.equal(coverage?.endings.length, service.get(job.id).productionState!.plan!.world.endings.length, 'every ending gets a coverage row');
     const original = service.get(job.id); const originalDraft = structuredClone(drafts.get(original.draftId!)!);
     const counts = new Map(calls); const unit = productionUnits(p)[0]!;
     assert.throws(() => service.rewriteProduction(job.id, 'location:missing', '增加可行动的线索'), /不存在/);

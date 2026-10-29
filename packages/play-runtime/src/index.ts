@@ -24,7 +24,7 @@ export { createAdventureState } from './adventure/start-adventure.js';
 export type { AdventureHandCard, AdventureLastResult } from './adventure/adventure-state.js';
 export { describeCondition, requiresBlock, resolveEnding, fireThresholds, type BlockedReasonKind } from './adventure/rules.js';
 export { isS1World, rngNext, seedFromString, timeLimitOf, computeChance, formatCalendar, formatMonths, type ChanceBreakdown } from './adventure/s1-core.js';
-export { STORYLET_CHOICE_PREFIX, storyletChoiceId, refreshHand, runClock, locationText } from './adventure/storylets.js';
+export { STORYLET_CHOICE_PREFIX, storyletChoiceId, refreshHand, runClock, locationText, storyletText } from './adventure/storylets.js';
 
 // Offline package: format, saves, local port (slice §5.3–5.6)
 export { sha256Hex } from './package/sha256.js';

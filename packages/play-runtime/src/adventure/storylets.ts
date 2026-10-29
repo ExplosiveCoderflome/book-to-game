@@ -197,6 +197,13 @@ export function moveRefreshDue(world: WorldContent, fromLocation: string, toLoca
   return fromLocation !== toLocation && (world.storyletRules?.refreshOn ?? ['move', 'clock']).includes('move');
 }
 
+/** S4: body shown for a hand card — the first state case that holds now, else the rotated variant drawn with the card. */
+export function storyletText(world: WorldContent, state: AdventureState, sl: Storylet, variant: number): string {
+  const hit = sl.textCases?.find(c => matches(c.when, state, world));
+  if (hit) return hit.text;
+  const bodies = storyletBodies(sl);
+  return bodies[variant] ?? bodies[0] ?? '';
+}
 /** Location description with S1 conditional variants (first match wins). */
 export function locationText(world: WorldContent, state: AdventureState, locationId: string): string {
   const location = world.locations.find(item => item.id === locationId);

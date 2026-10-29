@@ -3,18 +3,36 @@
  * advanceAdventure / projectAdventure) with scripted strategies over many seeds and aggregates a PlaytestReport.
  * Author-side only: exported via `@novel-game/play-runtime/sim`, never from the package root.
  */
-import { storyletBodies, type AdventureAction, type AdventureView, type PassCheck, type PlaytestReport, type WorldContent, type WorldEffect, type WorldRevision } from '@novel-game/contracts';
+import { type AdventureView, type PassCheck, type PlaytestReport, type RouteCoverageReport, type WorldContent, type WorldEffect, type WorldRevision } from '@novel-game/contracts';
 import type { AdventureState } from '../adventure/adventure-state.js';
 import { advanceAdventure } from '../adventure/advance-adventure.js';
 import { projectAdventure } from '../adventure/project-adventure.js';
 import { createAdventureState } from '../adventure/start-adventure.js';
 import { formatMonths } from '../adventure/s1-core.js';
 
-export interface SimOption {id: string; label: string; enabled: boolean; timeCost: number; effects: WorldEffect[]; fromHand: boolean; storyletId?: string; moves: boolean}
-export interface Strategy {id: string; label: string; pick(options: SimOption[], view: AdventureView, rand: () => number): SimOption}
+import type { SimOption } from './types.js';
+import { endingSources, goalStrategy, suppliersOf } from './goal-strategy.js';
+import { routeGuidance } from './guidance.js';
+import { diagnosePacing } from './pacing.js';
+export type { SimOption } from './types.js';
+/** `state` is the full engine state (author tool); generic strategies only use the projected view, goal strategies need conditions. */
+export interface Strategy {id: string; label: string; pick(options: SimOption[], view: AdventureView, rand: () => number, state?: AdventureState): SimOption}
+/** A planned route (ProductionPlan.routes) — strategy text is for authors; endingIds drive the goal strategy. */
+export interface SimRoute {id: string; name: string; endingIds: string[]}
 export interface SimulateOptions {seeds?: number; maxSteps?: number; strategies?: string[]; now?: string; draftId?: string; draftVersion?: number;
   /** Cooperative yield between runs (server passes setImmediate); keeps the event loop responsive. */
-  yieldEvery?: () => Promise<void>}
+  yieldEvery?: () => Promise<void>;
+  /** Route coverage (goal-directed strategies). 'auto' (default) = one goal strategy per authored ending; an array adds the
+   *  planned routes on top; false = skip. Runs separately from the generic strategies, so G1–G8 are unchanged. */
+  routes?: SimRoute[] | 'auto' | false;
+  /** Seeds per goal strategy (default min(seeds, 40)). */
+  routeSeeds?: number;
+  /** Which endings get their own goal strategy: 'all' (default) or only those no generic strategy covers (cheaper; production). */
+  routeEndings?: 'all' | 'uncovered';
+  /** S2: route guidance for goal-only endings (extra random-strategy trials per candidate edit). Off by default. */
+  guidance?: boolean | {seeds?: number; maxHints?: number};
+  /** S3 pacing diagnosis + static minimum-step estimate (cheap; on by default). */
+  pacing?: boolean}
 
 // ── option extraction (from the projected view + authored effects, i.e. what a player could see)
 function optionsOf(view: AdventureView, world: WorldContent): SimOption[] {
@@ -176,7 +194,9 @@ interface RunResult {ending: string; decisions: number; uniqueChars: number; mon
   samples: Record<string, number[]>; drawn: Set<string>; plays: number; repeats: number; visible: number; locked: number;
   pinned: Record<string, number>; steps: number; costSteps: number; enabledIds: Set<string>; visibleLockedIds: Set<string>;
   /** K15: ending passages / recap lines shown at the end of this run. */
-  passageIds: string[]; recapIds: string[]}
+  passageIds: string[]; recapIds: string[];
+  /** S3: storylet plays this run. */
+  playCounts: Record<string, number>}
 
 function runOne(revision: WorldRevision, strategy: Strategy, seed: number, maxSteps: number, now: string): RunResult {
   const world = revision.content;
@@ -187,7 +207,7 @@ function runOne(revision: WorldRevision, strategy: Strategy, seed: number, maxSt
   const defs = world.resourceDefs ?? {};
   const samples: Record<string, number[]> = {}; const pinned: Record<string, number> = {};
   const res: RunResult = {ending: '(none)', decisions: 0, uniqueChars: 0, months: 0, deadEnd: false, samples, drawn: new Set(), plays: 0, repeats: 0,
-    visible: 0, locked: 0, pinned, steps: 0, costSteps: 0, enabledIds: new Set(), visibleLockedIds: new Set(), passageIds: [], recapIds: []};
+    visible: 0, locked: 0, pinned, steps: 0, costSteps: 0, enabledIds: new Set(), visibleLockedIds: new Set(), passageIds: [], recapIds: [], playCounts: {}};
   let lastPlayed = '';
   let view = projectAdventure(state, revision);
   read(view.location.text);
@@ -206,9 +226,9 @@ function runOne(revision: WorldRevision, strategy: Strategy, seed: number, maxSt
     for (const o of options) (o.enabled ? res.enabledIds : res.visibleLockedIds).add(o.id);
     if (enabled.some(hasCost)) res.costSteps++;
     if (!enabled.length) { res.deadEnd = true; break; }
-    const pick = strategy.pick(enabled, view, rand);
+    const pick = strategy.pick(enabled, view, rand, state);
     if (pick.storyletId) {
-      res.plays++; if (pick.storyletId === lastPlayed) res.repeats++; lastPlayed = pick.storyletId;
+      res.plays++; res.playCounts[pick.storyletId] = (res.playCounts[pick.storyletId] ?? 0) + 1; if (pick.storyletId === lastPlayed) res.repeats++; lastPlayed = pick.storyletId;
       const card = view.hand?.find(h => h.storyletId === pick.storyletId); read(card?.text);
     } else lastPlayed = '';
     state = {...state, history: []}; // the simulator does not need the transcript; keeps steps O(1)
@@ -226,6 +246,8 @@ function runOne(revision: WorldRevision, strategy: Strategy, seed: number, maxSt
   return res;
 }
 
+/** G1 pacing line (also applied per route by the coverage report). */
+export const PACING_LINE = {decisions: 60, uniqueChars: 10000} as const;
 export const STRATEGY_IDS = ['random', 'greedy-growth', 'greedy-money', 'modao', 'merchant', 'lazy'] as const;
 
 export async function simulateWorld(revision: WorldRevision, opts: SimulateOptions = {}): Promise<PlaytestReport> {
@@ -243,6 +265,8 @@ export async function simulateWorld(revision: WorldRevision, opts: SimulateOptio
   const CHECKPOINTS = [0, 0.25, 0.5, 0.75, 1];
   // K15 coverage: per ending, runs that reached it / runs with ≥ 1 recap line; passage and recap hit counts.
   const k15Runs: Record<string, {runs: number; withRecap: number; passages: number}> = {}; const passageHits: Record<string, number> = {}; const recapHits: Record<string, number> = {};
+  // S3 pacing inputs.
+  const randomByEnding: Record<string, number[]> = {}; const minByEnding: Record<string, number> = {}; const randomPlays: Record<string, number> = {};
   for (const strategy of strategies) {
     const counts: Record<string, number> = {}; const decisions: number[] = []; const unique: number[] = []; const months: number[] = [];
     for (let i = 0; i < seeds; i++) {
@@ -252,6 +276,8 @@ export async function simulateWorld(revision: WorldRevision, opts: SimulateOptio
       for (const id of r.passageIds) passageHits[`${r.ending}/${id}`] = (passageHits[`${r.ending}/${id}`] ?? 0) + 1;
       for (const id of r.recapIds) recapHits[id] = (recapHits[id] ?? 0) + 1;
       decisions.push(r.decisions); unique.push(r.uniqueChars); months.push(r.months);
+      if (r.ending !== '(none)') minByEnding[r.ending] = Math.min(minByEnding[r.ending] ?? Infinity, r.decisions);
+      if (strategy.id === 'random') { (randomByEnding[r.ending] ??= []).push(r.decisions); for (const [id, n] of Object.entries(r.playCounts)) randomPlays[id] = (randomPlays[id] ?? 0) + n; }
       for (const id of r.drawn) drawnRuns.set(id, (drawnRuns.get(id) ?? 0) + 1);
       runs++; if (r.deadEnd) deadEnds++; plays += r.plays; repeats += r.repeats; visible += r.visible; locked += r.locked;
       steps += r.steps; costSteps += r.costSteps;
@@ -284,12 +310,27 @@ export async function simulateWorld(revision: WorldRevision, opts: SimulateOptio
   const elapsedLabel = (n: number) => world.clock ? formatMonths(n) : `${n} 行动耗时`;
   const lazyLabel = strategies.find(strategy => strategy.id === 'lazy')?.label ?? '原地行动';
   const checks: PassCheck[] = [
-    {id: 'G1', label: '时长', line: '「随机」首通中位数 ≥ 60 次决策且 ≥ 10,000 字不重复正文', measured: rnd ? `${rnd.decisions} 次决策 · ${rnd.uniqueChars} 字 · ${elapsedLabel(rnd.months)}` : '未运行「随机」', pass: !!rnd && rnd.decisions >= 60 && rnd.uniqueChars >= 10000},
+    {id: 'G1', label: '时长', line: '「随机」首通中位数 ≥ 60 次决策且 ≥ 10,000 字不重复正文', measured: rnd ? `${rnd.decisions} 次决策 · ${rnd.uniqueChars} 字 · ${elapsedLabel(rnd.months)}` : '未运行「随机」', pass: !!rnd && rnd.decisions >= PACING_LINE.decisions && rnd.uniqueChars >= PACING_LINE.uniqueChars},
     {id: 'G2', label: '结局', line: '每个结局至少 1 种策略 ≥ 5%；「随机」任一结局 ≤ 60%', measured: `${endings.length - unreached.length}/${endings.length} 个结局达标${unreached.length ? `（未达：${unreached.map(e => e.title).join('、')}）` : ''} · 「随机」最高 ${pct(randomMax)}`, pass: !unreached.length && randomMax <= 0.6},
     {id: 'G4', label: '卡池', line: '连续两回合同一张 = 0 次；没有从未抽到的卡', measured: `连续重复 ${repeats} 次（${pct(consecutiveRepeatRate)}）· 从未抽到 ${neverDrawn.length} 张`, pass: repeats === 0 && neverDrawn.length === 0},
     {id: 'G6', label: '时钟', line: '时限结局在原地策略下可达', measured: endingRates.lazy ? `「${lazyLabel}」时限结局 ${pct(lazyTimeout)}` : `未运行「${lazyLabel}」`, pass: lazyTimeout > 0},
     {id: 'G8', label: '取舍', line: '每回合可见选项里 ≥ 1 个有代价；0 死路', measured: `有代价回合 ${pct(steps ? costSteps / steps : 0)} · 死路 ${deadEnds} · 锁定选项 ${pct(visible ? locked / visible : 0)}`, pass: steps > 0 && costSteps === steps && deadEnds === 0},
   ];
+  const routeCoverage = opts.routes === false ? undefined
+    : await coverRoutes(revision, endingRates, strategies.map(s => s.id), opts.routes === undefined || opts.routes === 'auto' ? [] : opts.routes,
+      opts.routeSeeds ?? Math.min(seeds, 20), maxSteps, now, opts.yieldEvery, opts.routeEndings ?? 'all', minByEnding);
+  if (routeCoverage && opts.guidance && routeCoverage.endings.some(e => e.status === 'goal-only' && e.kind !== 'failure')) {
+    const g = typeof opts.guidance === 'object' ? opts.guidance : {};
+    const gSeeds = g.seeds ?? Math.min(seeds, 100);
+    const rate = async (w: WorldContent, endingId: string) => {
+      const r = await simulateWorld({...revision, content: w}, {seeds: gSeeds, maxSteps, strategies: ['random'], routes: false, pacing: false, now, ...(opts.yieldEvery ? {yieldEvery: opts.yieldEvery} : {})});
+      return r.endingRates.random?.[endingId] ?? 0;
+    };
+    routeCoverage.guidance = await routeGuidance(revision, {routeCoverage}, {seeds: gSeeds, maxSteps, now, rate, ...(g.maxHints ? {maxHints: g.maxHints} : {})});
+    for (const h of routeCoverage.guidance) routeCoverage.issues.push({severity: 'warning', ruleId: 'route.guidance', endingId: h.endingId, message: h.message});
+  }
+  const pacing = opts.pacing === false ? undefined : diagnosePacing(world, {line: {...PACING_LINE}, ...(rnd ? {random: rnd} : {}), randomRuns: endingRates.random ? seeds : 0,
+    randomByEnding, minByEnding, randomPlays});
   return {...(opts.draftId ? {draftId: opts.draftId} : {}), draftVersion: opts.draftVersion ?? 0, createdAt: now, seeds, maxSteps, timeUnit: world.clock ? 'month' : 'turn',
     strategies: strategies.map(s => ({id: s.id, label: s.label, runs: seeds})), checks, endingRates, endings, medians, resourceBands,
     cards: {neverDrawn, drawRate, consecutiveRepeatRate}, deadEnds, lockedRatio: visible ? locked / visible : 0, pinnedRatio, gatesNeverMet,
@@ -298,5 +339,79 @@ export async function simulateWorld(revision: WorldRevision, opts: SimulateOptio
       passagesNeverShown: world.endings.flatMap(e => (e.passages ?? []).map(p => `${e.id}/${p.id}`)).filter(key => !passageHits[key]),
       recapNeverShown: (world.recap ?? []).map(r => r.id).filter(id => !recapHits[id]),
       endingsWithoutRecap: world.recap?.length ? Object.entries(k15Runs).filter(([id, v]) => id !== '(none)' && v.runs > 0 && v.withRecap === 0).map(([id]) => id) : []}} : {}),
+    ...(routeCoverage ? {routeCoverage} : {}),
+    ...(pacing ? {pacing} : {}),
     durationMs: Date.now() - started};
+}
+
+const ROUTE_HIT_LINE = 0.2;
+/**
+ * Route coverage: one goal-directed strategy per authored ending (does an automatic player reach it at all?) plus one per
+ * planned route. Generic rates come from the main run. Pacing is judged per ordinary route against the G1 line.
+ */
+async function coverRoutes(revision: WorldRevision, generic: PlaytestReport['endingRates'], genericIds: string[], planned: SimRoute[],
+  seeds: number, maxSteps: number, now: string, yieldEvery?: () => Promise<void>, routeEndings: 'all' | 'uncovered' = 'all', minByEnding: Record<string, number> = {}): Promise<RouteCoverageReport> {
+  const world = revision.content;
+  const suppliers = suppliersOf(world);
+  const kindOf = (id: string) => world.endings.find(e => e.id === id)?.kind ?? 'ending';
+  const routes: RouteCoverageReport['routes'] = [];
+  const run = async (route: SimRoute, source: 'plan' | 'ending') => {
+    const ordinary = route.endingIds.filter(id => kindOf(id) !== 'failure');
+    const targets = source === 'plan' && ordinary.length ? ordinary : route.endingIds;
+    const strategyId = `${source === 'plan' ? 'route' : 'goal'}-${route.id}`;
+    const strategy: Strategy = {id: strategyId, label: route.name, pick: goalStrategy(world, targets)};
+    const counts: Record<string, number> = {}; const decisions: number[] = []; const unique: number[] = []; const months: number[] = []; let deadEnds = 0;
+    for (let i = 0; i < seeds; i++) {
+      const r = runOne(revision, strategy, i + 1, maxSteps, now);
+      counts[r.ending] = (counts[r.ending] ?? 0) + 1; if (r.deadEnd) deadEnds++;
+      if (r.ending !== '(none)') minByEnding[r.ending] = Math.min(minByEnding[r.ending] ?? Infinity, r.decisions);
+      if (targets.includes(r.ending)) { decisions.push(r.decisions); unique.push(r.uniqueChars); months.push(r.months); }
+      if (yieldEvery && i % 10 === 9) await yieldEvery();
+    }
+    const hits = targets.reduce((n, id) => n + (counts[id] ?? 0), 0);
+    const medians = {decisions: median(decisions), uniqueChars: median(unique), months: median(months)};
+    const judged = hits > 0 && targets.some(id => kindOf(id) === 'ending');
+    routes.push({id: route.id, name: route.name, source, endingIds: targets, strategyId, hitRate: hits / seeds,
+      endingRates: Object.fromEntries(Object.entries(counts).map(([k, n]) => [k, n / seeds])), medians, deadEnds,
+      belowPacing: judged && (medians.decisions < PACING_LINE.decisions || medians.uniqueChars < PACING_LINE.uniqueChars)});
+  };
+  const bestGenericOf = (endingId: string) => Math.max(0, ...genericIds.map(id => generic[id]?.[endingId] ?? 0));
+  for (const e of world.endings) if (routeEndings === 'all' || bestGenericOf(e.id) < 0.05) await run({id: e.id, name: `直奔「${e.title}」`, endingIds: [e.id]}, 'ending');
+  for (const r of planned) await run(r, 'plan');
+  const issues: RouteCoverageReport['issues'] = [];
+  const pct = (x: number) => `${Math.round(x * 1000) / 10}%`;
+  const endings: RouteCoverageReport['endings'] = world.endings.map(e => {
+    const triggers = endingSources(world, e.id, suppliers).length;
+    let bestGeneric = 0; let bestGenericStrategy: string | undefined;
+    for (const id of genericIds) { const v = generic[id]?.[e.id] ?? 0; if (v > bestGeneric) { bestGeneric = v; bestGenericStrategy = id; } }
+    const goalRate = routes.find(r => r.source === 'ending' && r.id === e.id)?.hitRate;
+    const status = !triggers ? 'no-trigger' : bestGeneric >= 0.05 ? 'covered' : (goalRate ?? 0) > 0 ? 'goal-only' : 'unreached';
+    if (status === 'no-trigger') issues.push({severity: 'error', ruleId: 'route.no-trigger', endingId: e.id, message: `结局「${e.title}」没有任何触发来源（无 ending 效果、条件或资源阈值）`});
+    if (status === 'unreached') issues.push({severity: 'warning', ruleId: 'route.unreached', endingId: e.id, message: `结局「${e.title}」所有自动策略（含定向）都没有到达；未覆盖不等于不可达，请检查前置条件链`});
+    if (status === 'goal-only') issues.push({severity: 'warning', ruleId: 'route.random-starved', endingId: e.id,
+      message: `结局「${e.title}」只有定向打法能到（${pct(goalRate ?? 0)}），通用策略最高 ${pct(bestGeneric)}；随机玩法下需要路线引导`});
+    return {id: e.id, title: e.title, kind: e.kind ?? 'ending', triggers, bestGeneric, ...(bestGenericStrategy ? {bestGenericStrategy} : {}), ...(goalRate !== undefined ? {goalRate} : {}), status};
+  });
+  for (const r of routes) {
+    if (r.source === 'plan' && r.hitRate < ROUTE_HIT_LINE) issues.push({severity: 'warning', ruleId: 'route.plan-weak', routeId: r.id,
+      message: `规划路线「${r.name}」按路线打只有 ${pct(r.hitRate)} 到达其结局（线 ${pct(ROUTE_HIT_LINE)}）`});
+    if (r.belowPacing && r.source === 'plan') issues.push({severity: 'warning', ruleId: 'route.pacing', routeId: r.id,
+      message: `${r.source === 'plan' ? '规划路线' : '直达路线'}「${r.name}」中位 ${r.medians.decisions} 次决策 · ${r.medians.uniqueChars} 字，低于节奏线 ${PACING_LINE.decisions} 次 · ${PACING_LINE.uniqueChars} 字`});
+  }
+  return {seeds, pacing: {...PACING_LINE}, routes, endings, issues};
+}
+
+/** S5: synchronous goal-directed probe of planned routes (no generic strategies) — cheap enough for plan approval. */
+export function probeRoutes(revision: WorldRevision, routes: SimRoute[], seeds = 8, maxSteps = 400, now = '2026-01-01T00:00:00.000Z'): {id: string; hitRate: number; endingRates: Record<string, number>}[] {
+  const world = revision.content;
+  const kindOf = (id: string) => world.endings.find(e => e.id === id)?.kind ?? 'ending';
+  return routes.map(route => {
+    const ordinary = route.endingIds.filter(id => kindOf(id) !== 'failure');
+    const targets = ordinary.length ? ordinary : route.endingIds;
+    const strategy: Strategy = {id: `route-${route.id}`, label: route.name, pick: goalStrategy(world, targets)};
+    const counts: Record<string, number> = {};
+    for (let i = 0; i < seeds; i++) { const r = runOne(revision, strategy, i + 1, maxSteps, now); counts[r.ending] = (counts[r.ending] ?? 0) + 1; }
+    const hits = targets.reduce((n, id) => n + (counts[id] ?? 0), 0);
+    return {id: route.id, hitRate: hits / seeds, endingRates: Object.fromEntries(Object.entries(counts).map(([k, n]) => [k, n / seeds]))};
+  });
 }

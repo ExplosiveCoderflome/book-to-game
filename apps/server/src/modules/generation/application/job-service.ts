@@ -4,6 +4,7 @@ import { chunkSource } from '../domain/chunks.js';
 import { selectChapters } from '../domain/selection.js';
 import type { JobRepository, SourceReader, StoredJob } from '../domain/ports.js';
 import { assertProductionPlan, productionUnits } from '../domain/production.js';
+import { assertPlanMechanics, checkProductionPlan } from './plan-check.js';
 
 export function publicJob(job: StoredJob): GenerationJob {
   const {requestId: _requestId, checkpoints: _checkpoints, ...result} = job;
@@ -37,8 +38,11 @@ export class JobService {
     if (!job?.productionBrief) throw new AppError('JOB_NOT_FOUND', '游戏制作任务不存在', 404);
     const parsed = productionPlanSchema.parse(plan);
     assertProductionPlan(parsed, job.productionBrief, selectChapters(this.sources.get(job.sourceId), job.chapterIds));
+    assertPlanMechanics(parsed); // S5: block approval (and prose generation) while the rules cannot work
     return publicJob(this.repository.approveProduction(id, parsed));
   }
+  /** S5: read-only rule check of a (possibly edited) plan; errors would block approval. */
+  checkProductionPlan(plan: ProductionPlan) { return checkProductionPlan(productionPlanSchema.parse(plan)); }
   rewriteProduction(id: string, unitKey: string, direction: string): GenerationJob {
     const job = this.repository.get(id);
     if (!job?.productionState || !productionUnits(job.productionState.plan).some(unit => unit.key === unitKey)) throw new AppError('PRODUCTION_UNIT_NOT_FOUND', '要修订的正文单元不存在', 404);

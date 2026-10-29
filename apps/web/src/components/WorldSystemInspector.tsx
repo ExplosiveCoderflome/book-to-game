@@ -56,7 +56,7 @@ export function WorldSystemInspector({ content }: { content: WorldContent }) {
                   <td>{s.title} <code>{s.id}</code></td>
                   <td>{s.locationIds?.length ? s.locationIds.map(locTitle).join('、') : t('任意')}</td>
                   <td>{[s.repeat ? t('可重复 · 冷却 {c}', { c: s.repeat.cooldownTurns }) + (s.repeat.maxTimes ? t(' · 最多 {m}', { m: s.repeat.maxTimes }) : '') : t('一次性'), s.urgent ? t('急事') : ''].filter(Boolean).join(' · ')}</td>
-                  <td className="num">{s.textVariants?.length ?? 1}</td>
+                  <td className="num">{s.textVariants?.length ?? 1}{s.textCases?.length ? ` + ${t('{n} 条按状态', { n: s.textCases.length })}` : ''}</td>
                   <td className="num">{s.choices.length}</td>
                 </tr>
               ))}

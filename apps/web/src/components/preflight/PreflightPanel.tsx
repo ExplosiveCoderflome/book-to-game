@@ -3,7 +3,7 @@ import type { LintReport, PlaytestReport, WorldDraft } from '@novel-game/contrac
 import { useI18n } from '../../lib/i18n';
 import { errorMessage } from '../../lib/api';
 import { getWorldPreflight, lintTone, lintWorldDraft, percent1, playtestTone, playtestWorldDraft, preflightTime, type WorldPreflight } from '../../lib/preflight-api';
-import { CATEGORY_LABEL, EndingRateTable, PassLineTable, ResourceBandTable } from './PreflightTables';
+import { CATEGORY_LABEL, EndingRateTable, PacingDiagnosis, PassLineTable, ResourceBandTable, RouteCoverageTable } from './PreflightTables';
 
 type Phase = 'idle' | 'running' | 'failed';
 
@@ -114,6 +114,8 @@ function SimStrip({ report, stale, phase, failure, dirty, disabledTitle, onRun }
       {report && <>
         <details open><summary>{t('及格线')}</summary><PassLineTable checks={report.checks} /></details>
         <details><summary>{t('结局到达率（结局 × 策略，%）')}</summary><EndingRateTable report={report} /></details>
+        {report.pacing && <details data-testid="preflight-pacing" open={report.pacing.belowLine && report.pacing.causes.length > 0}><summary>{t('节奏诊断（{n} 条原因）', { n: report.pacing.causes.length })}</summary><PacingDiagnosis report={report} /></details>}
+        {report.routeCoverage && <details data-testid="preflight-route-coverage"><summary>{t('路线覆盖（{n} 条提示）', { n: report.routeCoverage.issues.length })}</summary><RouteCoverageTable report={report} /></details>}
         <details><summary>{t('资源分布（P10 / P50 / P90，按随机策略进度）')}</summary><ResourceBandTable report={report} /></details>
         <details>
           <summary>{t('卡池与死路（从未抽到 {n} 张 · 连续重复率 {r}% · 死路 {d} · 锁定选项比例 {l}%）', {

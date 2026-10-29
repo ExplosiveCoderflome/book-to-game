@@ -1,10 +1,10 @@
-import { storyletBodies, type AdventureAction, type AdventureClockView, type AdventureHandView, type AdventureResourceMeta, type AdventureRollView, type AdventureView, type BuildingLibrary, type ItemCatalog, type WorldContent, type WorldEffect, type WorldRevision } from '@novel-game/contracts';
+import { type AdventureAction, type AdventureClockView, type AdventureHandView, type AdventureResourceMeta, type AdventureRollView, type AdventureView, type BuildingLibrary, type ItemCatalog, type WorldContent, type WorldEffect, type WorldRevision } from '@novel-game/contracts';
 import { fillSpecificBlockedReason, projectFillActions, resourceLabelsForWorld, type FillCompiledAction } from '@novel-game/rules';
 import { AppError } from '../errors.js';
 import type { AdventureState } from './adventure-state.js';
 import { visible, blockedReason, matches, requiresBlock } from './rules.js';
 import { computeChance, countdownResource, formatCalendar, isS1World, timeLimitOf } from './s1-core.js';
-import { inWindow, locationText, storyletChoiceId } from './storylets.js';
+import { inWindow, locationText, storyletChoiceId, storyletText } from './storylets.js';
 import { storyletChoiceBlock } from './advance-adventure.js';
 import { systemWait } from './system-actions.js';
 import { projectAdventureMap } from './map-view.js';
@@ -123,8 +123,7 @@ function projectHand(world: WorldContent, state: AdventureState): AdventureHandV
       return {id: storyletChoiceId(sl.id, choice.id), label: choice.label, description: '', timeCost: choice.timeCost, risk: choice.risk ?? '',
         enabled: !block, ...(block ? {blockedReason: block.reason, blockedReasonKind: block.kind} : {}), ...(roll ? {roll} : {})};
     });
-    const bodies = storyletBodies(sl);
-    return [{storyletId: sl.id, title: sl.title, text: bodies[card.variant] ?? bodies[0] ?? '',
+    return [{storyletId: sl.id, title: sl.title, text: storyletText(world, state, sl, card.variant),
       urgent: !!sl.urgent || !!card.forced, inWindow: inWindow(world, state, sl.id), seenCount: state.storyletState?.seen[sl.id] ?? 0,
       fresh: card.drawnTurn === state.turn, repeatable: !!sl.repeat, choices}];
   });

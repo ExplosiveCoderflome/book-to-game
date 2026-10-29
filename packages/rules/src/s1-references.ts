@@ -31,6 +31,7 @@ export function walkWorldLogic(world: WorldContent,
     const owner = `剧情卡 ${sl.id}`;
     conds(sl.when, owner);
     for (const mod of sl.weight?.mods ?? []) conds(mod.when, owner);
+    for (const cs of sl.textCases ?? []) conds(cs.when, `${owner} 条件变体${cs.id ? ` ${cs.id}` : ''}`);
     for (const c of sl.choices) { conds(c.availableWhen, `${owner}/${c.id}`); conds(c.requires, `${owner}/${c.id}`); effs(c.effects, `${owner}/${c.id}`); }
   }
   for (const [rid, def] of Object.entries(world.resourceDefs ?? {})) {

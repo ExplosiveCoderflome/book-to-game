@@ -28,7 +28,7 @@ const routes = [
   ['post', '/settings/item-catalog/accept-loot', 'accept_loot_rows'],
   ['get', '/sources', 'list_sources'], ['get', '/sources/:id', 'get_source'],
   ['post', '/jobs', 'create_generation_job'], ['get', '/jobs', 'list_jobs'], ['get', '/jobs/:id', 'get_job'],
-  ['post', '/production/jobs', 'create_production_job'], ['post', '/jobs/:id/approve-plan', 'approve_production_plan'],
+  ['post', '/production/jobs', 'create_production_job'], ['post', '/jobs/:id/approve-plan', 'approve_production_plan'], ['post', '/production/plan-check', 'check_production_plan'],
   ['post', '/jobs/:id/rewrite-unit', 'rewrite_production_unit'],
   ['post', '/jobs/:id/retry', 'retry_job'], ['post', '/jobs/:id/cancel', 'cancel_job'],
   ['get', '/drafts', 'list_drafts'], ['post', '/drafts', 'create_draft'], ['get', '/drafts/:id', 'get_draft'],

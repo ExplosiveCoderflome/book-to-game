@@ -5,3 +5,4 @@
 export { btgWorldFileToContent, isBtgWorldFile } from './btg-world-file.js';
 export { lintWorld, lintStory, VOLUME_TIERS, type LintOptions, type VolumeTarget } from './lint.js';
 export { DEFAULT_BANNED_PHRASES, textLength, jaccard, shingles, similarPairs, frequentFragments, type TextUnit } from './text-metrics.js';
+export { lintStateVariants, GONE_WORDS, type StateVariantIssue } from './state-variants.js';

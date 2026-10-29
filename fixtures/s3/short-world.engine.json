@@ -1,0 +1,592 @@
+{
+ "schemaVersion": 1,
+ "mode": "open",
+ "title": "短局诊断（引擎测试夹具）",
+ "premise": "引擎测试夹具：一个刻意做短的世界——声望三点就结束、风声累积很快、可重复卡没有变体，用来验证节奏诊断能报出原因。不是剧情内容。",
+ "playerRole": "测试角色",
+ "goal": "验证节奏诊断",
+ "worldRules": [
+  "时间以月计；时限 30 个月。"
+ ],
+ "adaptationNotes": "SYNTHETIC ENGINE FIXTURE — pacing diagnosis tests only (docs/next-work-2026-10-29.md S3). Contains no story content.",
+ "sourceChapterIds": [
+  "fixture"
+ ],
+ "initialLocationId": "town",
+ "timeLimit": 100,
+ "timeoutEnding": "时限已到。",
+ "locations": [
+  {
+   "id": "town",
+   "title": "镇口",
+   "text": "镇口（测试地点）。",
+   "origin": "adapted",
+   "evidence": []
+  },
+  {
+   "id": "hill",
+   "title": "后山",
+   "text": "后山（测试地点）。",
+   "origin": "adapted",
+   "evidence": []
+  },
+  {
+   "id": "market",
+   "title": "集市",
+   "text": "集市（测试地点）。",
+   "origin": "adapted",
+   "evidence": []
+  }
+ ],
+ "facts": [
+  {
+   "id": "champion",
+   "label": "擂台夺魁",
+   "description": "",
+   "kind": "event",
+   "initialValue": false,
+   "playerKnown": true,
+   "origin": "adapted",
+   "evidence": []
+  }
+ ],
+ "npcs": [],
+ "actions": [
+  {
+   "id": "go_town_hill",
+   "label": "去后山",
+   "description": "",
+   "locationId": "town",
+   "availableWhen": [],
+   "requires": [],
+   "blockedReason": "条件未满足",
+   "risk": "",
+   "timeCost": 1,
+   "once": false,
+   "effects": [
+    {
+     "kind": "move",
+     "locationId": "hill"
+    }
+   ],
+   "text": "去后山。",
+   "origin": "adapted",
+   "evidence": []
+  },
+  {
+   "id": "go_town_market",
+   "label": "去集市",
+   "description": "",
+   "locationId": "town",
+   "availableWhen": [],
+   "requires": [],
+   "blockedReason": "条件未满足",
+   "risk": "",
+   "timeCost": 1,
+   "once": false,
+   "effects": [
+    {
+     "kind": "move",
+     "locationId": "market"
+    }
+   ],
+   "text": "去集市。",
+   "origin": "adapted",
+   "evidence": []
+  },
+  {
+   "id": "go_hill_town",
+   "label": "去镇口",
+   "description": "",
+   "locationId": "hill",
+   "availableWhen": [],
+   "requires": [],
+   "blockedReason": "条件未满足",
+   "risk": "",
+   "timeCost": 1,
+   "once": false,
+   "effects": [
+    {
+     "kind": "move",
+     "locationId": "town"
+    }
+   ],
+   "text": "去镇口。",
+   "origin": "adapted",
+   "evidence": []
+  },
+  {
+   "id": "go_hill_market",
+   "label": "去集市",
+   "description": "",
+   "locationId": "hill",
+   "availableWhen": [],
+   "requires": [],
+   "blockedReason": "条件未满足",
+   "risk": "",
+   "timeCost": 1,
+   "once": false,
+   "effects": [
+    {
+     "kind": "move",
+     "locationId": "market"
+    }
+   ],
+   "text": "去集市。",
+   "origin": "adapted",
+   "evidence": []
+  },
+  {
+   "id": "go_market_town",
+   "label": "去镇口",
+   "description": "",
+   "locationId": "market",
+   "availableWhen": [],
+   "requires": [],
+   "blockedReason": "条件未满足",
+   "risk": "",
+   "timeCost": 1,
+   "once": false,
+   "effects": [
+    {
+     "kind": "move",
+     "locationId": "town"
+    }
+   ],
+   "text": "去镇口。",
+   "origin": "adapted",
+   "evidence": []
+  },
+  {
+   "id": "go_market_hill",
+   "label": "去后山",
+   "description": "",
+   "locationId": "market",
+   "availableWhen": [],
+   "requires": [],
+   "blockedReason": "条件未满足",
+   "risk": "",
+   "timeCost": 1,
+   "once": false,
+   "effects": [
+    {
+     "kind": "move",
+     "locationId": "hill"
+    }
+   ],
+   "text": "去后山。",
+   "origin": "adapted",
+   "evidence": []
+  },
+  {
+   "id": "help",
+   "label": "帮街坊干活",
+   "description": "",
+   "locationId": "town",
+   "availableWhen": [],
+   "requires": [],
+   "blockedReason": "条件未满足",
+   "risk": "",
+   "timeCost": 1,
+   "once": false,
+   "effects": [
+    {
+     "kind": "resource",
+     "resourceId": "fame",
+     "delta": 1
+    }
+   ],
+   "text": "帮街坊干活。",
+   "origin": "adapted",
+   "evidence": []
+  },
+  {
+   "id": "brag",
+   "label": "在茶馆吹嘘",
+   "description": "",
+   "locationId": "town",
+   "availableWhen": [],
+   "requires": [],
+   "blockedReason": "条件未满足",
+   "risk": "",
+   "timeCost": 1,
+   "once": false,
+   "effects": [
+    {
+     "kind": "resource",
+     "resourceId": "fame",
+     "delta": 1
+    },
+    {
+     "kind": "resource",
+     "resourceId": "heat",
+     "delta": 1
+    }
+   ],
+   "text": "在茶馆吹嘘。",
+   "origin": "adapted",
+   "evidence": []
+  },
+  {
+   "id": "practice",
+   "label": "练拳",
+   "description": "",
+   "locationId": "hill",
+   "availableWhen": [],
+   "requires": [],
+   "blockedReason": "条件未满足",
+   "risk": "",
+   "timeCost": 1,
+   "once": false,
+   "effects": [
+    {
+     "kind": "resource",
+     "resourceId": "strength",
+     "delta": 1
+    }
+   ],
+   "text": "练拳。",
+   "origin": "adapted",
+   "evidence": []
+  },
+  {
+   "id": "hunt",
+   "label": "打猎",
+   "description": "",
+   "locationId": "hill",
+   "availableWhen": [],
+   "requires": [],
+   "blockedReason": "条件未满足",
+   "risk": "",
+   "timeCost": 1,
+   "once": false,
+   "effects": [
+    {
+     "kind": "resource",
+     "resourceId": "money",
+     "delta": 2
+    },
+    {
+     "kind": "resource",
+     "resourceId": "hp",
+     "delta": -1
+    }
+   ],
+   "text": "打猎。",
+   "origin": "adapted",
+   "evidence": []
+  },
+  {
+   "id": "trade",
+   "label": "倒卖杂货",
+   "description": "",
+   "locationId": "market",
+   "availableWhen": [],
+   "requires": [],
+   "blockedReason": "条件未满足",
+   "risk": "",
+   "timeCost": 1,
+   "once": false,
+   "effects": [
+    {
+     "kind": "resource",
+     "resourceId": "money",
+     "delta": 3
+    },
+    {
+     "kind": "resource",
+     "resourceId": "heat",
+     "delta": 1
+    }
+   ],
+   "text": "倒卖杂货。",
+   "origin": "adapted",
+   "evidence": []
+  },
+  {
+   "id": "rest",
+   "label": "歇脚",
+   "description": "",
+   "locationId": "market",
+   "availableWhen": [],
+   "requires": [],
+   "blockedReason": "条件未满足",
+   "risk": "",
+   "timeCost": 1,
+   "once": false,
+   "effects": [
+    {
+     "kind": "resource",
+     "resourceId": "hp",
+     "delta": 1
+    },
+    {
+     "kind": "resource",
+     "resourceId": "money",
+     "delta": -1
+    }
+   ],
+   "text": "歇脚。",
+   "origin": "adapted",
+   "evidence": []
+  },
+  {
+   "id": "challenge",
+   "label": "摆擂台",
+   "description": "",
+   "locationId": "market",
+   "availableWhen": [],
+   "requires": [
+    {
+     "kind": "resource",
+     "resourceId": "strength",
+     "atLeast": 4
+    }
+   ],
+   "blockedReason": "条件未满足",
+   "risk": "",
+   "timeCost": 1,
+   "once": true,
+   "effects": [
+    {
+     "kind": "set",
+     "factId": "champion",
+     "value": true
+    }
+   ],
+   "text": "摆擂台。",
+   "origin": "adapted",
+   "evidence": []
+  }
+ ],
+ "events": [],
+ "storylets": [
+  {
+   "id": "street_fight",
+   "title": "街头斗殴",
+   "kind": "repeat",
+   "locationIds": [
+    "town"
+   ],
+   "weight": {
+    "base": 10
+   },
+   "repeat": {
+    "cooldownTurns": 1
+   },
+   "text": "【测试卡】街头斗殴，同样的场面又出现了。",
+   "choices": [
+    {
+     "id": "join",
+     "label": "上前帮忙",
+     "timeCost": 1,
+     "effects": [
+      {
+       "kind": "resource",
+       "resourceId": "fame",
+       "delta": 1
+      },
+      {
+       "kind": "resource",
+       "resourceId": "hp",
+       "delta": -1
+      }
+     ],
+     "text": "上前帮忙。"
+    },
+    {
+     "id": "leave",
+     "label": "绕开",
+     "timeCost": 1,
+     "effects": [],
+     "text": "绕开。"
+    }
+   ]
+  },
+  {
+   "id": "rumor",
+   "title": "流言四起",
+   "kind": "repeat",
+   "locationIds": [
+    "market"
+   ],
+   "weight": {
+    "base": 10
+   },
+   "repeat": {
+    "cooldownTurns": 1
+   },
+   "text": "【测试卡】流言四起，同样的场面又出现了。",
+   "choices": [
+    {
+     "id": "spread",
+     "label": "添油加醋",
+     "timeCost": 1,
+     "effects": [
+      {
+       "kind": "resource",
+       "resourceId": "heat",
+       "delta": 1
+      },
+      {
+       "kind": "resource",
+       "resourceId": "money",
+       "delta": 1
+      }
+     ],
+     "text": "添油加醋。"
+    },
+    {
+     "id": "ignore",
+     "label": "不理",
+     "timeCost": 1,
+     "effects": [],
+     "text": "不理。"
+    }
+   ]
+  },
+  {
+   "id": "beggar",
+   "title": "老乞丐",
+   "kind": "repeat",
+   "locationIds": [
+    "town"
+   ],
+   "weight": {
+    "base": 10
+   },
+   "repeat": {
+    "cooldownTurns": 1
+   },
+   "text": "【测试卡】老乞丐，同样的场面又出现了。",
+   "choices": [
+    {
+     "id": "give",
+     "label": "施舍",
+     "timeCost": 1,
+     "effects": [
+      {
+       "kind": "resource",
+       "resourceId": "money",
+       "delta": -1
+      },
+      {
+       "kind": "resource",
+       "resourceId": "fame",
+       "delta": 1
+      }
+     ],
+     "text": "施舍。"
+    },
+    {
+     "id": "pass",
+     "label": "走开",
+     "timeCost": 1,
+     "effects": [],
+     "text": "走开。"
+    }
+   ]
+  }
+ ],
+ "endings": [
+  {
+   "id": "renown",
+   "title": "小有名气",
+   "text": "【测试结局】小有名气。",
+   "when": [
+    {
+     "kind": "resource",
+     "resourceId": "fame",
+     "atLeast": 8
+    }
+   ]
+  },
+  {
+   "id": "champ",
+   "title": "擂台称雄",
+   "text": "【测试结局】擂台称雄。",
+   "when": [
+    {
+     "kind": "fact",
+     "factId": "champion",
+     "value": true
+    }
+   ]
+  },
+  {
+   "id": "caught",
+   "title": "被官府拿下",
+   "kind": "failure",
+   "text": "【测试结局】被官府拿下。",
+   "when": []
+  },
+  {
+   "id": "broke",
+   "title": "伤重",
+   "kind": "failure",
+   "text": "【测试结局】伤重。",
+   "when": []
+  },
+  {
+   "id": "drift",
+   "title": "一事无成",
+   "kind": "timeout",
+   "text": "【测试结局】一事无成。",
+   "when": []
+  }
+ ],
+ "resourceDefs": {
+  "money": {
+   "label": "铜钱",
+   "min": 0,
+   "max": 999,
+   "initial": 5,
+   "display": "number"
+  },
+  "fame": {
+   "label": "声望",
+   "min": 0,
+   "max": 10,
+   "initial": 0,
+   "display": "bar"
+  },
+  "strength": {
+   "label": "功力",
+   "min": 0,
+   "max": 6,
+   "initial": 0,
+   "display": "pips"
+  },
+  "hp": {
+   "label": "气血",
+   "min": 0,
+   "max": 6,
+   "initial": 6,
+   "display": "bar",
+   "onMin": {
+    "ending": "broke"
+   }
+  },
+  "heat": {
+   "label": "风声",
+   "min": 0,
+   "max": 8,
+   "initial": 0,
+   "display": "bar",
+   "onMax": {
+    "ending": "caught"
+   }
+  }
+ },
+ "clock": {
+  "unit": "month",
+  "startYear": 1,
+  "startMonth": 1,
+  "limitMonths": 30,
+  "timeoutEndingId": "drift"
+ },
+ "production": {
+  "complete": true,
+  "note": "synthetic engine fixture"
+ }
+}

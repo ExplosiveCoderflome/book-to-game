@@ -3,6 +3,7 @@ import { simulateWorld } from '@novel-game/play-runtime/sim';
 import { productionPlanSchema, productionNarrativeSchema, type SourceDocument, type WorldContent } from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
 import { assembleProduction, assertProductionNarrative, assertProductionPlan, productionUnits } from '../domain/production.js';
+import { assertPlanMechanics } from './plan-check.js';
 import type { GenerationProvider, JobRepository, ModelRepairFeedback, StoredJob } from '../domain/ports.js';
 
 export type RepairStep = <T>(step: string, run: (feedback?: ModelRepairFeedback) => Promise<T>) => Promise<T>;
@@ -20,6 +21,7 @@ export async function produceWorld(job: StoredJob, owner: string, source: Source
     const plan = await repair('production:plan', async feedback => {
       const candidate = productionPlanSchema.parse(await provider.planProduction!(job.analysis!, brief, source.chapters.map(chapter => chapter.id), signal, feedback));
       assertProductionPlan(candidate, brief, source);
+      assertPlanMechanics(candidate, {probe: false}); // S5: static rule errors go back to the model as repair feedback
       return candidate;
     });
     repository.saveProductionPlan(job.id, owner, plan);
@@ -45,6 +47,8 @@ export async function produceWorld(job: StoredJob, owner: string, source: Source
   signal.throwIfAborted();
   const playtest = await simulateWorld({id: `production-${job.id}`, draftId: job.id, sourceId: job.sourceId,
     version: 1, content, createdAt: job.createdAt}, {seeds: 20, maxSteps: 300,
+    // Route coverage: every planned route + goal runs only for endings the generic strategies miss (keeps the job fast).
+    routes: state.plan.routes.map(r => ({id: r.id, name: r.name, endingIds: r.endingIds})), routeSeeds: 10, routeEndings: 'uncovered', guidance: {seeds: 40},
     yieldEvery: async () => { signal.throwIfAborted(); await new Promise<void>(resolve => setImmediate(resolve)); }});
   if (!repository.saveProductionLint(job.id, owner, lint, playtest)) return null;
   return content;

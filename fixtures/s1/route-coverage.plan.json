@@ -1,0 +1,30 @@
+{
+ "routes": [
+  {
+   "id": "coop",
+   "name": "合作线",
+   "strategy": "攒人望→见旧识→作保→联手",
+   "endingIds": [
+    "coop",
+    "caught"
+   ]
+  },
+  {
+   "id": "evidence",
+   "name": "有限证据线",
+   "strategy": "拿密信、线索 2–3 条时指认",
+   "endingIds": [
+    "evidence"
+   ]
+  },
+  {
+   "id": "duel",
+   "name": "武力线",
+   "strategy": "练满功力、保住气血后约斗",
+   "endingIds": [
+    "duel",
+    "fall"
+   ]
+  }
+ ]
+}
