@@ -31,6 +31,7 @@ const routes = [
   ['post', '/production/jobs', 'create_production_job'], ['post', '/jobs/:id/approve-plan', 'approve_production_plan'],
   ['post', '/jobs/:id/rewrite-unit', 'rewrite_production_unit'],
   ['post', '/jobs/:id/retry', 'retry_job'], ['post', '/jobs/:id/cancel', 'cancel_job'],
+  ['get', '/agent/decisions', 'list_agent_decisions'], ['get', '/agent/status', 'agent_status'],
   ['get', '/drafts', 'list_drafts'], ['post', '/drafts', 'create_draft'], ['get', '/drafts/:id', 'get_draft'],
   ['put', '/drafts/:id', 'update_draft'], ['post', '/drafts/:id/extend-scene', 'extend_draft_scene'], ['post', '/drafts/:id/fill-scene-text', 'fill_draft_scene_text'], ['post', '/drafts/:id/validate', 'validate_draft'], ['post', '/drafts/:id/publish', 'publish_draft'], ['post', '/drafts/:id/lint', 'lint_draft'],
   ['get', '/games', 'list_games'], ['get', '/sessions', 'list_sessions'], ['post', '/sessions', 'start_session'],

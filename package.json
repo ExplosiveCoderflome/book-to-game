@@ -25,7 +25,9 @@
     "worker": "node --env-file-if-exists=.env dist/server/worker.mjs",
     "test:built": "node --test scripts/built-runtime.test.mjs",
     "verify": "npm run check:architecture && npm test && npm run build && npm run test:built",
-    "build:player": "npm run build:player --workspace @novel-game/web"
+    "build:player": "npm run build:player --workspace @novel-game/web",
+    "dev:agent": "tsx watch --env-file-if-exists=.env apps/server/src/agent.ts",
+    "agent": "node --env-file-if-exists=.env dist/server/agent.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",
