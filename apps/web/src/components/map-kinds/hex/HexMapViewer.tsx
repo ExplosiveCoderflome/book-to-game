@@ -5,7 +5,7 @@ import { buildHexTopology } from './topology';
 import type { HexRenderState, HexRendererHandle, HexView } from './renderer';
 
 /** Read-only hex viewer for play/preview. Reuses the SVG renderer (DOM-inspectable); never edits the map. */
-export function HexMapViewer({ map, content, playerLocationId, reachableLocationIds, exploredCells, npcMarkers, onSelectLocation, height = 360 }: MapViewerProps) {
+export function HexMapViewer({ map, content, playerLocationId, reachableLocationIds, exploredCells, npcMarkers, fillIcons, onSelectLocation, height = 360 }: MapViewerProps) {
   const ref = useRef<HTMLDivElement | null>(null);
   const handle = useRef<HexRendererHandle | null>(null);
   const g = map.geometry;
@@ -34,8 +34,9 @@ export function HexMapViewer({ map, content, playerLocationId, reachableLocation
         hiddenCells: hidden,
       },
       npcMarkers: npcMarkers?.flatMap(n => { const c = cellOf.get(n.locationId); return c ? [{ cell: c, label: n.label, color: n.color }] : []; }),
+      fillIcons,
     };
-  }, [map, topo, content.locations, playerLocationId, reachableLocationIds, exploredCells, npcMarkers, cellOf]);
+  }, [map, topo, content.locations, playerLocationId, reachableLocationIds, exploredCells, npcMarkers, fillIcons, cellOf]);
   function click(e: React.MouseEvent) {
     if (!onSelectLocation) return;
     const poi = (e.target as Element).closest('[data-poi]')?.getAttribute('data-poi'); if (poi) onSelectLocation(poi);

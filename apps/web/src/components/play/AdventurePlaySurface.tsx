@@ -263,7 +263,7 @@ export function AdventurePlaySurface({
         <summary>{t('回看行程 · {count} 条记录', { count: session.history.length })}</summary>
         {session.history.map((h, i) => (
           <div key={i}>
-            <p className="eyebrow">{monthUnit
+            <p className="eyebrow">{monthUnit === 'month'
               ? (h.elapsed === 0 ? t('行动 {turn} · 开局', { turn: h.turn }) : t('行动 {turn} · 已过 {date}', { turn: h.turn, date: formatDuration(h.elapsed, t) }))
               : t('行动 {turn} · 耗时 {elapsed}', { turn: h.turn, elapsed: h.elapsed })}{h.actionLabel ? ` · ${h.actionLabel}` : ''}</p>
             <p>{h.text}</p>

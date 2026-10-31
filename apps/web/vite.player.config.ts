@@ -4,6 +4,8 @@ import react from '@vitejs/plugin-react';
 
 const stub = fileURLToPath(new URL('./src/package/stubs/no-ai-aux.tsx', import.meta.url));
 const offlineApi = fileURLToPath(new URL('./src/package/stubs/offline-api.ts', import.meta.url));
+const svgOnlyHexRenderer = fileURLToPath(new URL('./src/package/stubs/svg-only-hex-renderer.tsx', import.meta.url));
+const noHexMapEditor = fileURLToPath(new URL('./src/package/stubs/no-hex-map-editor.tsx', import.meta.url));
 
 /** Swap AI auxiliaries and the HTTP client for offline stubs in the export player. */
 function noAiAux(): Plugin {
@@ -13,6 +15,8 @@ function noAiAux(): Plugin {
     resolveId(source, importer) {
       if (importer?.includes('node_modules')) return null;
       if (/(^|\/)(NarrateBox|ProposeActBox|TiandaoToggle)(\.tsx)?$/.test(source)) return stub;
+      if (/(^|\/)hex\/PixiHexRenderer(\.tsx)?$/.test(source)) return svgOnlyHexRenderer;
+      if (/(^|\/)HexMapEditor(\.tsx)?$/.test(source)) return noHexMapEditor;
       // No fetch to the workbench service in the package (zero network requests, slice §7.2).
       if (/(^|\/)lib\/api$|^\.\/api$/.test(source)) return offlineApi;
       return null;
@@ -26,6 +30,7 @@ function noAiAux(): Plugin {
  */
 export default defineConfig({
   plugins: [noAiAux(), react()],
+  define: { 'import.meta.env.BTG_PLAYER': 'true' },
   base: './',
   build: {
     outDir: 'dist-player/build',
@@ -34,9 +39,12 @@ export default defineConfig({
     cssCodeSplit: false,
     assetsInlineLimit: 100_000_000,
     sourcemap: false,
-    rollupOptions: {
+    // This export is intentionally one offline HTML file, so the single JS chunk is
+    // expected to exceed Vite's default warning limit.
+    chunkSizeWarningLimit: 1600,
+    rolldownOptions: {
       input: fileURLToPath(new URL('./package.html', import.meta.url)),
-      output: { inlineDynamicImports: true },
+      output: { codeSplitting: false },
     },
   },
 });

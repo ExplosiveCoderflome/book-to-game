@@ -2,7 +2,7 @@
  * S1 author-side preflight reports (C9). Type-only: lint v2 lives in @novel-game/rules/preflight and the
  * simulator in @novel-game/play-runtime/sim; neither is part of the offline play package.
  */
-import type {Storylet, WorldCondition} from './world.js';
+import type {ClockUnit, Storylet, WorldCondition} from './world.js';
 
 export type LintSeverity = 'error' | 'warning';
 export type LintCategory = 'structure' | 'resource' | 'pool' | 'text' | 'volume';
@@ -25,8 +25,10 @@ export interface LintReport {
 export interface PlaytestStrategyInfo {id: string; label: string; runs: number}
 export interface PlaytestReport {
   draftId?: string; draftVersion: number; createdAt: string;
+  /** Present only when the caller supplied a named FunProfile; legacy reports keep their shape. */
+  profileId?: string;
   seeds: number; maxSteps: number;
-  timeUnit?: 'month' | 'turn';
+  timeUnit?: ClockUnit | 'turn';
   strategies: PlaytestStrategyInfo[];
   checks: PassCheck[];
   /** endingRates[strategyId][endingKey] = share of runs (0–1); endingKey = ending id or `(none)` for capped runs. */

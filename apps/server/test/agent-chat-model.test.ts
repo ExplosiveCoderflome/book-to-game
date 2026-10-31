@@ -11,7 +11,7 @@ test('agent chat model: native tool calls and results round trip over HTTP using
     assert.equal(req.url, '/v1/chat/completions'); assert.equal(req.headers.authorization, 'Bearer test-agent-key');
     let raw = ''; for await (const chunk of req) raw += chunk;
     bodies.push(JSON.parse(raw)); res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({choices: [{message: bodies.length === 1 ? {content: null, tool_calls: [{id: 'call-real', type: 'function', function: {name: 'list_sources', arguments: '{}'}}]} : {content: '当前有一本测试原作。'}}]}));
+    res.end(JSON.stringify({choices: [{message: bodies.length === 1 ? {content: null, tool_calls: [{id: 'call-real', type: 'function', function: {name: 'list_sources', arguments: '{}'}}]} : {content: '当前有一本测试原作。', tool_calls: null}}]}));
   }).listen(0, '127.0.0.1'); await once(server, 'listening');
   try {
     const adapter = new providerModule.AgentChatCompletionsModel({baseUrl: `http://127.0.0.1:${(server.address() as {port: number}).port}/v1`, model: 'test-agent-model', apiKey: 'test-agent-key', timeoutMs: 2000});

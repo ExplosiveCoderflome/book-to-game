@@ -1,6 +1,6 @@
 import { Application, BitmapText, Container, Graphics, Sprite, type Texture } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
-import { hexToPixel, parseCellKey } from '@novel-game/rules';
+import { hexToPixel, parseCellKey, projectMapFillIcons } from '@novel-game/rules';
 import { layerCells, layerCentroids, layerPalette, type MapLayerKind } from '../../../lib/world-map-edit';
 import { labelWorldSize, type HexRenderState, type HexView } from './renderer';
 import { BorderCache, dirtyKeys, type BorderSeg, type HexTopology } from './topology';
@@ -26,11 +26,11 @@ export class HexPixiScene {
   private vp!: Viewport;
   private ready = false; private destroyed = false; private frame = 0;
   private topo: HexTopology | null = null;
-  private layers = { terrain: new Container(), grid: new Graphics(), faction: new Container(), factionBorders: new Graphics(), region: new Container(), regionBorders: new Graphics(), regionLabels: new Container(), overlay: new Graphics(), pois: new Container() };
+  private layers = { terrain: new Container(), grid: new Graphics(), faction: new Container(), factionBorders: new Graphics(), region: new Container(), regionBorders: new Graphics(), regionLabels: new Container(), overlay: new Graphics(), pois: new Container(), fillIcons: new Container() };
   private terrain: LayerSprites | null = null; private faction: LayerSprites | null = null; private region: LayerSprites | null = null;
   private hexTex: Texture | null = null; private dotTex: Texture | null = null;
   private poiLabels: BitmapText[] = [];
-  private last: HexRenderState | null = null; private lastPoiSig = ''; private lastRegionLabelsRef: unknown = null;
+  private last: HexRenderState | null = null; private lastPoiSig = ''; private lastFillSig = ''; private lastRegionLabelsRef: unknown = null;
   private view: HexView = { x: 0, y: 0, zoom: 1 };
   private colors = { green: 0x2f7d55, rust: 0xb5532c, ink: 0x1b1f1d };
   private pending: HexRenderState | null = null;
@@ -44,7 +44,7 @@ export class HexPixiScene {
     this.vp = new Viewport({ events: this.app.renderer.events, screenWidth: host.clientWidth, screenHeight: host.clientHeight, noTicker: true });
     this.vp.eventMode = 'none'; this.app.stage.eventMode = 'none';
     this.app.stage.addChild(this.vp);
-    const L = this.layers; this.vp.addChild(L.terrain, L.grid, L.faction, L.factionBorders, L.region, L.regionBorders, L.regionLabels, L.overlay, L.pois);
+    const L = this.layers; this.vp.addChild(L.terrain, L.grid, L.faction, L.factionBorders, L.region, L.regionBorders, L.regionLabels, L.overlay, L.pois, L.fillIcons);
     this.colors = { green: cssColor('--green', this.colors.green), rust: cssColor('--rust', this.colors.rust), ink: cssColor('--ink', this.colors.ink) };
     this.app.renderer.on('resize', () => { this.vp.resize(this.app.screen.width, this.app.screen.height); this.requestRender(); });
     this.ready = true;
@@ -125,6 +125,9 @@ export class HexPixiScene {
     // POIs
     const poiSig = JSON.stringify([map.pois, s.selectedLocationId, s.initialLocationId, s.mode, [...s.titles]]);
     if (poiSig !== this.lastPoiSig) { this.lastPoiSig = poiSig; this.drawPois(s); }
+    const fillIcons = s.fillIcons ?? projectMapFillIcons(map);
+    const fillSig = JSON.stringify([fillIcons, s.mode, s.play?.hiddenCells ? [...s.play.hiddenCells] : null]);
+    if (fillSig !== this.lastFillSig) { this.lastFillSig = fillSig; this.drawFillIcons(s, fillIcons); }
     this.drawOverlay(s);
     this.last = s;
     this.requestRender();
@@ -167,6 +170,33 @@ export class HexPixiScene {
       const t = new BitmapText({ text: label, style: { fontFamily: 'system-ui, "Noto Sans CJK SC", sans-serif', fontSize: 24, fontWeight: '600', fill: this.colors.ink, stroke: { color: 0xffffff, width: 6 } } });
       t.anchor.set(0.5, 0); t.position.set(c.x, c.y + r + 1); t.scale.set(labelWorldSize(this.view.zoom) / 24);
       this.poiLabels.push(t); L.pois.addChild(dot, ring, t);
+    }
+  }
+  private drawFillIcons(s: HexRenderState, icons: ReturnType<typeof projectMapFillIcons>): void {
+    const layer = this.layers.fillIcons;
+    layer.removeChildren().forEach(child => child.destroy());
+    if (s.mode !== 'poi' && s.mode !== 'fill' && !s.play) return;
+    const g = s.map.geometry; const size = g.size;
+    const visible = icons.filter(icon => !s.play?.hiddenCells?.has(icon.cell) && (!icon.toCell || !s.play?.hiddenCells?.has(icon.toCell)));
+    const totals = new Map<string, number>(); const slots = new Map<string, number>();
+    for (const icon of visible) {
+      const key = icon.toCell ? `${icon.cell}>${icon.toCell}` : icon.cell;
+      totals.set(key, (totals.get(key) ?? 0) + 1);
+    }
+    for (const icon of visible) {
+      const from = parseCellKey(icon.cell); const to = icon.toCell ? parseCellKey(icon.toCell) : null;
+      if (!from || (icon.toCell && !to)) continue;
+      const key = icon.toCell ? `${icon.cell}>${icon.toCell}` : icon.cell;
+      const slot = slots.get(key) ?? 0; slots.set(key, slot + 1);
+      const a = hexToPixel(g, from); const b = to ? hexToPixel(g, to) : null;
+      const x = (a.x + (b?.x ?? a.x)) / 2 + (slot - ((totals.get(key) ?? 1) - 1) / 2) * size * 0.52;
+      const y = (a.y + (b?.y ?? a.y)) / 2 - (b ? 0 : size * 0.72);
+      const badge = new Graphics().roundRect(-size * 0.28, -size * 0.28, size * 0.56, size * 0.56, size * 0.14)
+        .fill({color: hex(icon.color), alpha: icon.illustrative ? 0.68 : 1}).stroke({width: 1.5, color: 0xffffff});
+      badge.position.set(x, y);
+      const text = new BitmapText({text: icon.icon, style: {fontFamily: 'system-ui, "Noto Sans CJK SC", sans-serif', fontSize: 24, fontWeight: '700', fill: 0xffffff}});
+      text.anchor.set(0.5); text.scale.set(Math.max(10, size * 0.34) / 24); text.position.set(x, y);
+      layer.addChild(badge, text);
     }
   }
   private drawOverlay(s: HexRenderState): void {

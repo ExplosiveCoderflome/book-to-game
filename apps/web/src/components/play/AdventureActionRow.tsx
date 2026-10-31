@@ -1,5 +1,5 @@
 import { SYSTEM_WAIT_ACTION_ID } from '@novel-game/contracts';
-import type { AdventureRollView } from '@novel-game/contracts';
+import type { AdventureRollView, ClockUnit } from '@novel-game/contracts';
 import { useI18n } from '../../lib/i18n';
 import { chancePercent, formatDuration } from '../../lib/s1-play';
 import { RollChanceNote } from './RollChanceNote';
@@ -28,8 +28,8 @@ type Props = {
   onClick: () => void;
   /** Compact inspector: hide description paragraph. */
   compact?: boolean;
-  /** S1 C11: timeCost in months. */
-  timeUnit?: 'month';
+  /** S1 C11: timeCost in clock ticks. */
+  timeUnit?: ClockUnit;
 };
 
 const KIND_LABEL: Record<NonNullable<ActionLike['kindHint']>, string> = {

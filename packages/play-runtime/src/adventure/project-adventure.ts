@@ -109,7 +109,7 @@ function projectClock(world: WorldContent, state: AdventureState): AdventureCloc
   const countdownId = countdownResource(world);
   const def = countdownId ? world.resourceDefs?.[countdownId] : undefined;
   return {
-    month: state.elapsed, label: formatCalendar(world, state.elapsed), limitMonths: clock.limitMonths, unit: 'month', openWindows,
+    month: state.elapsed, label: formatCalendar(world, state.elapsed), limitMonths: clock.limitMonths, unit: clock.unit, openWindows,
     ...(countdownId ? {countdown: {resourceId: countdownId, label: def?.label ?? countdownId, value: state.resources?.[countdownId] ?? 0, ...(def?.unit ? {unit: def.unit} : {})}} : {}),
   };
 }
@@ -133,7 +133,7 @@ function s1View(world: WorldContent, state: AdventureState): Partial<AdventureVi
   return {
     ...(world.resourceDefs ? {resourceMeta: projectResourceMeta(world, state)} : {}),
     ...(state.lastResult ? {lastResult: projectLastResult(world, state.lastResult)} : {}),
-    ...(clock ? {clock, timeUnit: 'month' as const} : {}),
+    ...(clock ? {clock, timeUnit: clock.unit} : {}),
     ...(world.storylets ? {hand: state.ending ? [] : projectHand(world, state)} : {}),
     ...(state.rng ? {rng: {...state.rng}} : {}),
   };
@@ -183,7 +183,7 @@ export function projectAdventure(
         ...(g.sheetEyebrow ? { sheetEyebrow: g.sheetEyebrow } : {}),
       }));
 
-  const map = projectAdventureMap(world, state, actions);
+  const map = projectAdventureMap(world, state, actions, {buildingLibrary: opts.buildingLibrary});
   return {
     id: state.id, worldRevisionId: state.worldRevisionId, turn: state.turn, elapsed: state.elapsed,
     timeLimit: timeLimitOf(world), ended: !!state.ending, playerRole: world.playerRole, goal: world.goal,

@@ -74,10 +74,11 @@ test('production pauses for review; retry resumes saved units without redoing an
         return narrative(locked, unit);
       },
     };
+    // Two full playtests can be slow in a loaded verify run; keep lease recovery out of this behavior test.
     const runner = new GenerationRunner(repository, sources, provider, () => {throw new Error('story path not expected');}, input => {
       created = input.content; const id = `draft-produced-${drafts.size}`;
       drafts.set(id, structuredClone(input.content)); return {id};
-    });
+    }, undefined, 3, 10 * 60 * 1000);
     await runner.runOnce();
     assert.equal(service.get(job.id).status, 'awaiting_review');
     assert.equal(calls.size, 0, 'no paid prose calls before plan approval');

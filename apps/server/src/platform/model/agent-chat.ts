@@ -6,7 +6,7 @@ import type { ModelConfig } from './chat-completions.js';
 
 const outputSchema = z.object({choices: z.array(z.object({message: z.object({content: z.string().nullable().optional(),
   tool_calls: z.array(z.object({id: z.string().min(1).max(160), type: z.literal('function'),
-    function: z.object({name: z.string().min(1).max(100), arguments: z.string().max(100000)})})).max(4).optional()})})).min(1)});
+    function: z.object({name: z.string().min(1).max(100), arguments: z.string().max(100000)})})).max(4).nullish()})})).min(1)});
 
 const SYSTEM = `你是故事工坊的作者助手，帮助用户把小说改编成文字游戏。使用用户的语言交流，清楚区分已执行、建议和未完成。
 本地业务状态以工具回执为准，不要捏造任务、草稿、结局或操作成功。先用列表和分段工具识别目标，再读取所需资料。

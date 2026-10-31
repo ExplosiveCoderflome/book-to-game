@@ -1,6 +1,6 @@
 import { SqliteDatabase as Database } from '../../src/platform/database.js';
 import { WorldService, SqliteWorldRepository } from '../../src/modules/worlds/index.js';
-import { AdventureService, SqliteAdventureRepository } from '../../src/modules/adventure-sessions/index.js';
+import { AdventureService, SqliteAdventureRepository, type AdventureCatalogReaders } from '../../src/modules/adventure-sessions/index.js';
 import { source } from './open-fixture.js';
 import type { WorldContent, WorldMap } from '@novel-game/contracts';
 
@@ -14,10 +14,10 @@ export const playMap = (fog = true): WorldMap => ({
   },
   pois: [{ locationId: 'dock', anchor: { cell: '1,1' } }, { locationId: 'market', anchor: { cell: '4,2' } }, { locationId: 'gate', anchor: { cell: '2,4' } }],
 });
-export function startWith(world: WorldContent) {
+export function startWith(world: WorldContent, catalogs: AdventureCatalogReaders = {}) {
   const db = new Database(':memory:');
   const worlds = new WorldService(new SqliteWorldRepository(db), { get: () => structuredClone(source) });
-  const adventures = new AdventureService(new SqliteAdventureRepository(db), worlds);
+  const adventures = new AdventureService(new SqliteAdventureRepository(db), worlds, catalogs);
   const draft = worlds.create({ sourceId: source.id, content: world });
   const revision = worlds.publish(draft.id, { version: 1 });
   return { db, worlds, adventures, revision, view: adventures.start({ worldRevisionId: revision.id }) };

@@ -3,7 +3,7 @@ import type { LintReport, PlaytestReport, WorldDraft } from '@novel-game/contrac
 import { useI18n } from '../../lib/i18n';
 import { errorMessage } from '../../lib/api';
 import { getWorldPreflight, lintTone, lintWorldDraft, percent1, playtestTone, playtestWorldDraft, preflightTime, type WorldPreflight } from '../../lib/preflight-api';
-import { CATEGORY_LABEL, EndingRateTable, PacingDiagnosis, PassLineTable, ResourceBandTable, RouteCoverageTable } from './PreflightTables';
+import { CATEGORY_LABEL, EndingRateTable, PacingDiagnosis, PassLineTable, PlaytestProfileNote, ResourceBandTable, RouteCoverageTable } from './PreflightTables';
 import { AgentRepairPanel } from './AgentRepairPanel';
 
 type Phase = 'idle' | 'running' | 'failed';
@@ -122,6 +122,7 @@ function SimStrip({ report, stale, phase, failure, dirty, disabledTitle, onRun }
   return (
     <div className={`preflight-strip tone-${tone}${stale ? ' is-stale' : ''}`} data-testid="preflight-sim-strip">
       <StripHead text={head} button={report ? t('重新跑') : t('跑模拟')} busy={phase === 'running'} disabled={dirty} title={disabledTitle} onRun={onRun} />
+      {report && <PlaytestProfileNote profileId={report.profileId} />}
       {phase === 'failed' && <p className="preflight-failure">{t('模拟没有跑完，没有生成报告。上一份报告（如有）仍保留在下面。可以再跑一次。')}{failure ? ` (${failure})` : ''}</p>}
       {report && <>
         <details open><summary>{t('及格线')}</summary><PassLineTable checks={report.checks} /></details>

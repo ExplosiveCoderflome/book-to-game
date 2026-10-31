@@ -1,4 +1,4 @@
-import type { WorldMap } from '@novel-game/contracts';
+import type { MapFillIcon, WorldMap } from '@novel-game/contracts';
 import type { MapLayerKind } from '../../../lib/world-map-edit';
 import type { HexTopology } from './topology';
 
@@ -23,6 +23,7 @@ export interface HexRenderState {
   play?: HexPlayOverlay;
   /** Session/era territory overlay already folded into `map` by the caller (renderers stay dumb). */
   npcMarkers?: { cell: string; label: string; color?: string }[];
+  fillIcons?: MapFillIcon[];
 }
 
 export interface HexPlayOverlay {
@@ -54,6 +55,7 @@ function probeWebgl(): boolean {
 }
 /** Feature flag: `?mapRenderer=svg|pixi` or localStorage; default Pixi when WebGL exists, else SVG. */
 export function preferredHexRenderer(): HexRendererId {
+  if (import.meta.env.BTG_PLAYER) return 'svg';
   try {
     const q = new URLSearchParams(window.location.search).get('mapRenderer');
     const v = q ?? window.localStorage.getItem(KEY);

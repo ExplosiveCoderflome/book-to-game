@@ -1,0 +1,305 @@
+{
+  "schemaVersion": 1,
+  "mode": "open",
+  "title": "夜灯食堂（V0c 治愈画像夹具）",
+  "premise": "你守着一间只在小城入夜后营业的食堂，用一碗热汤和耐心记住每位街坊的口味。",
+  "playerRole": "夜灯食堂的店主",
+  "goal": "在六十个夜晚里积累十二位愿意常来坐坐的熟客，同时留住继续开门的心情。",
+  "worldRules": [
+    "时间以日计，每个行动耗费一个夜晚，六十个夜晚后盘点食堂的去留。",
+    "收入可以换成更好的食材，心情归零时食堂停业，熟客达到十二位时形成稳定的街坊食堂。"
+  ],
+  "adaptationNotes": "V0c synthetic healing-routine fixture: short daily pacing, warmth and repeatable variants.",
+  "sourceChapterIds": ["fixture-v0c-healing"],
+  "initialLocationId": "hall",
+  "timeLimit": 60,
+  "timeoutEnding": "六十个夜晚过去了，食堂还没有形成稳定的客流。你把灯留给街坊，决定先休息一阵。",
+  "locations": [
+    {
+      "id": "hall",
+      "title": "食堂前厅",
+      "text": "木窗上挂着一盏暖黄的灯，几张桌子之间留着宽松的走道，进门的客人总能先闻到汤底的香气。墙上的小黑板记着今日推荐，也记着几位老街坊不爱吃葱、喜欢多加一勺醋的习惯。柜台旁有一罐给大家自取的薄荷糖，雨天时门边还会多放一把备用伞。你在这里听客人讲一天的琐事，也在收桌之间学会让一间小店成为别人愿意回来的地方。每一次招呼和每一顿热饭，都会被这条街记住。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "kitchen",
+      "title": "小厨房",
+      "text": "小厨房的灶台总擦得干净，汤锅旁摆着按份量分好的蔬菜和一摞手写食谱。忙过一阵后，你可以把火调小，坐下来吃一碗员工餐，听窗外的自行车铃声慢慢远去。冰箱门贴着采购单和邻居送来的便签，提醒你明天有人要带孩子来，也有人刚下晚班只想吃点清淡的。这里不只生产饭菜，也给你留出整理账目、照顾自己和把新菜试到刚刚好的时间。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "street",
+      "title": "门前小街",
+      "text": "食堂门口的小街在傍晚慢慢热闹起来，菜摊收了一半，洗衣店门口挂着还在滴水的衣服，修鞋的老人总把凳子借给等客的人。你认得每一位常经过的邻居，也知道谁今天需要一碗热汤、谁只是想找个地方避雨。沿街打招呼不会立刻变成账本上的数字，却会让陌生的面孔渐渐有了名字。你可以在这里发几张传单，也可以只是陪街坊说几句话，看看今晚谁愿意推门进来。",
+      "origin": "adapted",
+      "evidence": []
+    }
+  ],
+  "facts": [],
+  "npcs": [],
+  "actions": [
+    {
+      "id": "serve_dinner",
+      "label": "认真营业一晚",
+      "description": "按客人的节奏出餐，收入增加，也会消耗一点心情。",
+      "locationId": "hall",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "今晚无法营业",
+      "risk": "连续忙碌会让人疲惫。",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {"kind": "resource", "resourceId": "money", "delta": 5},
+        {"kind": "resource", "resourceId": "regulars", "delta": 1},
+        {"kind": "resource", "resourceId": "mood", "delta": -1}
+      ],
+      "text": "你把热汤一碗碗端上桌，记住客人的口味，打烊时有人约定明晚再来。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "staff_meal",
+      "label": "给自己做顿员工餐",
+      "description": "花一点收入休息，恢复继续营业的心情。",
+      "locationId": "hall",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "今晚没时间休息",
+      "risk": "休息会少一笔收入。",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {"kind": "resource", "resourceId": "money", "delta": -2},
+        {"kind": "resource", "resourceId": "mood", "delta": 2}
+      ],
+      "text": "你关掉大半盏灯，慢慢吃完一碗热面，终于有时间听听自己的呼吸。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "greet_neighbors",
+      "label": "陪街坊聊一会儿",
+      "description": "不急着算账，听听附近居民今天的需要。",
+      "locationId": "street",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "今晚不方便聊天",
+      "risk": "闲聊会占去一个夜晚。",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {"kind": "resource", "resourceId": "regulars", "delta": 1},
+        {"kind": "resource", "resourceId": "mood", "delta": 1}
+      ],
+      "text": "你把备用伞递给忘带伞的邻居，对方说起下次想带家人来尝尝你的汤。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "hall_to_kitchen",
+      "label": "回到小厨房",
+      "description": "穿过前厅的窄门回到灶边。",
+      "locationId": "hall",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "现在过不去",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [{"kind": "move", "locationId": "kitchen"}],
+      "text": "你掀开布帘回到厨房，把明天的备菜按顺序摆好。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "hall_to_street",
+      "label": "走到门前小街",
+      "description": "出门看看今晚经过的街坊。",
+      "locationId": "hall",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "现在过不去",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [{"kind": "move", "locationId": "street"}],
+      "text": "你挂好围裙走到街上，顺路向相熟的邻居点头问好。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "kitchen_to_hall",
+      "label": "回到食堂前厅",
+      "description": "端着热茶回到待客的大堂。",
+      "locationId": "kitchen",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "现在过不去",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [{"kind": "move", "locationId": "hall"}],
+      "text": "你端着热茶回到前厅，先看看今晚有没有熟悉的面孔。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "street_to_hall",
+      "label": "回到食堂前厅",
+      "description": "带着街坊的消息回到店里。",
+      "locationId": "street",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "现在过不去",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [{"kind": "move", "locationId": "hall"}],
+      "text": "你带着街坊的口味回到店里，准备把今晚的汤再调得温和一些。",
+      "origin": "adapted",
+      "evidence": []
+    }
+  ],
+  "events": [],
+  "storylets": [
+    {
+      "id": "warm_welcome",
+      "title": "深夜来客",
+      "kind": "repeat",
+      "locationIds": ["hall"],
+      "weight": {"base": 10},
+      "repeat": {"cooldownTurns": 1},
+      "textVariants": [
+        "打烊前，一位刚下班的客人推门进来，先向你道歉说只剩下很短的时间。他没有急着点菜，只是看着墙上的黑板问哪一碗汤最像家常菜。你可以按普通订单快速出餐，也可以多花一点心思问他今天过得怎么样。小小的前厅安静下来，汤锅的声音和窗外的风声一起陪着你作出选择。",
+        "门外的雨刚停，一位熟客带着第一次来的朋友坐到角落。朋友有些拘谨，反复确认价格和分量，熟客则笑着说这里的老板总会记得客人的口味。你可以送一道小菜让他们慢慢聊，也可以把精力留给后厨的订单。无论怎么安排，今夜的这顿饭都会成为他们记住这间小店的方式。"
+      ],
+      "choices": [
+        {
+          "id": "welcome_table",
+          "label": "送一道小菜，慢慢介绍菜单",
+          "timeCost": 1,
+          "effects": [
+            {"kind": "resource", "resourceId": "money", "delta": -1},
+            {"kind": "resource", "resourceId": "regulars", "delta": 1},
+            {"kind": "resource", "resourceId": "mood", "delta": 1}
+          ],
+          "text": "你把小菜推到桌子中央，客人终于放松下来，答应下次还带朋友来。"
+        },
+        {
+          "id": "quick_service",
+          "label": "按普通订单快速出餐",
+          "timeCost": 1,
+          "effects": [
+            {"kind": "resource", "resourceId": "money", "delta": 4},
+            {"kind": "resource", "resourceId": "regulars", "delta": 1},
+            {"kind": "resource", "resourceId": "mood", "delta": -1}
+          ],
+          "text": "你利落地完成订单，客人带着热饭离开，柜台上的收入多了一点。"
+        }
+      ]
+    },
+    {
+      "id": "street_neighbor",
+      "title": "街坊的问候",
+      "kind": "repeat",
+      "locationIds": ["street"],
+      "weight": {"base": 8},
+      "repeat": {"cooldownTurns": 1},
+      "textVariants": [
+        "菜摊老板收摊时叫住你，说最近晚班的人越来越多，大家都想找一处不用赶时间的地方吃饭。他指着食堂的灯光问你愿不愿意留一份清淡的汤，也好让邻居们知道这里随时欢迎他们。你可以花点时间把这件事记下来，也可以先帮他收好剩下的菜筐，再慢慢聊今晚的生意。这样的问候虽然不热闹，却总能让陌生人放下戒备。",
+        "修鞋的老人把一只修好的布袋递给你，说上次落在店门口的东西终于找到了主人。他没有急着离开，反而问起你最近是不是太累，劝你别把每一晚都排满订单。你可以请他进屋喝碗热汤，也可以陪他沿街走一段，听听这条街最近发生的小事。老人的关心让你想起，照顾别人之前也要先照顾好自己。"
+      ],
+      "choices": [
+        {
+          "id": "share_soup",
+          "label": "请街坊喝碗热汤",
+          "timeCost": 1,
+          "effects": [
+            {"kind": "resource", "resourceId": "money", "delta": -1},
+            {"kind": "resource", "resourceId": "regulars", "delta": 1},
+            {"kind": "resource", "resourceId": "mood", "delta": 1}
+          ],
+          "text": "一碗热汤让街坊的话多了起来，你记下了几个想在食堂看到的菜名。"
+        },
+        {
+          "id": "listen_walk",
+          "label": "陪街坊走一段路",
+          "timeCost": 1,
+          "effects": [
+            {"kind": "resource", "resourceId": "regulars", "delta": 1},
+            {"kind": "resource", "resourceId": "mood", "delta": 1}
+          ],
+          "text": "你们慢慢走过半条街，分别时对方回头说明晚还会经过你的店门。"
+        }
+      ]
+    },
+    {
+      "id": "quiet_recipe",
+      "title": "试验新菜",
+      "kind": "repeat",
+      "locationIds": ["kitchen"],
+      "weight": {"base": 8},
+      "repeat": {"cooldownTurns": 1},
+      "textVariants": [
+        "最后一张桌子收拾干净，夜色安静下来，冰箱里还留着一点试用食材。你想起白天有客人说想吃更软烂的炖菜，也想起隔壁店主提过孩子不喜欢太重的香料。你可以趁没人打扰试做一小锅新菜，请邻居帮忙提意见，也可以不再碰订单，给自己煮一锅简单的员工餐。今晚的时间由你自己安排。",
+        "灶上的汤还温着，墙上的笔记本记满了客人随口提过的口味。今晚没有新的催促，你终于可以把几种想法慢慢试一遍，看看哪一种最适合这间小店。新菜可能带来下一位熟客，休息则可能让你明天更有精神，两个选择都值得认真对待。你不必急着把所有想法一次完成，先把今晚照顾好就已经足够。"
+      ],
+      "choices": [
+        {
+          "id": "test_recipe",
+          "label": "试做一道街坊口味的新菜",
+          "timeCost": 1,
+          "effects": [
+            {"kind": "resource", "resourceId": "money", "delta": -2},
+            {"kind": "resource", "resourceId": "regulars", "delta": 1},
+            {"kind": "resource", "resourceId": "mood", "delta": 1}
+          ],
+          "text": "你请隔壁店主尝了一小碗，对方认真提了建议，还说愿意带家人来试正式版本。"
+        },
+        {
+          "id": "kitchen_rest",
+          "label": "煮一锅员工餐，早点休息",
+          "timeCost": 1,
+          "effects": [
+            {"kind": "resource", "resourceId": "money", "delta": -1},
+            {"kind": "resource", "resourceId": "mood", "delta": 2}
+          ],
+          "text": "你慢慢吃完热饭，把明天的准备工作列成几行，睡前觉得从容了许多。"
+        }
+      ]
+    }
+  ],
+  "endings": [
+    {
+      "id": "neighborhood_favorite",
+      "title": "街坊食堂",
+      "kind": "ending",
+      "text": "十二位熟客成了食堂稳定的底色，更多人跟着他们走进门。你终于有了继续经营下去的底气。",
+      "when": []
+    },
+    {
+      "id": "closed",
+      "title": "无奈停业",
+      "kind": "failure",
+      "text": "持续的疲惫耗尽了你的热情，食堂只能暂时停业。你关上店门，决定先好好照顾自己。",
+      "when": []
+    }
+  ],
+  "resourceDefs": {
+    "money": {"label": "钱", "min": 0, "max": 200, "initial": 30, "display": "number"},
+    "mood": {"label": "心情", "min": 0, "max": 20, "initial": 12, "display": "bar", "onMin": {"ending": "closed"}},
+    "regulars": {"label": "熟客", "min": 0, "max": 12, "initial": 0, "display": "pips", "onMax": {"ending": "neighborhood_favorite"}}
+  },
+  "clock": {
+    "unit": "day",
+    "startYear": 2026,
+    "startMonth": 1,
+    "limitMonths": 60,
+    "timeoutEndingId": "closed"
+  },
+  "storyletRules": {"handSize": 3, "refreshOn": ["move", "clock"], "refreshEveryMonths": 1},
+  "production": {"complete": false, "tier": "S", "note": "Small V0c healing fixture; volume shortfalls are intentionally non-blocking."}
+}

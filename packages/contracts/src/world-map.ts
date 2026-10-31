@@ -72,6 +72,10 @@ export const mapFillKindSchema = z.enum(MAP_FILL_KINDS);
 export const MAP_FILL_KIND_LABEL: Record<MapFillKind, string> = {
   shop: '商店', supply: '补给', quest: '任务点', encounter: '遭遇', boss: 'Boss',
 };
+/** Text glyphs keep fill icons legible in both SVG and the offline player without an icon runtime. */
+export const MAP_FILL_KIND_ICON: Record<MapFillKind, string> = {
+  shop: '店', supply: '补', quest: '任', encounter: '战', boss: '王',
+};
 
 /** One fill placement on a location (primary hang point). buildingAsset* reserved for M-fill-2 library. */
 export const mapFillPlacementSchema = z.object({
@@ -83,16 +87,22 @@ export const mapFillPlacementSchema = z.object({
   buildingAssetVersion: z.number().int().positive().optional(),
   localOverrides: z.record(z.string(), z.unknown()).optional(),
 });
-/** Optional map-only cell marker (no location). Unbound → validation warning, not error. */
-export const mapCellMarkerSchema = z.object({
+const mapFillMarkerBaseSchema = z.object({
   id,
   kind: mapFillKindSchema,
-  cell: cellKeySchema,
   label: z.string().min(1).max(80).optional(),
+  buildingAssetId: id.optional(),
+  buildingAssetVersion: z.number().int().positive().optional(),
+  localOverrides: z.record(z.string(), z.unknown()).optional(),
 });
+/** Optional map-only cell marker (no location). Unbound → validation warning, not error. */
+export const mapCellMarkerSchema = mapFillMarkerBaseSchema.extend({ cell: cellKeySchema });
+/** Optional map-only route marker. routeId normally names a move action; it never creates movement. */
+export const mapRouteMarkerSchema = mapFillMarkerBaseSchema.extend({ routeId: id });
 export const mapFillLayerSchema = z.object({
   placements: z.array(mapFillPlacementSchema).max(200),
   cellMarkers: z.array(mapCellMarkerSchema).max(200).optional(),
+  routeMarkers: z.array(mapRouteMarkerSchema).max(200).optional(),
 });
 
 export const worldMapSchema = z.object({
@@ -131,7 +141,23 @@ export type VenueType = z.infer<typeof venueTypeSchema>;
 export type RegionLayer = z.infer<typeof regionLayerSchema>;
 export type MapFillPlacement = z.infer<typeof mapFillPlacementSchema>;
 export type MapCellMarker = z.infer<typeof mapCellMarkerSchema>;
+export type MapRouteMarker = z.infer<typeof mapRouteMarkerSchema>;
 export type MapFillLayer = z.infer<typeof mapFillLayerSchema>;
+/** Resolved display-only icon. Interaction still uses compiled location actions, never this view object. */
+export interface MapFillIcon {
+  id: string;
+  kind: MapFillKind;
+  cell: CellKey;
+  label: string;
+  color: string;
+  icon: string;
+  locationId?: string;
+  routeId?: string;
+  /** Destination cell for a route marker; renderers may use the route midpoint. */
+  toCell?: CellKey;
+  /** Cell/route markers are explicitly illustrative until a rules hook is authored. */
+  illustrative?: boolean;
+}
 
 /** Port for future image-generation adapters (AI layer). Input is the deterministic prompt + schematic reference. */
 export interface MapImageRequest { prompt: string; schematicSvg?: string; width: number; height: number; seed?: number }

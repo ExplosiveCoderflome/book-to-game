@@ -1,8 +1,8 @@
-import type { AdventureHandView } from '@novel-game/contracts';
+import type { AdventureHandView, ClockUnit } from '@novel-game/contracts';
 import { useI18n } from '../../lib/i18n';
 import { AdventureActionRow } from './AdventureActionRow';
 
-type Props = { hand: AdventureHandView[]; busy: boolean; onAct: (id: string) => void; timeUnit?: 'month' };
+type Props = { hand: AdventureHandView[]; busy: boolean; onAct: (id: string) => void; timeUnit?: ClockUnit };
 
 /** U4 / S1-U6: 1 card = flat open; ≥2 = exclusive accordion (`<details name>`), default open = first urgent else first. */
 export function StoryletHand({ hand, busy, onAct, timeUnit }: Props) {
@@ -22,7 +22,7 @@ export function StoryletHand({ hand, busy, onAct, timeUnit }: Props) {
   );
 }
 
-function StoryletCard({ card, busy, onAct, timeUnit, flat, defaultOpen }: {card: AdventureHandView; busy: boolean; onAct: (id: string) => void; timeUnit?: 'month'; flat?: boolean; defaultOpen?: boolean}) {
+function StoryletCard({ card, busy, onAct, timeUnit, flat, defaultOpen }: {card: AdventureHandView; busy: boolean; onAct: (id: string) => void; timeUnit?: ClockUnit; flat?: boolean; defaultOpen?: boolean}) {
   const { t } = useI18n();
   const tags = [
     card.urgent ? t('急事') : null,

@@ -20,12 +20,16 @@ import type { WorldMap } from '@novel-game/contracts';
 import { FactionRelationsEditor } from './FactionRelationsEditor';
 import { WorldLayerEditor } from './WorldLayerEditor';
 import { MapDraftReview } from './MapDraftReview';
-import type { MapDraftDiff } from '@novel-game/contracts';
+import type { MapDraftDiff, MapFillProposal, MapFillProposalItem } from '@novel-game/contracts';
 import { eraMap } from '@novel-game/rules';
 import { WorldOverview } from './WorldOverview';
 import { WorldActionRulesEditor } from './WorldActionRulesEditor';
 import { WorldbookEditor } from './WorldbookEditor';
 import { WorldPlayInspector } from './play/WorldPlayInspector';
+import { MapFillReview } from './MapFillReview';
+import { acceptBuildingDrafts, loadBuildingLibrary } from '../lib/building-library-api';
+import { proposeMapFill } from '../lib/map-fill-api';
+import { applyMapFillProposal } from '../lib/world-map-fill';
 
 const blank = (): WorldContent => ({
   schemaVersion: 1, mode: 'open', title: '', premise: '', playerRole: '', goal: '', worldRules: [''],
@@ -55,7 +59,8 @@ export function WorldsPanel({
   const [dirty, setDirty] = useState(false);
   const [operationBusy, setBusy] = useState(false);
   const [repairBusy, setRepairBusy] = useState(false);
-  const busy = operationBusy || repairBusy;
+  const [mapFillBusy, setMapFillBusy] = useState(false);
+  const busy = operationBusy || repairBusy || mapFillBusy;
   const [json, setJson] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<number | null>(null);
@@ -68,11 +73,50 @@ export function WorldsPanel({
   const [mapDraft, setMapDraft] = useState<MapDraftDiff | null>(null);
   const [mapDraftBusy, setMapDraftBusy] = useState(false);
   const [beforeImport, setBeforeImport] = useState<WorldContent | null>(null);
+  const [mapFillProposal, setMapFillProposal] = useState<MapFillProposal | null>(null);
+  const [beforeFillImport, setBeforeFillImport] = useState<WorldContent | null>(null);
   async function extractMap() {
     if (!draft) return; setMapDraftBusy(true); setError(null);
     try { setMapDraft(await request<MapDraftDiff>(token, `/worlds/drafts/${draft.id}/map-draft`, 'POST', {})); }
     catch (e) { setError(errorMessage(e)); }
     finally { setMapDraftBusy(false); }
+  }
+  async function proposeFill() {
+    if (!draft) return;
+    setMapFillBusy(true); setError(null);
+    try { setMapFillProposal(await proposeMapFill(token, draft.id, {allowNewAssets: true, count: 6})); }
+    catch (e) { setError(errorMessage(e)); }
+    finally { setMapFillBusy(false); }
+  }
+  async function acceptReviewedFill(items: MapFillProposalItem[], addNewAssets: boolean) {
+    if (!draft) return;
+    setMapFillBusy(true); setError(null);
+    try {
+      const newItems = items.filter(item => item.assetDraft);
+      let imported: {id: string; version: number}[] = [];
+      if (addNewAssets && newItems.length) {
+        const current = await loadBuildingLibrary(token);
+        const accepted = await acceptBuildingDrafts(token, {
+          expectedRevision: current.revision,
+          drafts: newItems.map(item => item.assetDraft!),
+        });
+        imported = accepted.assets;
+      }
+      let importedIndex = 0;
+      const reviewed = items.map(item => {
+        if (!item.assetDraft) return item;
+        const {assetDraft: _draft, ...withoutDraft} = item;
+        if (!addNewAssets) return withoutDraft;
+        const asset = imported[importedIndex++];
+        if (!asset) throw new Error('新资产入库结果不完整，请重试');
+        return {...withoutDraft, buildingAssetId: asset.id, buildingAssetVersion: asset.version};
+      });
+      const next = applyMapFillProposal(content, undefined, reviewed);
+      setBeforeFillImport(content);
+      setContent(next); setDirty(true); setValidation(null); setMessage(null);
+      setMapFillProposal(null); setCanvasView('map');
+    } catch (e) { setError(errorMessage(e)); }
+    finally { setMapFillBusy(false); }
   }
   const activeEra = content?.eras?.some(e => e.id === eraId) ? eraId : '';
   const eraProps = content?.eras?.length ? {
@@ -99,7 +143,7 @@ export function WorldsPanel({
     setDraft(null); setContent(blank()); setDirty(false); setJson(null); setValidation(null);
     setError(null); setMessage(null); setConflict(false); setInspectorOpen(false);
     setSelectedLocationId(undefined); setInspectorTab('location'); setMetaOpen(false);
-    setCanvasMode('edit'); setCanvasView('graph');
+    setCanvasMode('edit'); setCanvasView('graph'); setMapFillProposal(null); setBeforeFillImport(null);
     if (!selectedId) return;
     setBusy(true);
     request<WorldDraft>(token, `/worlds/drafts/${selectedId}`).then(d => {
@@ -256,6 +300,8 @@ export function WorldsPanel({
               <button type="button" className="small" disabled={busy || json !== null || canvasMode === 'play'} onClick={() => setMetaOpen(v => !v)}>{t(metaOpen ? '收起世界信息' : '世界信息')}</button>
               <button type="button" className="small" disabled={busy || json !== null || canvasMode === 'play' || !content.locations.length} onClick={() => { setInspectorTab('all'); setInspectorOpen(true); }}>{t('全览')}</button>
               <button type="button" className="small" data-testid="ai-extract-map" disabled={busy || mapDraftBusy || !draft || dirty || json !== null || canvasMode === 'play'} title={dirty ? t('先保存草稿') : undefined} onClick={() => void extractMap()}>{mapDraftBusy ? t('AI 提取中…') : t('AI 提取地图')}</button>
+              <button type="button" className="small" data-testid="ai-propose-map-fill" disabled={busy || !draft || dirty || json !== null || canvasMode === 'play' || !content.map?.structureLocked}
+                title={!content.map?.structureLocked ? t('先确认主地图结构') : dirty ? t('先保存草稿') : undefined} onClick={() => void proposeFill()}>{mapFillBusy ? t('填充处理中…') : t('AI 填充')}</button>
               <button type="button" className="small" data-testid="open-worldbook" disabled={busy || json !== null || canvasMode === 'play'} onClick={() => { setInspectorTab('worldbook'); setInspectorOpen(true); }}>{t('世界书')}</button>
               <button type="button" className="small" disabled={busy || canvasMode === 'play'} onClick={() => json === null ? setJson(JSON.stringify(content, null, 2)) : apply()}>{json === null ? t('高级 JSON') : t('应用 JSON 到编辑器')}</button>
 </EditorTools>
@@ -264,6 +310,11 @@ export function WorldsPanel({
           {json !== null ? (
             <label>WorldContent JSON<textarea className="json-editor" rows={28} value={json} spellCheck={false} onChange={e => setJson(e.target.value)} /></label>
           ) : <>
+            {mapFillProposal && <MapFillReview key={JSON.stringify(mapFillProposal.items.map(item => item.proposalId))} proposal={mapFillProposal} busy={mapFillBusy}
+              onClose={() => setMapFillProposal(null)} onAccept={(items, addNewAssets) => void acceptReviewedFill(items, addNewAssets)} />}
+            {beforeFillImport && !mapFillProposal && <div className="import-undo-strip"><span className="hint">{t('刚导入 AI 填充；地图放置可撤销，已审核入库的新资产保留在库中。')}</span>
+              <button type="button" className="small" data-testid="map-fill-undo" onClick={() => { setContent(beforeFillImport); setDirty(true); setBeforeFillImport(null); }}>↶ {t('撤销填充导入')}</button>
+              <button type="button" className="small quiet" onClick={() => setBeforeFillImport(null)}>{t('保留')}</button></div>}
             {mapDraft && <MapDraftReview key={JSON.stringify(mapDraft.items.map(i => i.id))} content={content} diff={mapDraft} onClose={() => setMapDraft(null)}
               onApply={next => { setBeforeImport(content); change(next); setMapDraft(null); setCanvasView('map'); }} />}
             {!mapDraft && beforeImport && <div className="import-undo-strip"><span className="hint">{t('刚导入了 AI 地图草案')}</span>

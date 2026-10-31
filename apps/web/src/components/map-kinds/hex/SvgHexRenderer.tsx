@@ -1,9 +1,9 @@
-import { forwardRef, memo, useImperativeHandle, useMemo, useRef } from 'react';
-import { hexToPixel, parseCellKey } from '@novel-game/rules';
+import React, { forwardRef, memo, useImperativeHandle, useMemo, useRef } from 'react';
+import { hexToPixel, parseCellKey, projectMapFillIcons } from '@novel-game/rules';
 import { layerCells, layerCentroids, layerPalette, type MapLayerKind } from '../../../lib/world-map-edit';
 import { labelWorldSize, type HexRendererHandle, type HexRendererProps, type HexView } from './renderer';
 import { cellBorders, type BorderSeg, type HexTopology } from './topology';
-import type { WorldMap } from '@novel-game/contracts';
+import type { MapFillIcon, WorldMap } from '@novel-game/contracts';
 
 function colorsOf(map: WorldMap, kind: MapLayerKind) { return new Map(layerPalette(map, kind).map(p => [p.id, p.color])); }
 function borders(topo: HexTopology, values: Record<string, string>, colors: Map<string, string>): BorderSeg[] {
@@ -41,6 +41,40 @@ const PlayLayer = memo(function PlayLayer({ topo, play, size }: { topo: HexTopol
   </g>;
 });
 
+/** Fill badges are display-only. Location badges select a POI; cell/route badges are explicitly illustrative. */
+const FillLayer = memo(function FillLayer({ icons, hiddenCells, geometry }: { icons: MapFillIcon[]; hiddenCells?: Set<string>; geometry: WorldMap['geometry'] }) {
+  const size = geometry.size;
+  const totals = new Map<string, number>();
+  for (const icon of icons) {
+    const key = icon.toCell ? `${icon.cell}>${icon.toCell}` : icon.cell;
+    totals.set(key, (totals.get(key) ?? 0) + 1);
+  }
+  const slots = new Map<string, number>();
+  return <g className="map-fill-icons" data-testid="map-fill-icons">
+    {icons.map(icon => {
+      if (hiddenCells?.has(icon.cell) || (icon.toCell && hiddenCells?.has(icon.toCell))) return null;
+      const from = parseCellKey(icon.cell); const to = icon.toCell ? parseCellKey(icon.toCell) : null;
+      if (!from || (icon.toCell && !to)) return null;
+      const key = icon.toCell ? `${icon.cell}>${icon.toCell}` : icon.cell;
+      const slot = slots.get(key) ?? 0; slots.set(key, slot + 1);
+      const count = totals.get(key) ?? 1;
+      const a = hexToPixel(geometry, from);
+      const b = to ? hexToPixel(geometry, to) : null;
+      const x = (a.x + (b?.x ?? a.x)) / 2 + (slot - (count - 1) / 2) * size * 0.52;
+      const y = (a.y + (b?.y ?? a.y)) / 2 - (b ? 0 : size * 0.72);
+      return <g key={icon.id} data-fill-id={icon.id} data-fill-kind={icon.kind}
+        {...(icon.locationId ? {'data-poi': icon.locationId} : {})}
+        {...(icon.illustrative ? {'data-illustrative': 'true', pointerEvents: 'none'} : {})}
+        transform={`translate(${x} ${y})`} className={`map-fill-icon ${icon.kind}${icon.illustrative ? ' illustrative' : ''}`}>
+        <title>{`${icon.label}${icon.illustrative ? '（仅示意）' : ''}`}</title>
+        <rect x={-size * 0.28} y={-size * 0.28} width={size * 0.56} height={size * 0.56} rx={size * 0.14}
+          fill={icon.color} stroke="#fff" strokeWidth={1.5} strokeDasharray={icon.illustrative ? '3 2' : undefined} />
+        <text textAnchor="middle" dominantBaseline="central" fill="#fff" style={{fontSize: Math.max(10, size * 0.34), fontWeight: 700, pointerEvents: 'none'}}>{icon.icon}</text>
+      </g>;
+    })}
+  </g>;
+});
+
 /** SVG fallback/test renderer (jsdom-friendly, DOM-inspectable). */
 export const SvgHexRenderer = memo(forwardRef<HexRendererHandle, HexRendererProps>(function SvgHexRenderer({ state, view }, ref) {
   const { map, topo, mode } = state; const g = map.geometry;
@@ -67,6 +101,7 @@ export const SvgHexRenderer = memo(forwardRef<HexRendererHandle, HexRendererProp
   }, [map.layers?.regions, g, state.play?.hiddenCells]); // eslint-disable-line react-hooks/exhaustive-deps
   const brush = state.brushCells.map(k => topo.byKey.get(k)?.points).filter((p): p is string => !!p);
   const layerMode = mode !== 'poi';
+  const fillIcons = state.fillIcons ?? projectMapFillIcons(map);
   return <svg ref={svgRef} className="branch-canvas-svg" width="100%" height="100%" data-renderer="svg" style={{ ['--map-label' as string]: `${labelWorldSize(view.zoom)}px` }}>
     <g ref={gRef} transform={transformOf(view)}>
       <Cells topo={topo} terrain={terrain} terrainColors={terrainColors} poiCells={poiCells} faded={mode === 'faction'} selected={selected} drop={state.dropCell} />
@@ -97,6 +132,8 @@ export const SvgHexRenderer = memo(forwardRef<HexRendererHandle, HexRendererProp
           </g>;
         })}
       </g>
+      {(mode === 'poi' || mode === 'fill' || state.play) && fillIcons.length > 0
+        && <FillLayer icons={fillIcons} hiddenCells={state.play?.hiddenCells} geometry={g} />}
       {state.npcMarkers && state.npcMarkers.length > 0 && <g className="map-npcs" pointerEvents="none" data-testid="map-npcs">
         {state.npcMarkers.map((n, i) => { const a = parseCellKey(n.cell); if (!a || state.play?.hiddenCells?.has(n.cell)) return null; const c = hexToPixel(g, a);
           const dx = g.size * 0.42 + (i % 3) * 6; return <g key={`${n.cell}-${i}`} data-npc-marker={n.label} transform={`translate(${c.x + dx} ${c.y - g.size * 0.35})`}>

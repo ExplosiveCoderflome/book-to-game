@@ -1,9 +1,23 @@
 import { z } from 'zod';
-import { authorReadSchema, extractMapDraftInputSchema, worldContentSchema } from '@novel-game/contracts';
-import { extractMapDraft } from '../../modules/worlds/index.js';
+import {
+  acceptMapFillInputSchema, authorReadSchema, extractMapDraftInputSchema, mapFillPlacementSchema,
+  proposeMapFillInputSchema, resourceDefSchema, storyletSchema, worldConditionSchema, worldContentSchema, worldEffectSchema,
+} from '@novel-game/contracts';
+import {
+  acceptMapFill, extractMapDraft, mockMapFillModel, placeMapFill, proposeMapFill, updateMapFillPlacement,
+} from '../../modules/worlds/index.js';
 import { AppError } from '../../shared/errors.js';
 import type { Workbench } from '../workbench.js';
 import { command, emptySchema, idSchema } from './definition.js';
+
+const versioned = {id: z.string().min(1), version: z.number().int().positive()};
+const entityId = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/);
+const locationSchema = worldContentSchema.shape.locations.element;
+const conditionTarget = z.object({
+  ...versioned, storyletId: entityId, choiceId: entityId.optional(),
+  target: z.enum(['when', 'availableWhen', 'requires']).default('when'),
+}).refine(input => input.target === 'when' ? !input.choiceId : !!input.choiceId,
+  'when 不能指定 choiceId；availableWhen/requires 必须指定 choiceId');
 
 export function worldCommands(w: Workbench) {
   return [
@@ -14,12 +28,54 @@ export function worldCommands(w: Workbench) {
       ({id, version, ...changes}) => {
         const draft = w.worlds.get(id); return w.worlds.update(id, {version, content: {...draft.content, ...changes}});
       }),
+    command('add_world_location', '按指定版本新增一个地点，只修改地点列表；通过世界引用与来源规则校验后保存，不修改地图。',
+      z.object({...versioned, location: locationSchema}), false,
+      ({id, ...input}) => w.worlds.addLocation(id, input)),
+    command('update_world_location', '按指定版本整体修改一个已有地点，地点ID保持不变；通过世界引用与来源规则校验后保存，不修改地图。',
+      z.object({...versioned, location: locationSchema}), false,
+      ({id, ...input}) => w.worlds.updateLocation(id, input)),
+    command('add_world_storylet', '按指定版本新增一张剧情卡及其选项；通过世界引用和剧情卡规则校验后保存。',
+      z.object({...versioned, storylet: storyletSchema}), false,
+      ({id, ...input}) => w.worlds.addStorylet(id, input)),
+    command('update_world_storylet', '按指定版本整体修改一张已有剧情卡，剧情卡ID保持不变；通过世界引用和剧情卡规则校验后保存。',
+      z.object({...versioned, storylet: storyletSchema}), false,
+      ({id, ...input}) => w.worlds.updateStorylet(id, input)),
+    command('add_storylet_condition', '按指定版本给剧情卡出现条件（when）或指定选项的可见/执行条件追加一项条件。',
+      conditionTarget.extend({condition: worldConditionSchema}), false,
+      ({id, ...input}) => w.worlds.addStoryletCondition(id, input)),
+    command('remove_storylet_condition', '按指定版本从剧情卡出现条件（when）或指定选项的可见/执行条件中按索引删除一项条件。',
+      conditionTarget.extend({conditionIndex: z.number().int().nonnegative()}), false,
+      ({id, ...input}) => w.worlds.removeStoryletCondition(id, input)),
+    command('add_storylet_effect', '按指定版本给剧情卡指定选项追加一项效果，并通过世界引用规则校验。',
+      z.object({...versioned, storyletId: entityId, choiceId: entityId, effect: worldEffectSchema}), false,
+      ({id, ...input}) => w.worlds.addStoryletEffect(id, input)),
+    command('remove_storylet_effect', '按指定版本从剧情卡指定选项中按索引删除一项效果。',
+      z.object({...versioned, storyletId: entityId, choiceId: entityId, effectIndex: z.number().int().nonnegative()}), false,
+      ({id, ...input}) => w.worlds.removeStoryletEffect(id, input)),
+    command('add_world_resource_def', '按指定版本新增资源定义（范围、初始值、展示和阈值触发），并通过资源引用规则校验。',
+      z.object({...versioned, resourceId: entityId, definition: resourceDefSchema}), false,
+      ({id, ...input}) => w.worlds.addResourceDef(id, input)),
+    command('update_world_resource_def', '按指定版本整体修改已有资源定义，资源ID保持不变，并通过资源引用规则校验。',
+      z.object({...versioned, resourceId: entityId, definition: resourceDefSchema}), false,
+      ({id, ...input}) => w.worlds.updateResourceDef(id, input)),
     command('extract_map_draft', 'AI：从小说原文抽取地图草案（地点/势力/人物/通路），返回待作者逐项审阅的 diff；不修改草稿。',
       extractMapDraftInputSchema.extend({id: z.string()}), true, async ({id, ...input}) => {
         if (!w.providerConfigured) throw new AppError('MODEL_NOT_CONFIGURED', '尚未配置模型。请进入“模型设置”后再使用 AI 提取。', 503);
         const provider = w.createPlayProvider();
         return extractMapDraft(w.worlds, sid => w.sources.get(sid), id, input, provider, AbortSignal.timeout(180_000), provider.modelName);
       }),
+    command('place_map_fill', '在已确认地图的已绑定地点放置建筑库资产或遭遇；本地覆盖不写回库。',
+      z.object({id: z.string(), version: z.number().int().positive(), mapId: z.string().optional(), placement: mapFillPlacementSchema}), false,
+      ({id, ...input}) => placeMapFill(w.worlds, w.buildingLibrary, id, input)),
+    command('update_map_fill_placement', '修改已确认地图上的单条填充名称或本地覆盖；不修改建筑库资产。',
+      z.object({id: z.string(), version: z.number().int().positive(), mapId: z.string().optional(), placementId: z.string(),
+        patch: z.object({label: z.string().min(1).max(80).optional(), localOverrides: z.record(z.string(), z.unknown()).optional()})}), false,
+      ({id, ...input}) => updateMapFillPlacement(w.worlds, w.buildingLibrary, id, input)),
+    command('propose_map_fill', 'Mock AI：基于已确认地图与建筑库生成填充提案，只读；不发明未绑定地点，不写草稿或存档。',
+      proposeMapFillInputSchema.extend({id: z.string(), mapId: z.string().optional()}), true, async ({id, ...input}) =>
+        proposeMapFill(w.worlds, w.buildingLibrary, id, input, mockMapFillModel, AbortSignal.timeout(30_000), 'mock-map-fill')),
+    command('accept_map_fill', '接受已审核的既有资产填充提案并一次性写入草稿；新资产须先经建筑库审核入库。',
+      acceptMapFillInputSchema.extend({id: z.string()}), false, ({id, ...input}) => acceptMapFill(w.worlds, w.buildingLibrary, id, input)),
     command('get_world_schema', '获取v1开放世界JSON Schema；草稿需校验引用与来源后再发布。', emptySchema, true, () => z.toJSONSchema(worldContentSchema)),
     command('create_world_draft', '建立开放世界草稿；作者视图含隐藏事实和NPC私有目标，不可直接作为玩家上下文。',
       z.object({sourceId: z.string().min(1), content: worldContentSchema}), false, input => w.worlds.create(input)),

@@ -118,33 +118,7 @@ export function createWorkbench(db: SqliteDatabase, modelSettings: ModelSettings
       if (!modelSettings.get().configured) throw new AppError('MODEL_NOT_CONFIGURED', '请先在模型设置配置Agent使用的模型', 503);
       return new AgentChatCompletionsModel(modelSettings.resolve());
     },
-    tools: () => createAgentChatTools(createCommands(workbench), (name, args) => {
-      const labels: Record<string, string> = {retry_job: '恢复生成任务', cancel_job: '取消生成任务', rewrite_production_unit: '重写指定正文',
-        edit_world_summary: '修改世界摘要', publish_world_draft: '发布世界版本', publish_draft: '发布分支游戏',
-        create_generation_job: '创建改编任务', create_production_job: '创建角色扮演制作任务', apply_agent_repair: '应用修复候选', reject_agent_repair: '驳回修复候选'};
-      const label = labels[name] ?? name;
-      if (name === 'approve_saved_production_plan') {
-        const job = jobs.get(String(args.id));
-        if (job.updatedAt !== args.expectedUpdatedAt || job.status !== 'awaiting_review' || !job.productionState || job.productionState.approved) {
-          throw new AppError('CHAT_ACTION_STALE', '任务已变化或不在待审阅状态，请重新读取规划', 409);
-        }
-        const plan = job.productionState.plan;
-        return {summary: `确认「${plan.world.title}」当前玩法并开始正文生成：扮演${plan.world.playerRole}；${plan.world.storylets?.length ?? 0}张剧情卡、${plan.world.actions.length}个行动；路线：${plan.routes.map(r => r.name).join('、')}。将使用配置的模型产生费用，不发布游戏。`, guard: job.updatedAt};
-      }
-      if (['retry_job', 'cancel_job', 'rewrite_production_unit'].includes(name)) {
-        const job = jobs.get(String(args.id));
-        return {summary: `${label}：任务 ${job.id}（${job.status}，${job.stage}）`, guard: job.updatedAt};
-      }
-      if (['edit_world_summary', 'publish_world_draft'].includes(name)) {
-        const draft = worlds.get(String(args.id));
-        const fields: Record<string, string> = {title: '标题', premise: '背景', goal: '目标', adaptationNotes: '改编说明'};
-        const changes = Object.entries(args).filter(([key]) => !['id', 'version'].includes(key))
-          .map(([key, value]) => `${fields[key] ?? key}: ${JSON.stringify(draft.content[key as keyof typeof draft.content])} → ${JSON.stringify(value)}`).join('；');
-        return {summary: `${label}：「${draft.content.title}」v${draft.version}${changes ? `；${changes}` : ''}`, guard: String(draft.version)};
-      }
-      if (name === 'publish_draft') {const draft = games.get(String(args.id)); return {summary: `发布「${draft.content.title}」v${draft.version}`, guard: String(draft.version)};}
-      return {summary: `${label}：${JSON.stringify(args).slice(0, 1000)}`};
-    }),
+    tools: () => createAgentChatTools(createCommands(workbench), {jobs, worlds, games}),
   });
   const workbench = {provenanceBackfill, backfillProvenance, sources, games, sessions, worlds, preflight, adventures, exporter, buildingLibrary, buildingImages, itemCatalog, jobs, agentDecisions, agentRepairs, agentChat, createProductionJob, createRunner, createPlayProvider, modelSettings, testModelConnection, listModels, mediaDir,
     get providerConfigured() {return modelSettings.get().configured;}};

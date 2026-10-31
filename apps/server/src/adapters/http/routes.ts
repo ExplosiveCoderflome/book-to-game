@@ -49,6 +49,8 @@ const routes = [
   ['get', '/worlds/drafts/:id', 'get_world_draft'], ['put', '/worlds/drafts/:id', 'update_world_draft'],
   ['post', '/worlds/drafts/:id/read', 'read_world_draft'],
   ['post', '/worlds/drafts/:id/archive', 'archive_world_draft'], ['post', '/worlds/drafts/:id/validate', 'validate_world_draft'], ['post', '/worlds/drafts/:id/publish', 'publish_world_draft'], ['post', '/worlds/drafts/:id/map-draft', 'extract_map_draft'],
+  ['post', '/worlds/drafts/:id/map-fill/place', 'place_map_fill'], ['put', '/worlds/drafts/:id/map-fill/:placementId', 'update_map_fill_placement'],
+  ['post', '/worlds/drafts/:id/map-fill/propose', 'propose_map_fill'], ['post', '/worlds/drafts/:id/map-fill/accept', 'accept_map_fill'],
   ['post', '/worlds/drafts/:id/lint', 'lint_world_draft'], ['post', '/worlds/drafts/:id/playtest', 'playtest_world_draft'], ['get', '/worlds/drafts/:id/preflight', 'get_world_preflight'],
   ['get', '/worlds/revisions', 'list_world_revisions'], ['get', '/adventures', 'list_adventures'], ['post', '/adventures', 'start_adventure'],
   ['get', '/adventures/:id', 'get_adventure'], ['post', '/adventures/:id/actions', 'act_adventure'],

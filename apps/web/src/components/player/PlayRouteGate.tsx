@@ -64,13 +64,3 @@ export function PlayRouteGate({ token = '' }: Props) {
 
   return <PlayerShellLayout>{body}</PlayerShellLayout>;
 }
-
-export function useIsPlayerShell(): boolean {
-  const [player, setPlayer] = useState(() => isPlayerRoute(parsePlayRoute()));
-  useEffect(() => {
-    const onHash = () => setPlayer(isPlayerRoute(parsePlayRoute()));
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
-  }, []);
-  return player;
-}

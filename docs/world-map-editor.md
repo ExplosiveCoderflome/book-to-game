@@ -1,7 +1,7 @@
 # 世界地图编辑器：调研与设计（地图 · 地形 · 势力分布）
 
 > 状态：M1+ 多期已落地（静态地图、地形/势力/区域、试玩迷雾、子地图、AI 结构草稿等）；§7 早期 M2–M4 表保留作历史对照。  
-> **§9 地图确认 → 内容填充 → 建筑库：M-fill-1 已落地；M-fill-2 建筑库 v1 + 独立建筑库页 / AI 文本提议 / 出图接缝已在工作区（**尚未 git commit**）；**§9.10 建筑填充系统为规划（docs-only，未实现）；M-fill-3/4 待按 §9.10 落地。**  
+> **§9 地图确认 → 内容填充 → 建筑库：M-fill-1 已落地；M-fill-2 建筑库 v1 + 独立建筑库页 / AI 文本提议 / 出图接缝已在工作区（**尚未 git commit**）；**§9.10 M-fill-3/4/5 已落地（2026-10-30；地图填充 AI 当前使用 mock）。**
 > **物品目录 + 建筑分种类硬内容**：见 [`items-and-building-content.md`](./items-and-building-content.md) 与 §9.11；**M-item-1…3（Item Catalog + shop/supply + quest/encounter/boss 硬模板）已在工作区落地（尚未 git commit）**；M-item-4 未实现。  
 > 约束来源：[`extensibility.md`](./extensibility.md)（五层分离）· [`architecture.md`](./architecture.md)。  
 > 核心原则：**地图是共享基底上的一层可选数据，不是新运行时**。没有地图的世界照常可玩。
@@ -189,7 +189,7 @@ WorldMap = {
 
 ## 9. 地图确认 → 内容填充 → 建筑库
 
-> 状态：**M-fill-1 + M-fill-2 已提交**：结构锁 + 填充骨架；`BuildingLibrary` CRUD、独立建筑库页、AI 文本提议建筑、出图接缝（SVG 回退）。**把库建筑摆到已确认地图上的「建筑填充系统」见 §9.10（规划，未实现）**；AI `propose-map-fill` / 完整试玩图标按 §9.8 + §9.10。
+> 状态：**M-fill-1 + M-fill-2 已提交**：结构锁 + 填充骨架；`BuildingLibrary` CRUD、独立建筑库页、AI 文本提议建筑、出图接缝（SVG 回退）。**把库建筑摆到已确认地图上的「建筑填充系统」见 §9.10（M-fill-3/4/5 已落地）**；AI `propose-map-fill` 当前为 mock，试玩图标与迷雾按 §9.8 + §9.10。
 > 与 §7 M1–M4、题材地图模板、城市子地图正交：本段管的是「结构定稿之后」往地图上挂遭遇 / 商店 / 补给 / 任务等内容，以及跨城镇复用的**建筑库（Building Library）**编目。  
 > 纪律对齐 [`extensibility.md`](./extensibility.md)：Catalog 编译下行；AI 只出草稿；玩时只经 locations / conditions / effects。
 > **物品目录与分种类主要内容** → [`items-and-building-content.md`](./items-and-building-content.md)（**M-item-1…4 已提交** · 2026-10-28）。
@@ -337,10 +337,10 @@ BuildingLibrary = {
 6. **填充系统专有风险**（AI 发明未绑定地点、有图无规则、拖放手势冲突）→ 详见 **§9.10.7**。
 
 
-### 9.10 建筑填充系统（Building Fill System）— 规划
+### 9.10 建筑填充系统（Building Fill System）
 
-> 状态：**规划（docs-only，2026-10-28）**。前置能力已在工作区：§9.1–9.9 流水线、`structureLocked`、填充骨架、Building Library 独立页、AI `propose-building`（文本）、BuildingImageProvider。  
-> **本小节规划的是「确认地图之后，如何把库建筑（及遭遇类填充）落到地图上」**——含手摆、拖放、AI `propose-map-fill`。**尚未实现；实现前勿当作 API 契约。**  
+> 状态：**M-fill-3/4/5 已实现（2026-10-30）**：锁定后从库放置、本地覆盖检查器、一地多填、试玩图标与迷雾、shop/supply/quest/encounter/boss 规则桩、mock `propose-map-fill` 逐项审阅，以及格 / 路段 warning 标记。
+> 本小节规定「确认地图之后，如何把库建筑（及遭遇类填充）落到地图上」。`propose-map-fill` 当前命令名为 `propose_map_fill`，AI 适配器固定使用 mock；真实模型适配仍须另开任务。
 > Catalog 层纪律见 [`extensibility.md`](./extensibility.md) §2 Catalog：库资产 compile-down 到 Substrate；禁止静默改名 / 覆盖；AI 只出草稿。
 
 #### 9.10.1 前置条件（Preconditions）

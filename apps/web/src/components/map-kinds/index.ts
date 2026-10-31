@@ -9,3 +9,4 @@ const HexMapViewer = lazy(() => import('./hex/HexMapViewer').then(m => ({ defaul
 registerMapKindEditor({ kind: 'hex', label: '六边形', Editor: HexMapEditor, Viewer: HexMapViewer });
 
 export { DEFAULT_MAP_KIND, listMapKindEditors, mapKindEditor, registerMapKindEditor, type MapEditorProps, type MapViewerProps, type MapKindEditor } from './registry';
+export { SvgHexRenderer } from './hex/SvgHexRenderer';

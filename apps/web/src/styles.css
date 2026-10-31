@@ -3272,6 +3272,16 @@ summary:focus:not(:focus-visible) {
 .map-fill-lib-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 
 .map-fill-item-meta { font-size: 11px; color: var(--muted); }
+.map-fill-inspector, .map-fill-markers { display: flex; flex-direction: column; gap: 7px; padding: 9px 6px; border-top: 1px dashed var(--line); }
+.map-fill-inspector .world-map-tray-label, .map-fill-markers .world-map-tray-label { margin: 0; }
+.map-fill-inspector label, .map-fill-markers label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.map-fill-inspector .field-row { align-items: end; }
+.map-fill-inspector input[type="color"] { width: 48px; height: 30px; padding: 2px; }
+.map-fill-marker-list { display: flex; flex-direction: column; gap: 3px; }
+.map-fill-marker-list li { display: flex; align-items: center; gap: 5px; min-width: 0; font-size: 11px; }
+.map-fill-marker-list .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-fill-icon { cursor: pointer; }
+.map-fill-icon.illustrative { cursor: default; }
 .building-library-open-full { width: 100%; margin: 2px 0 4px; }
 .hint.ok { color: var(--green); }
 

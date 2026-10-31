@@ -1,11 +1,11 @@
 import { lazy, Suspense, useMemo, useRef, useState, type DragEvent } from 'react';
-import { MAP_FILL_KINDS, MAP_FILL_KIND_LABEL, MAP_SIZE_PRESETS, MAP_TEMPLATES, getMapTemplate, mapSizePreset, type BuildingLibrary, type MapFillKind } from '@novel-game/contracts';
-import { mapIdOf, parseCellKey, validateWorldMap, worldMaps } from '@novel-game/rules';
+import { MAP_FILL_KINDS, MAP_FILL_KIND_LABEL, MAP_SIZE_PRESETS, MAP_TEMPLATES, getMapTemplate, mapSizePreset, type BuildingLibrary, type LocalPlacementOverrides, type MapFillKind } from '@novel-game/contracts';
+import { mapIdOf, mapRouteActionIds, parseCellKey, projectMapFillIcons, validateWorldMap, worldMaps } from '@novel-game/rules';
 import { useI18n } from '../../lib/i18n';
 import { RequestError } from '../../lib/api';
 import { createBuildingAsset, promoteBuildingVariant } from '../../lib/building-library-api';
 import { applyMapTemplate, createEmptyMap, resizeMap, resizeMapEdge, setPoiVenueType, unbindLocation, type MapEdge } from '../../lib/world-map';
-import { addFillPlacement, lockMapStructure, placeFromBuildingAsset, placementToBuildingDraft, removeFillPlacement, unlockMapStructure, updateFillPlacement } from '../../lib/world-map-fill';
+import { addFillCellMarker, addFillPlacement, addFillRouteMarker, lockMapStructure, placeFromBuildingAsset, placementToBuildingDraft, removeFillMarker, removeFillPlacement, unlockMapStructure, updateFillPlacement } from '../../lib/world-map-fill';
 import { layerPalette } from '../../lib/world-map-edit';
 import { MapLayerPalette } from '../MapLayerPalette';
 import { BuildingLibraryPanel } from '../building-library/BuildingLibraryPanel';
@@ -40,6 +40,8 @@ export function HexMapEditor(props: MapEditorProps) {
   const [library, setLibrary] = useState<BuildingLibrary | null>(null);
   const [libraryRevision, setLibraryRevision] = useState(0);
   const [selectedAssetId, setSelectedAssetId] = useState<string | undefined>();
+  const [selectedFillId, setSelectedFillId] = useState<string | undefined>();
+  const [routeId, setRouteId] = useState('');
   const [libBusy, setLibBusy] = useState(false);
   const [libNote, setLibNote] = useState<string | null>(null);
   /** Locations already anchored on another map (root ↔ sub-maps) are not offered in this map's tray. */
@@ -53,9 +55,23 @@ export function HexMapEditor(props: MapEditorProps) {
     return m;
   }, [map?.pois]);
   const buildingIds = useMemo(() => new Set((library?.assets ?? []).map(a => a.id)), [library]);
-  const issues = useMemo(() => (map ? validateWorldMap(map, content.locations.map(l => l.id), library ? { buildingAssetIds: buildingIds } : undefined) : []), [map, content.locations, library, buildingIds]);
+  const fillRoutes = useMemo(() => content.actions.flatMap(action => {
+    const move = action.effects.find(effect => effect.kind === 'move');
+    if (!move || move.kind !== 'move') return [];
+    const from = map?.pois.find(poi => poi.locationId === action.locationId)?.anchor.cell;
+    const to = map?.pois.find(poi => poi.locationId === move.locationId)?.anchor.cell;
+    return from && to ? [{id: action.id, label: `${titles.get(action.locationId) ?? action.locationId} → ${titles.get(move.locationId) ?? move.locationId}`}] : [];
+  }), [content.actions, map?.pois, titles]);
+  const issues = useMemo(() => (map ? validateWorldMap(map, content.locations.map(l => l.id), {
+    ...(library ? {buildingAssetIds: buildingIds} : {}),
+    routeIds: mapRouteActionIds(content.actions),
+  }) : []), [map, content.locations, content.actions, library, buildingIds]);
   const bound = useMemo(() => new Set(map?.pois.map(p => p.locationId) ?? []), [map?.pois]);
   const problemLocations = useMemo(() => new Set(issues.filter(i => i.level === 'error').map(i => i.locationId)), [issues]);
+  const fillRenderState = useMemo(() => renderState ? {
+    ...renderState,
+    fillIcons: projectMapFillIcons(renderState.map, library ?? undefined, content.actions),
+  } : null, [renderState, library, content.actions]);
 
   if (!map) {
     return <div className="branch-canvas primary world-map-pane" data-testid="world-map-canvas">
@@ -94,9 +110,13 @@ export function HexMapEditor(props: MapEditorProps) {
   }
 
   const g = map.geometry;
+  const selectedFill = (map.fill?.placements ?? []).find(placement => placement.id === selectedFillId);
   const locked = map.structureLocked === true;
   const structureReadOnly = readOnly || locked;
   const fillReadOnly = readOnly || !locked;
+  const selectedFillOverrides = (selectedFill?.localOverrides ?? {}) as LocalPlacementOverrides;
+  const selectedFillAsset = selectedFill?.buildingAssetId ? library?.assets.find(asset => asset.id === selectedFill.buildingAssetId) : undefined;
+  const selectedFillColor = selectedFillOverrides.color ?? selectedFillAsset?.color ?? '#c9a227';
   const Renderer = RENDERERS[rendererId];
 
   function startDrag(e: DragEvent, id: string) { e.dataTransfer.setData(DND_TYPE, id); e.dataTransfer.effectAllowed = 'move'; }
@@ -109,6 +129,12 @@ export function HexMapEditor(props: MapEditorProps) {
   const toolDefs: { id: HexTool; label: string; key: string }[] = [
     { id: 'brush', label: '画笔', key: 'B' }, { id: 'fill', label: '填充', key: 'G' }, { id: 'erase', label: '橡皮', key: 'E' }, { id: 'pick', label: '吸管', key: 'I' },
   ];
+  function patchFillOverrides(patch: Partial<LocalPlacementOverrides>) {
+    if (!selectedFill || !map) return;
+    const next: Record<string, unknown> = {...(selectedFill.localOverrides ?? {}), ...patch};
+    for (const [key, value] of Object.entries(next)) if (value === '' || value === undefined) delete next[key];
+    commit(updateFillPlacement(map, selectedFill.id, {localOverrides: next as LocalPlacementOverrides}), `fill-inspector-${selectedFill.id}`);
+  }
 
   return <div className="branch-canvas primary world-map-pane" data-testid="world-map-canvas">
     <div className="branch-canvas-chrome world-map-chrome">
@@ -232,11 +258,13 @@ export function HexMapEditor(props: MapEditorProps) {
                         return;
                       } finally { setLibBusy(false); }
                     }
-                    commit(addFillPlacement(map, {
+                    const next = addFillPlacement(map, {
                       kind: fillKind, locationId: selectedLocationId,
                       label: fillLabel || undefined,
                       buildingAssetId: assetId, buildingAssetVersion: assetVer,
-                    }));
+                    });
+                    commit(next);
+                    setSelectedFillId(next.fill?.placements.at(-1)?.id);
                     setFillLabel('');
                   })();
                 }}>{t('添加填充')}</button>
@@ -247,8 +275,10 @@ export function HexMapEditor(props: MapEditorProps) {
                   if (!map || !selectedLocationId || !library || !selectedAssetId) return;
                   const asset = library.assets.find(a => a.id === selectedAssetId);
                   if (!asset) return;
-                  commit(placeFromBuildingAsset(map, selectedLocationId, asset,
-                    fillLabel.trim() ? { label: fillLabel.trim() } : undefined));
+                  const next = placeFromBuildingAsset(map, selectedLocationId, asset,
+                    fillLabel.trim() ? { label: fillLabel.trim() } : undefined);
+                  commit(next);
+                  setSelectedFillId(next.fill?.placements.at(-1)?.id);
                   setLibNote(t('已从库放置：{name}', { name: asset.label }));
                 }}>{t('从库放置')}</button>
             </div>
@@ -259,7 +289,7 @@ export function HexMapEditor(props: MapEditorProps) {
             {(map.fill?.placements ?? []).map(p => {
               const libAsset = p.buildingAssetId && library ? library.assets.find(a => a.id === p.buildingAssetId) : undefined;
               return <li key={p.id} data-testid={`map-fill-item-${p.id}`}
-                className={p.locationId === selectedLocationId ? 'selected' : ''} onClick={() => onSelectLocation(p.locationId)}>
+                className={p.id === selectedFillId ? 'selected' : ''} onClick={() => { setSelectedFillId(p.id); onSelectLocation(p.locationId); }}>
                 <span className={`map-fill-kind ${p.kind}`}>{t(MAP_FILL_KIND_LABEL[p.kind])}</span>
                 <span className="name">{p.label || libAsset?.label || titles.get(p.locationId) || p.locationId}</span>
                 {p.buildingAssetId
@@ -316,10 +346,51 @@ export function HexMapEditor(props: MapEditorProps) {
                     })();
                   }}>{t('升格')}</button>}
                 <button type="button" className="quiet tiny" disabled={fillReadOnly} title={t('移除')}
-                  onClick={e => { e.stopPropagation(); commit(removeFillPlacement(map, p.id)); }}>×</button>
+                  onClick={e => { e.stopPropagation(); commit(removeFillPlacement(map, p.id)); if (selectedFillId === p.id) setSelectedFillId(undefined); }}>×</button>
               </li>;
             })}
           </ul>
+          {selectedFill && <div className="map-fill-inspector" data-testid={`map-fill-inspector-${selectedFill.id}`}>
+            <p className="world-map-tray-label">{t('本地覆盖')} · {selectedFillAsset?.label ?? selectedFill.label ?? selectedFill.id}</p>
+            <label>{t('显示名称')}
+              <input data-testid="map-fill-override-label" disabled={fillReadOnly} maxLength={80}
+                value={selectedFillOverrides.label ?? ''} placeholder={selectedFill.label ?? selectedFillAsset?.label ?? ''}
+                onChange={e => patchFillOverrides({label: e.target.value})} />
+            </label>
+            <div className="field-row">
+              <label>{t('颜色')}<input type="color" data-testid="map-fill-override-color" disabled={fillReadOnly}
+                value={selectedFillColor} onChange={e => patchFillOverrides({color: e.target.value})} /></label>
+              <label>{t('图标')}<input data-testid="map-fill-override-icon" disabled={fillReadOnly} maxLength={40}
+                value={selectedFillOverrides.icon ?? ''} placeholder={selectedFillAsset?.icon ?? MAP_FILL_KIND_LABEL[selectedFill.kind]}
+                onChange={e => patchFillOverrides({icon: e.target.value})} /></label>
+            </div>
+            <p className="hint">{t('只改变此地点的展示与互动默认项，不写回建筑库。')}</p>
+          </div>}
+          <div className="map-fill-markers" data-testid="map-fill-markers">
+            <p className="world-map-tray-label">{t('格 / 路段标记（仅示意 · warning）')}</p>
+            <button type="button" className="small" data-testid="map-fill-add-cell-marker"
+              disabled={fillReadOnly || !(selectedCell ?? selectedPoiCell)}
+              onClick={() => {
+                const cell = selectedCell ?? selectedPoiCell; if (!cell) return;
+                commit(addFillCellMarker(map, {kind: fillKind, cell, label: fillLabel || undefined}));
+              }}>{t('在当前格添加标记')}</button>
+            <label>{t('移动路段')}
+              <select data-testid="map-fill-route" disabled={fillReadOnly || !fillRoutes.length} value={routeId} onChange={e => setRouteId(e.target.value)}>
+                <option value="">{t('选择已有移动行动')}</option>
+                {fillRoutes.map(route => <option key={route.id} value={route.id}>{route.label}</option>)}
+              </select>
+            </label>
+            <button type="button" className="small" data-testid="map-fill-add-route-marker" disabled={fillReadOnly || !routeId}
+              onClick={() => { if (routeId) commit(addFillRouteMarker(map, {kind: fillKind, routeId, label: fillLabel || undefined})); }}>{t('添加路段标记')}</button>
+            <p className="hint">{t('标记不创建地点、道路或移动；需要玩法时请另接规则。')}</p>
+            <ul className="map-fill-marker-list">
+              {[...(map.fill?.cellMarkers ?? []).map(marker => ({...marker, target: marker.cell})), ...(map.fill?.routeMarkers ?? []).map(marker => ({...marker, target: marker.routeId}))].map(marker => <li key={marker.id}>
+                <span className={`map-fill-kind ${marker.kind}`}>{t(MAP_FILL_KIND_LABEL[marker.kind])}</span>
+                <span className="name">{marker.label ?? marker.id} · {marker.target}</span><span className="tag">{t('仅示意')}</span>
+                <button type="button" className="quiet tiny" disabled={fillReadOnly} title={t('移除')} onClick={() => commit(removeFillMarker(map, marker.id))}>×</button>
+              </li>)}
+            </ul>
+          </div>
           <BuildingLibraryPanel
             token={token}
             compact
@@ -330,7 +401,7 @@ export function HexMapEditor(props: MapEditorProps) {
             onLibraryChange={(lib, rev) => { setLibrary(lib); setLibraryRevision(rev); }}
             onOpenFullLibrary={onOpenBuildingLibrary}
           />
-          <p className="hint map-tray-hint">{t('放置 = 库引用 + 本地覆盖；升格会新建变体，绝不覆盖原资产。AI 填充后续阶段接入。')}</p>
+          <p className="hint map-tray-hint">{t('放置 = 库引用 + 本地覆盖；升格会新建变体，绝不覆盖原资产。AI 填充在顶部经逐项审阅后导入。')}</p>
         </> : layerMode ? <>
           <div className="map-tools" role="toolbar" aria-label={t('工具')}>
             {toolDefs.map(d => <button key={d.id} type="button" data-testid={`map-tool-${d.id}`} className={`small${tool === d.id ? ' active' : ''}`} title={`${t(d.label)} (${d.key})`} onClick={() => setTool(d.id)}>
@@ -376,7 +447,7 @@ export function HexMapEditor(props: MapEditorProps) {
       </aside>
       <div ref={viewportRef} className={`branch-canvas-viewport world-map-viewport${layerMode ? ` painting tool-${tool}` : ''}`} data-renderer={rendererId}
         {...c.handlers} onContextMenu={e => layerMode && e.preventDefault()}>
-        {renderState && <Suspense fallback={null}><Renderer ref={rendererRef} state={renderState} view={c.view.current} /></Suspense>}
+        {fillRenderState && <Suspense fallback={null}><Renderer ref={rendererRef} state={fillRenderState} view={c.view.current} /></Suspense>}
         {!layerMode && (map.layers?.terrain || map.layers?.factions || map.layers?.regions) && <div className="world-map-legend" data-testid="world-map-legend">
           {map.layers?.terrain && <div><p className="world-map-tray-label">{t('地形')}</p>
             {map.layers.terrain.palette.map(p => <span key={p.id}><i style={{ background: p.color }} />{p.label}</span>)}</div>}

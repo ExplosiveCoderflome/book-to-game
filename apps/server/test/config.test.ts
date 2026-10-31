@@ -29,3 +29,14 @@ test('local access token survives restart and absent provider stays disabled', (
     assert.throws(() => loadConfig({LLM_RETRY_BASE_MS: '1000', LLM_RETRY_MAX_MS: '10'}), /LLM_RETRY_MAX_MS/);
   } finally {rmSync(dir, {recursive: true, force: true});}
 });
+
+test('XFYUN_API_KEY selects only the XFYUN chat-completions provider by default', () => {
+  const config = loadConfig({XFYUN_API_KEY: 'test-xfyun-key'});
+  assert.equal(config.provider.baseUrl, 'https://maas-api.cn-huabei-1.xf-yun.com/v1');
+  assert.equal(config.provider.model, 'spark-x2.6');
+  assert.equal(config.provider.apiKey, 'test-xfyun-key');
+  assert.equal(config.providerConfigured, true);
+
+  const other = loadConfig({XFYUN_API_KEY: 'test-xfyun-key', LLM_BASE_URL: 'https://api.example.test/v1', LLM_MODEL: 'other'});
+  assert.equal(other.provider.apiKey, '', 'XFYUN key must never be sent to another provider');
+});

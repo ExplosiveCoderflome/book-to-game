@@ -1,5 +1,7 @@
 /** Pure rule engines — no React, Express, or SQL. Schema/DTO authority stays in @novel-game/contracts. */
-export { resourceLabelsForWorld, resourceDisplayLabel, type ResourceLabelSource } from './resource-labels.js';
+export {
+  GENERIC_LABELS, XIANXIA_LABEL_PRESET, resourceLabelsForWorld, resourceDisplayLabel, type ResourceLabelSource,
+} from './resource-labels.js';
 
 export {
   analyzeReachability, choiceAvailable as reachChoiceAvailable, applyChoiceEffects as reachApplyEffects,
@@ -53,6 +55,7 @@ export {
 } from './world-map.js';
 
 export { validateMapLayers } from './world-map.js';
+export { projectMapFillIcons, mapRouteActionIds } from './map-fill-view.js';
 export {
   describeMapForImagePrompt, describeMapStructured, renderMapSchematicSvg, regionOf, DEFAULT_MAP_STYLE,
   type MapDescription, type MapDescribeWorld, type MapPlaceRef, type MapPromptOptions, type SchematicOptions,

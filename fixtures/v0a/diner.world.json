@@ -1,0 +1,388 @@
+{
+  "schemaVersion": 1,
+  "mode": "open",
+  "title": "街角小饭馆（V0a 引擎夹具）",
+  "premise": "你接手了一家街角小饭馆，要在三十天里稳住心情、攒下收入，并让附近居民成为愿意反复光顾的熟客。",
+  "playerRole": "小饭馆的新店主",
+  "goal": "在三十天内积累六位熟客，同时避免心情跌到谷底。",
+  "worldRules": [
+    "时间以日计，每个行动通常耗费一天，三十天后盘点经营结果。",
+    "钱用于采购与招待，心情归零时饭馆停业，熟客达到六位时经营成功。"
+  ],
+  "adaptationNotes": "V0a synthetic modern-world fixture for theme-decoupled labels, clocks and simulation.",
+  "sourceChapterIds": ["fixture-v0a-diner"],
+  "initialLocationId": "dining_room",
+  "timeLimit": 30,
+  "timeoutEnding": "三十天过去了，饭馆没能形成稳定客流，只能悄悄关门。",
+  "locations": [
+    {
+      "id": "dining_room",
+      "title": "饭馆前厅",
+      "text": "几张木桌擦得干净，午间的阳光落在菜单上，街坊从门前经过时会朝里面看一眼。墙上挂着手写的今日推荐，收银台旁放着邻居送来的绿植，角落里还留着给带小孩客人准备的高脚椅。你能听见厨房排风扇的低响，也能看见每位客人进门时最先望向哪张桌子。这里既是讨生活的店面，也是接下来三十天里最需要用心照料的地方。每一次招呼和每一顿热饭，都会被这条街记住。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "kitchen",
+      "title": "小厨房",
+      "text": "灶上的汤咕嘟作响，备菜整齐排在案板边，忙完一阵后也能在这里坐下来喘口气。冰箱门贴着采购清单，每种食材后面都记着价格和到货日期，墙面计时器则提醒你下一锅汤还要等多久。狭小的空间容不得浪费，油盐酱醋都有固定位置，洗完的抹布必须晾好。你在这里决定菜味，也在这里整理账目和情绪，慢慢学会让忙碌变得有秩序。照顾好自己，才有力气照顾每一位客人。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "street",
+      "title": "门前小街",
+      "text": "菜摊、洗衣店和修车铺沿街排开，店主们彼此熟识，傍晚时常有人聚在树荫下聊天。早晨送奶的三轮车准时经过，放学后孩子们会围着文具店挑选零食，雨天则有人把纸箱临时堆在你的屋檐下。哪家最近换了招牌、哪位居民爱吃清淡口味，这条街总有人愿意告诉你。经营饭馆不只是等客上门，也包括记住这些面孔，并在合适的时机回应他们。",
+      "origin": "adapted",
+      "evidence": []
+    }
+  ],
+  "facts": [],
+  "npcs": [],
+  "actions": [
+    {
+      "id": "go_hall_kitchen",
+      "label": "回到小厨房",
+      "description": "穿过前厅的窄门回到灶边。",
+      "locationId": "dining_room",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "现在过不去",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [{"kind": "move", "locationId": "kitchen"}],
+      "text": "你掀开布帘回到厨房，开始整理今天的备菜。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "go_hall_street",
+      "label": "走到门前小街",
+      "description": "出门看看街坊和菜摊。",
+      "locationId": "dining_room",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "现在过不去",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [{"kind": "move", "locationId": "street"}],
+      "text": "你挂好围裙走到街上，顺路和相熟的邻居打招呼。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "go_kitchen_hall",
+      "label": "回到饭馆前厅",
+      "description": "从厨房回到待客的大堂。",
+      "locationId": "kitchen",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "现在过不去",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [{"kind": "move", "locationId": "dining_room"}],
+      "text": "你端着热茶回到前厅，留意每张桌上的需要。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "go_kitchen_street",
+      "label": "从后门去小街",
+      "description": "从厨房后门去采购。",
+      "locationId": "kitchen",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "现在过不去",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [{"kind": "move", "locationId": "street"}],
+      "text": "你从后门绕到街上，菜贩远远就向你点头。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "go_street_hall",
+      "label": "回到饭馆前厅",
+      "description": "带着采购的东西回店。",
+      "locationId": "street",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "现在过不去",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [{"kind": "move", "locationId": "dining_room"}],
+      "text": "你提着食材回到店里，准备迎接下一桌客人。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "go_street_kitchen",
+      "label": "直接回到小厨房",
+      "description": "从后门把食材送进厨房。",
+      "locationId": "street",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "现在过不去",
+      "risk": "",
+      "timeCost": 1,
+      "once": false,
+      "effects": [{"kind": "move", "locationId": "kitchen"}],
+      "text": "你把新鲜蔬菜放进水池，厨房很快又热闹起来。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "work_shift",
+      "label": "认真营业一天",
+      "description": "稳定出餐并照顾客人，收入增加但会消耗心情。",
+      "locationId": "dining_room",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "今天无法营业",
+      "risk": "连续忙碌会让心情下降。",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {"kind": "resource", "resourceId": "money", "delta": 6},
+        {"kind": "resource", "resourceId": "regulars", "delta": 1},
+        {"kind": "resource", "resourceId": "mood", "delta": -1}
+      ],
+      "text": "你按顺序上菜、结账、收拾桌面，一位客人说明天还想带朋友过来。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "take_breather",
+      "label": "给自己做顿员工餐",
+      "description": "花一点收入好好休息，恢复心情。",
+      "locationId": "kitchen",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "现在没时间休息",
+      "risk": "休息会少一笔收入。",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {"kind": "resource", "resourceId": "money", "delta": -2},
+        {"kind": "resource", "resourceId": "mood", "delta": 2}
+      ],
+      "text": "你关掉灶火，慢慢吃完一碗热面，紧绷的肩膀终于放松下来。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "hand_flyers",
+      "label": "给街坊发新品传单",
+      "description": "花些小钱介绍饭馆，可能多一位熟客。",
+      "locationId": "street",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "今天不方便宣传",
+      "risk": "奔波一天会消耗心情。",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {"kind": "resource", "resourceId": "money", "delta": -2},
+        {"kind": "resource", "resourceId": "regulars", "delta": 1},
+        {"kind": "resource", "resourceId": "mood", "delta": -1}
+      ],
+      "text": "几位街坊收下传单，答应下次散步时进来尝一碗招牌汤面。",
+      "origin": "adapted",
+      "evidence": []
+    }
+  ],
+  "events": [],
+  "storylets": [
+    {
+      "id": "lunch_rush",
+      "title": "午间客流",
+      "kind": "repeat",
+      "locationIds": ["dining_room"],
+      "weight": {"base": 10},
+      "repeat": {"cooldownTurns": 1},
+      "text": "午休的客人陆续进门，几张桌子很快坐满，门口还有两位上班族看着手表等位。有人催着回去开会，有人想慢慢吃完一顿热饭，后厨的订单已经排成了一小段。你认得其中几张面孔，也知道今天多接几单能让账面宽裕不少，只是连续奔跑会让人心烦。你可以加快出餐，也可以把节奏放得稳一些，先向客人说清楚等待时间。",
+      "choices": [
+        {
+          "id": "serve_fast",
+          "label": "加快出餐，认真招呼每桌",
+          "timeCost": 1,
+          "effects": [
+            {"kind": "resource", "resourceId": "money", "delta": 8},
+            {"kind": "resource", "resourceId": "regulars", "delta": 1},
+            {"kind": "resource", "resourceId": "mood", "delta": -1}
+          ],
+          "text": "你虽然忙个不停，但热饭热菜准时上桌，一位常客主动帮你收拾了餐具。"
+        },
+        {
+          "id": "steady_pace",
+          "label": "稳住节奏，不勉强自己",
+          "timeCost": 1,
+          "effects": [
+            {"kind": "resource", "resourceId": "money", "delta": 4},
+            {"kind": "resource", "resourceId": "mood", "delta": 1}
+          ],
+          "text": "你如实告诉客人需要稍等，大家并不催促，你也得以从容地完成每一道菜。"
+        }
+      ]
+    },
+    {
+      "id": "regular_visit",
+      "title": "熟客带朋友来",
+      "kind": "repeat",
+      "locationIds": ["dining_room"],
+      "weight": {"base": 8},
+      "repeat": {"cooldownTurns": 1},
+      "text": "附近理发店的老板带着朋友来吃饭，笑着说上次的家常菜让人惦记，请你推荐今天的菜。朋友第一次来，对店里的分量和价格都不熟悉，一边翻菜单一边询问哪道菜适合两个人分着吃。老板则熟门熟路地搬来椅子，还说如果味道保持稳定，以后每周都会来。你可以花些成本让他们吃得尽兴，也可以按普通订单处理，把精力留给后面的客人。",
+      "choices": [
+        {
+          "id": "welcome_table",
+          "label": "送一道小菜，介绍今日推荐",
+          "timeCost": 1,
+          "effects": [
+            {"kind": "resource", "resourceId": "money", "delta": -3},
+            {"kind": "resource", "resourceId": "regulars", "delta": 2},
+            {"kind": "resource", "resourceId": "mood", "delta": 1}
+          ],
+          "text": "桌上的谈笑声一直持续到打烊，两位客人约好下周再来尝尝你的新菜。"
+        },
+        {
+          "id": "ordinary_service",
+          "label": "按普通订单快速出餐",
+          "timeCost": 1,
+          "effects": [
+            {"kind": "resource", "resourceId": "money", "delta": 6},
+            {"kind": "resource", "resourceId": "mood", "delta": -1}
+          ],
+          "text": "你把精力留给灶台，订单顺利完成，只是散席后觉得有些疲惫。"
+        }
+      ]
+    },
+    {
+      "id": "market_supply",
+      "title": "菜摊今日到货",
+      "kind": "repeat",
+      "locationIds": ["street"],
+      "weight": {"base": 8},
+      "repeat": {"cooldownTurns": 1},
+      "text": "相熟的菜贩刚到一批新鲜番茄和青菜，给你留了不错的货，也提醒你最近成本涨了一点。竹筐里的蔬菜还带着水汽，旁边则摆着耐存放、价格更便宜的特价食材。菜贩愿意让你先挑，也坦白说两种货各有用处，关键看你准备怎样安排菜单。新鲜食材能让招牌汤更讨人喜欢，节省采购费则能缓解账面压力，你需要在收摊前作出决定。",
+      "choices": [
+        {
+          "id": "buy_fresh",
+          "label": "买下新鲜蔬菜，认真备料",
+          "timeCost": 1,
+          "effects": [
+            {"kind": "resource", "resourceId": "money", "delta": -5},
+            {"kind": "resource", "resourceId": "regulars", "delta": 1},
+            {"kind": "resource", "resourceId": "mood", "delta": 1}
+          ],
+          "text": "清甜的番茄让招牌汤更鲜了，客人问起时，你也很愿意讲讲今天的食材。"
+        },
+        {
+          "id": "bargain_supplies",
+          "label": "改买耐存放的特价食材",
+          "timeCost": 1,
+          "effects": [
+            {"kind": "resource", "resourceId": "money", "delta": 3},
+            {"kind": "resource", "resourceId": "mood", "delta": -2}
+          ],
+          "text": "你省下了一笔采购费，却为怎么调整菜单烦了一整天，心里始终不太踏实。"
+        }
+      ]
+    },
+    {
+      "id": "quiet_evening",
+      "title": "打烊后的试验",
+      "kind": "repeat",
+      "locationIds": ["kitchen"],
+      "weight": {"base": 8},
+      "repeat": {"cooldownTurns": 1},
+      "text": "最后一张桌子收拾干净，夜色安静下来，门外只剩路灯和偶尔经过的自行车。案板上还留着一点试用食材，冰箱里有早上没卖完的饭，墙上的笔记本则记满了客人随口提过的口味。你可以趁没人打扰试做新菜，请隔壁店主帮忙提意见，也可以不再碰订单，煮一锅简单的员工餐。今天的收入和明天的精神，都取决于你怎样使用这段空闲。",
+      "choices": [
+        {
+          "id": "test_recipe",
+          "label": "试做一道街坊口味的新菜",
+          "timeCost": 1,
+          "effects": [
+            {"kind": "resource", "resourceId": "money", "delta": -2},
+            {"kind": "resource", "resourceId": "regulars", "delta": 1},
+            {"kind": "resource", "resourceId": "mood", "delta": -1}
+          ],
+          "text": "你请隔壁店主尝了一小碗，对方认真提了建议，还说愿意带家人来试正式版本。"
+        },
+        {
+          "id": "staff_meal",
+          "label": "煮一锅员工餐，早点休息",
+          "timeCost": 1,
+          "effects": [
+            {"kind": "resource", "resourceId": "money", "delta": -4},
+            {"kind": "resource", "resourceId": "mood", "delta": 2}
+          ],
+          "text": "你慢慢吃完热饭，又把明天的准备工作列成短短几行，睡前觉得从容了许多。"
+        }
+      ]
+    }
+  ],
+  "endings": [
+    {
+      "id": "neighborhood_favorite",
+      "title": "街坊食堂",
+      "kind": "ending",
+      "text": "六位熟客成了饭馆稳定的底色，更多人跟着他们走进门。你终于有了继续经营下去的底气。",
+      "when": []
+    },
+    {
+      "id": "closed",
+      "title": "无奈停业",
+      "kind": "failure",
+      "text": "持续的压力耗尽了你的热情，饭馆只能暂时停业。你关上店门，决定先好好照顾自己。",
+      "when": []
+    }
+  ],
+  "resourceDefs": {
+    "money": {
+      "label": "钱",
+      "min": 0,
+      "max": 200,
+      "initial": 20,
+      "display": "number"
+    },
+    "mood": {
+      "label": "心情",
+      "min": 0,
+      "max": 10,
+      "initial": 6,
+      "display": "bar",
+      "onMin": {"ending": "closed"}
+    },
+    "regulars": {
+      "label": "熟客",
+      "min": 0,
+      "max": 6,
+      "initial": 0,
+      "display": "pips",
+      "onMax": {"ending": "neighborhood_favorite"}
+    }
+  },
+  "clock": {
+    "unit": "day",
+    "startYear": 2026,
+    "startMonth": 1,
+    "limitMonths": 30,
+    "timeoutEndingId": "closed"
+  },
+  "storyletRules": {
+    "handSize": 3,
+    "refreshOn": ["move", "clock"],
+    "refreshEveryMonths": 1
+  },
+  "production": {
+    "complete": false,
+    "tier": "S",
+    "note": "Small V0a engine fixture; volume shortfalls are intentionally non-blocking."
+  }
+}

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { worldEffectSchema, worldMapSchema, type WorldMap } from '@novel-game/contracts';
 import {
-  assertMapWriteAllowed, isStructureLocked, lockMapStructure, unlockMapStructure,
+  assertMapWriteAllowed, isStructureLocked, lockMapStructure, mapRouteActionIds, unlockMapStructure,
   validateWorldMap, worldEffectKinds,
 } from '@novel-game/rules';
 
@@ -25,6 +25,7 @@ test('fill + structureLocked schema: optional, closed kinds, rejects unknown kin
         { id: 'boss_a', kind: 'boss', locationId: 'a' },
       ],
       cellMarkers: [{ id: 'road_1', kind: 'encounter', cell: '1,0' }],
+      routeMarkers: [{ id: 'route_1', kind: 'encounter', routeId: 'to_b' }],
     },
   }).success);
   assert.equal(worldMapSchema.safeParse({
@@ -50,7 +51,7 @@ test('structure lock gate: refuse size/poi/layer edits; allow fill/fog/unlock', 
   assert.equal(assertMapWriteAllowed(base, { ...base, geometry: { ...base.geometry, cols: 8 } }).ok, true);
 });
 
-test('validateWorldMap fill: missing location error, unbound warning, cell marker warning', () => {
+test('validateWorldMap fill: missing/unbound location errors, cell marker warning', () => {
   const map: WorldMap = {
     ...lockMapStructure(base),
     fill: {
@@ -67,6 +68,31 @@ test('validateWorldMap fill: missing location error, unbound warning, cell marke
   assert.ok(codes.includes('fill_unbound_location'));
   assert.ok(codes.includes('fill_unbound_marker'));
   assert.ok(!codes.includes('fill_duplicate_id'));
+});
+
+test('M-fill-5 cell/route markers stay warning-level and never become locations or roads', () => {
+  assert.deepEqual(mapRouteActionIds([
+    {id: 'wait', effects: []},
+    {id: 'move_a_b', effects: [{kind: 'move', locationId: 'b'}]},
+  ]), ['move_a_b']);
+  const map: WorldMap = {
+    ...lockMapStructure(base),
+    fill: {
+      placements: [],
+      cellMarkers: [{id: 'cell_only', kind: 'encounter', cell: '1,0'}],
+      routeMarkers: [
+        {id: 'known_route', kind: 'encounter', routeId: 'move_a_b'},
+        {id: 'unknown_route', kind: 'boss', routeId: 'missing_move'},
+      ],
+    },
+  };
+  const issues = validateWorldMap(map, ['a'], {routeIds: ['move_a_b']});
+  const cell = issues.filter(issue => issue.code === 'fill_unbound_marker');
+  assert.equal(cell.length, 3);
+  assert.ok(cell.every(issue => issue.level === 'warning'));
+  assert.ok(issues.some(issue => issue.code === 'fill_unknown_route' && issue.level === 'warning' && issue.routeId === 'missing_move'));
+  assert.equal(issues.some(issue => issue.level === 'error'), false);
+  assert.equal(map.pois.length, 1);
 });
 
 test('start_encounter stub registered and schema-valid; no other fill kinds in effects', () => {

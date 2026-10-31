@@ -24,7 +24,7 @@ export function PlayMapPanel({ content, session, overlayMap }: { content: WorldC
       <div><dt>{t('地形')}</dt><dd>{mv.terrain?.label ?? '—'}</dd></div>
       <div><dt>{t('势力')}</dt><dd>{mv.faction ? <span className="faction-chip" style={{ ['--chip' as string]: map.layers?.factions?.factions.find(f => f.id === mv.faction!.id)?.color }}>{mv.faction.name}</span> : '—'}</dd></div>
     </dl>
-    <WorldMapViewer map={map} content={content} playerLocationId={session.location.id} reachableLocationIds={reachable} exploredCells={explored} height={420}
+    <WorldMapViewer map={map} content={content} playerLocationId={session.location.id} reachableLocationIds={reachable} exploredCells={explored} height={420} fillIcons={mv.fillIcons}
       npcMarkers={mv.npcs?.map(n => ({ locationId: n.locationId, label: n.name, ...(n.factionId && fname.get(n.factionId) ? { color: fname.get(n.factionId)!.color } : {}) }))} />
     <div className="play-map-legend">
       <span><i className="lg-player" />{t('你在这里')}</span><span><i className="lg-reach" />{t('可前往')}</span>{mv.fog && <span><i className="lg-fog" />{t('未探索')}</span>}

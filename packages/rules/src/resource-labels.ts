@@ -4,15 +4,23 @@ export type ResourceLabelSource = {
   map?: { layers?: { factions?: { factions?: { stats?: { label: string; resourceId: string }[] }[] } } };
 };
 
-const COMMON: Record<string, string> = {
+export const GENERIC_LABELS: Record<string, string> = {
   hp: '体力', coin: '银两', gold: '金币', primary_coin: '通货',
-  qi: '修为', reputation: '声望', risk: '风险',
+  reputation: '声望', risk: '风险',
 };
 
-/** Explicit resource definitions win over faction stat labels, then common defaults. */
-export function resourceLabelsForWorld(world?: ResourceLabelSource | null): Record<string, string> {
+export const XIANXIA_LABEL_PRESET: Record<string, string> = {
+  qi: '修为', lingshi: '灵石', xiuwei: '修为', xinmo: '心魔',
+};
+
+/** Explicit resource definitions win over faction stat labels, then the optional preset and generic defaults. */
+export function resourceLabelsForWorld(
+  world?: ResourceLabelSource | null,
+  opts: {preset?: Record<string, string>} = {},
+): Record<string, string> {
   return Object.fromEntries([
-    ...Object.entries(COMMON),
+    ...Object.entries(GENERIC_LABELS),
+    ...Object.entries(opts.preset ?? {}),
     ...(world?.map?.layers?.factions?.factions ?? []).flatMap(faction =>
       (faction.stats ?? []).filter(stat => stat.resourceId && stat.label).map(stat => [stat.resourceId, stat.label])),
     ...Object.entries(world?.resourceDefs ?? {}).map(([id, def]) => [id, def.label]),

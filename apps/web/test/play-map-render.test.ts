@@ -16,10 +16,19 @@ test('svg renderer play overlay: fog hides unexplored cells and their POIs; play
     map, topo, mode: 'poi', titles: new Map([['a', 'A'], ['b', 'B']]), selectedCells: [], dropCell: null, brushCells: [],
     play: { playerCell: '0,0', reachableCells: ['1,0'], hiddenCells: hidden },
     npcMarkers: [{ cell: '0,0', label: '老周' }],
+    fillIcons: [
+      {id: 'shop_visible', kind: 'shop', cell: '0,0', locationId: 'a', label: '渡口商店', color: '#c9a227', icon: '店'},
+      {id: 'boss_hidden', kind: 'boss', cell: '2,1', locationId: 'b', label: '不可剧透', color: '#9b2226', icon: '王'},
+      {id: 'cell_marker', kind: 'encounter', cell: '0,0', label: '路上遇怪', color: '#e76f51', icon: '战', illustrative: true},
+    ],
   } }));
   assert.match(html, /data-testid="map-player" data-cell="0,0"/);
   assert.match(html, /data-reachable="1,0"/);
   assert.equal((html.match(/data-fog=/g) ?? []).length, hidden.size);
   assert.ok(html.includes('data-poi="a"') && !html.includes('data-poi="b"'));
   assert.match(html, /data-npc-marker="老周"/);
+  assert.match(html, /data-fill-id="shop_visible"/);
+  assert.match(html, /data-fill-id="cell_marker"[^>]*data-illustrative="true"/);
+  assert.ok(!html.includes('data-fill-id="boss_hidden"'));
+  assert.ok(!html.includes('不可剧透'));
 });

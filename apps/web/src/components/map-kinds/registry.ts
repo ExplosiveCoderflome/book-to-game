@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import type { WorldContent, WorldMap, WorldMapKind } from '@novel-game/contracts';
+import type { MapFillIcon, WorldContent, WorldMap, WorldMapKind } from '@novel-game/contracts';
 
 /** Contract every map-kind editor (canvas + tools) implements. */
 export interface MapEditorProps {
@@ -26,6 +26,8 @@ export interface MapViewerProps {
   /** Explored cells; when provided, all other cells are fogged. */
   exploredCells?: string[];
   npcMarkers?: { locationId: string; label: string; color?: string }[];
+  /** Runtime-resolved icons (already fog-filtered); viewer never loads the catalog itself. */
+  fillIcons?: MapFillIcon[];
   onSelectLocation?: (locationId: string) => void;
   height?: number;
 }

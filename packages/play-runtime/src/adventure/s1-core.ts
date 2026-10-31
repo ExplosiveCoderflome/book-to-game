@@ -2,7 +2,7 @@
  * S1 production-flow core helpers (pure, no imports from rules.ts to keep the module graph acyclic):
  * seeded RNG, time limit, resource bounds, roll chance, calendar text.
  */
-import { usesS1Systems, type WorldContent, type WorldRollEffect } from '@novel-game/contracts';
+import { usesS1Systems, type ClockUnit, type WorldContent, type WorldRollEffect } from '@novel-game/contracts';
 import type { AdventureState } from './adventure-state.js';
 
 export const isS1World = (world: WorldContent): boolean => usesS1Systems(world);
@@ -66,17 +66,19 @@ export function computeChance(roll: WorldRollEffect, resources: Record<string, n
   return {chance: round4(Math.min(max, Math.max(min, sum))), parts, min, max};
 }
 
-/** 「第{year}年 {month}月」 for a months-elapsed value (D2: 0 = the start month). */
+/** Month clocks keep 「第{year}年 {month}月」; other units count from 1 (elapsed 0 = 「第1天」). */
 export function formatCalendar(world: WorldContent, month: number): string {
   const clock = world.clock;
   if (!clock) return `${month}`;
+  if (clock.unit !== 'month') return `第${month + 1}${{day: '天', week: '周', year: '年'}[clock.unit]}`;
   const total = clock.startMonth - 1 + month;
   const year = clock.startYear + Math.floor(total / 12);
   const mon = (total % 12) + 1;
   return (clock.display ?? '第{year}年 {month}月').replaceAll('{year}', String(year)).replaceAll('{month}', String(mon));
 }
-/** <12 → 「n 个月」; multiples of 12 → 「n 年」; else 「n 年 m 个月」. */
-export function formatMonths(months: number): string {
+/** Month output is unchanged; other units format the same elapsed tick count. */
+export function formatMonths(months: number, unit: ClockUnit = 'month'): string {
+  if (unit !== 'month') return `${months} ${{day: '天', week: '周', year: '年'}[unit]}`;
   if (months < 12) return `${months} 个月`;
   const years = Math.floor(months / 12); const rest = months % 12;
   return rest === 0 ? `${years} 年` : `${years} 年 ${rest} 个月`;

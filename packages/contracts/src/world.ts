@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { worldbookSchema } from './worldbook.js';
-import { worldMapSchema } from './world-map.js';
+import { worldMapSchema, type MapFillIcon } from './world-map.js';
 export const SYSTEM_WAIT_ACTION_ID = '__wait__';
 
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/, '标识只允许字母、数字、短横线和下划线');
@@ -95,12 +95,17 @@ export const resourceDefSchema = z.object({
   description: z.string().max(500).optional(),
 }).refine(d => d.max === undefined || d.max >= d.min, 'max 不能小于 min');
 export type ResourceDef = z.infer<typeof resourceDefSchema>;
+const clockUnitSchema = z.enum(['day', 'week', 'month', 'year']);
+export type ClockUnit = z.infer<typeof clockUnitSchema>;
 export const clockSchema = z.object({
-  unit: z.literal('month'), startYear: z.number().int().min(-9999).max(9999), startMonth: z.number().int().min(1).max(12),
+  unit: clockUnitSchema.default('month'), startYear: z.number().int().min(-9999).max(9999), startMonth: z.number().int().min(1).max(12),
   /** Calendar template, tokens {year} {month}. */
   display: z.string().min(1).max(40).optional(),
+  /** Clock-tick limit; the legacy field name is retained for saved-content compatibility. */
   limitMonths: z.number().int().min(1).max(2400),
-  rules: z.array(z.object({id: id.optional(), everyMonths: z.number().int().min(1).max(1200), effects: z.array(worldBaseEffectSchema).min(1).max(10),
+  rules: z.array(z.object({id: id.optional(),
+    /** Interval in clock ticks; the legacy field name is retained for saved-content compatibility. */
+    everyMonths: z.number().int().min(1).max(1200), effects: z.array(worldBaseEffectSchema).min(1).max(10),
     label: z.string().max(80).optional(), /** Narration appended each time the rule fires. */ text: z.string().max(1000).optional()})).max(20).optional(),
   windows: z.array(z.object({id, label: z.string().min(1).max(80).optional(), fromMonth: z.number().int().min(0).max(2400), toMonth: z.number().int().min(0).max(2400), storyletId: id.optional()})
     .refine(w => w.toMonth >= w.fromMonth, 'toMonth 不能早于 fromMonth')).max(40).optional(),
@@ -210,7 +215,7 @@ export const worldContentSchema = z.object({
   resources: z.record(z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/), z.number().finite()).optional(),
   /** S1: resource definitions (bounds, display, threshold triggers). Absent = legacy unbounded resources. */
   resourceDefs: z.record(z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/), resourceDefSchema).optional(),
-  /** S1: monthly clock (unit month). When present, `limitMonths` replaces `timeLimit` and timeCost means months. */
+  /** S1 clock. When present, `limitMonths` replaces `timeLimit` and timeCost means clock ticks. */
   clock: clockSchema.optional(),
   /** S1: storylet hand rules. */
   storyletRules: z.object({handSize: z.number().int().min(1).max(5).optional(), refreshOn: z.array(z.enum(['move', 'clock'])).max(2).optional(),
@@ -295,7 +300,7 @@ export interface AdventureView {
   /** C3/C4: monthly clock. */
   clock?: AdventureClockView;
   /** C11: unit of timeCost / elapsed. */
-  timeUnit?: 'month';
+  timeUnit?: ClockUnit;
   /** C5: storylet hand; choice ids go through the same act endpoint. */
   hand?: AdventureHandView[];
   /** Author-only diagnostics: the save's RNG position. */
@@ -314,7 +319,7 @@ export interface AdventureLastResultView {
   windows?: {opened: string[]; closed: string[]};
 }
 export interface AdventureClockView {
-  month: number; label: string; limitMonths: number; unit: 'month';
+  month: number; label: string; limitMonths: number; unit: ClockUnit;
   openWindows: {id: string; label: string; monthsLeft: number}[];
   countdown?: {resourceId: string; label: string; value: number; unit?: string};
 }
@@ -354,4 +359,6 @@ export interface AdventureMapView {
   relations?: FactionRelation[];
   /** NPCs currently on this map (session positions), for map markers. */
   npcs?: {id: string; name: string; locationId: string; cell: string; factionId?: string}[];
+  /** Fog-filtered, catalog-resolved fill icons. Display only; actions still come from rules. */
+  fillIcons?: MapFillIcon[];
 }

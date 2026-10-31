@@ -3,7 +3,7 @@
  * advanceAdventure / projectAdventure) with scripted strategies over many seeds and aggregates a PlaytestReport.
  * Author-side only: exported via `@novel-game/play-runtime/sim`, never from the package root.
  */
-import { type AdventureView, type PassCheck, type PlaytestReport, type RouteCoverageReport, type WorldContent, type WorldEffect, type WorldRevision } from '@novel-game/contracts';
+import { type AdventureView, type FunMetricId, type FunProfile, type PassCheck, type PlaytestReport, type RouteCoverageReport, type WorldContent, type WorldEffect, type WorldRevision } from '@novel-game/contracts';
 import type { AdventureState } from '../adventure/adventure-state.js';
 import { advanceAdventure } from '../adventure/advance-adventure.js';
 import { projectAdventure } from '../adventure/project-adventure.js';
@@ -19,7 +19,15 @@ export type { SimOption } from './types.js';
 export interface Strategy {id: string; label: string; pick(options: SimOption[], view: AdventureView, rand: () => number, state?: AdventureState): SimOption}
 /** A planned route (ProductionPlan.routes) — strategy text is for authors; endingIds drive the goal strategy. */
 export interface SimRoute {id: string; name: string; endingIds: string[]}
+export type SimProfile = Omit<Partial<FunProfile>, 'thresholds'> & {
+  /** V0a partial-profile knobs remain valid alongside the full FunProfile contract. */
+  thresholds?: Partial<FunProfile['thresholds']>;
+  strategyIds?: readonly string[];
+  resourcePrefs?: {money?: string[]; growth?: string[]; dark?: string[]};
+  strategyLabels?: Partial<Record<string, string>>;
+};
 export interface SimulateOptions {seeds?: number; maxSteps?: number; strategies?: string[]; now?: string; draftId?: string; draftVersion?: number;
+  profile?: SimProfile;
   /** Cooperative yield between runs (server passes setImmediate); keeps the event loop responsive. */
   yieldEvery?: () => Promise<void>;
   /** Route coverage (goal-directed strategies). 'auto' (default) = one goal strategy per authored ending; an array adds the
@@ -156,23 +164,36 @@ function merchantStrategy(world: WorldContent, money: string): Strategy['pick'] 
   };
 }
 
-/** Default strategy set (§6.7) resolved against a world's resources. */
-export function defaultStrategies(world: WorldContent): Strategy[] {
+export const XIANXIA_SIM_PREFS = {
+  resourcePrefs: {money: ['lingshi'], growth: ['xiuwei'], dark: ['xinmo']},
+  strategyLabels: {modao: '魔道优先', lazy: '只修炼'},
+} as const;
+
+function strategyResources(world: WorldContent, profile: SimProfile) {
   const defs = world.resourceDefs ?? {};
   const ids = Object.keys(defs).filter(id => defs[id]!.display !== 'hidden');
   const prefer = (wanted: string[], fallback: number) => wanted.find(id => ids.includes(id)) ?? ids[fallback] ?? ids[0] ?? '';
-  const money = prefer(['lingshi', 'money', 'coin', 'gold', 'primary_coin'], 1);
-  const growth = prefer(['xiuwei', 'reputation', 'trust', ...ids.filter(id => /_(trust|reputation)$/.test(id))], ids.findIndex(id => id !== money));
-  // 魔道: chase the resource whose max ends the game (xinmo in 《寿灯》).
-  const dark = ids.includes('xinmo') ? 'xinmo' : ids.find(id => defs[id]!.onMax?.ending) ?? growth;
+  const money = prefer([...(profile.resourcePrefs?.money ?? []), ...XIANXIA_SIM_PREFS.resourcePrefs.money,
+    'money', 'coin', 'gold', 'primary_coin'], 1);
+  const growth = prefer([...(profile.resourcePrefs?.growth ?? []), ...XIANXIA_SIM_PREFS.resourcePrefs.growth,
+    'reputation', 'trust', ...ids.filter(id => /_(trust|reputation)$/.test(id))], ids.findIndex(id => id !== money));
+  // 魔道: chase the configured dark resource, then one whose max ends the game.
+  const dark = [...(profile.resourcePrefs?.dark ?? []), ...XIANXIA_SIM_PREFS.resourcePrefs.dark]
+    .find(id => ids.includes(id)) ?? ids.find(id => defs[id]!.onMax?.ending) ?? growth;
+  return {defs, money, growth, dark};
+}
+
+/** Default strategy set (§6.7) resolved against a world's resources. */
+export function defaultStrategies(world: WorldContent, profile: SimProfile = {}): Strategy[] {
+  const {defs, money, growth, dark} = strategyResources(world, profile);
   const label = (id: string) => defs[id]?.label ?? id;
-  return [
+  const strategies: Strategy[] = [
     {id: 'random', label: '随机', pick: (o, _v, r) => pickRandom(o, r)},
     {id: growth === money ? `greedy-growth-${growth}` : `greedy-${growth}`, label: `只顾${label(growth)}`, pick: greedy(growth)},
     {id: `greedy-${money}`, label: `只顾${label(money)}`, pick: greedy(money)},
-    {id: 'modao', label: ids.includes('xinmo') ? '魔道优先' : `追求${label(dark)}`, pick: greedy(dark)},
+    {id: 'modao', label: dark === XIANXIA_SIM_PREFS.resourcePrefs.dark[0] ? XIANXIA_SIM_PREFS.strategyLabels.modao : `追求${label(dark)}`, pick: greedy(dark)},
     {id: 'merchant', label: `跑商（攒${label(money)}）`, pick: merchantStrategy(world, money)},
-    {id: 'lazy', label: ids.includes('xiuwei') ? '只修炼' : '原地行动', pick: (options, _v, r) => {
+    {id: 'lazy', label: growth === XIANXIA_SIM_PREFS.resourcePrefs.growth[0] ? XIANXIA_SIM_PREFS.strategyLabels.lazy : '原地行动', pick: (options, _v, r) => {
       // Only cultivate in place: never move; prefer growth per month; wait when nothing grows.
       const stay = options.filter(o => !o.moves);
       const pool = stay.length ? stay : options;
@@ -181,6 +202,9 @@ export function defaultStrategies(world: WorldContent): Strategy[] {
       return pool.find(o => o.id === '__wait__') ?? pickRandom(pool, r);
     }},
   ];
+  const selected: readonly string[] = profile.strategyIds ?? profile.strategies ?? STRATEGY_IDS;
+  return strategies.flatMap((strategy, index) => selected.includes(STRATEGY_IDS[index]!)
+    ? [{...strategy, label: profile.strategyLabels?.[strategy.id] ?? strategy.label}] : []);
 }
 
 function mulberry(seed: number): () => number {
@@ -249,12 +273,19 @@ function runOne(revision: WorldRevision, strategy: Strategy, seed: number, maxSt
 /** G1 pacing line (also applied per route by the coverage report). */
 export const PACING_LINE = {decisions: 60, uniqueChars: 10000} as const;
 export const STRATEGY_IDS = ['random', 'greedy-growth', 'greedy-money', 'modao', 'merchant', 'lazy'] as const;
+const LEGACY_METRICS: readonly FunMetricId[] = ['G1', 'G2', 'G4', 'G6', 'G8'];
+const DEFAULT_THRESHOLDS = {minEndingRate: 0.05, maxRandomEndingRate: 0.6, minFailureFreeEndingRate: 0, minCollectionCompletionRate: 1};
 
 export async function simulateWorld(revision: WorldRevision, opts: SimulateOptions = {}): Promise<PlaytestReport> {
   const started = Date.now();
   const world = revision.content;
   const seeds = opts.seeds ?? 200; const maxSteps = opts.maxSteps ?? 1500; const now = opts.now ?? new Date().toISOString();
-  let strategies = defaultStrategies(world);
+  const pacingLine = opts.profile?.pacingLine ?? PACING_LINE;
+  const thresholds = {...DEFAULT_THRESHOLDS, ...opts.profile?.thresholds};
+  const metricEnabled = (id: FunMetricId) => opts.profile?.metricMatrix
+    ? opts.profile.metricMatrix[id] === true
+    : LEGACY_METRICS.includes(id);
+  let strategies = defaultStrategies(world, opts.profile);
   if (opts.strategies?.length) strategies = strategies.filter(s => opts.strategies!.includes(s.id));
   if (!strategies.length) throw new Error('没有匹配的策略');
   const endings = world.endings.map(e => ({id: e.id, title: e.title, kind: e.kind ?? 'ending'}));
@@ -301,37 +332,63 @@ export async function simulateWorld(revision: WorldRevision, opts: SimulateOptio
   const pinnedRatio = Object.fromEntries(Object.entries(pinnedSteps).map(([id, n]) => [id, n / Math.max(1, steps)]));
   const gatesNeverMet = [...lockedEver].filter(id => !enabledEver.has(id));
   const consecutiveRepeatRate = plays ? repeats / plays : 0;
-  // ── G1–G8 simulator-side judgements (lint-side rows are merged by the server).
+  // ── Simulator-side judgements (lint-side rows are merged by the server).
   const rnd = medians.random; const pct = (x: number) => `${Math.round(x * 1000) / 10}%`;
   const best = (id: string) => Math.max(0, ...Object.values(endingRates).map(r => r[id] ?? 0));
-  const unreached = endings.filter(e => best(e.id) < 0.05);
+  const unreached = endings.filter(e => best(e.id) < thresholds.minEndingRate);
   const randomMax = Math.max(0, ...Object.entries(endingRates.random ?? {}).map(([, v]) => v));
   const lazyTimeout = Object.entries(endingRates.lazy ?? {}).filter(([id]) => endings.find(e => e.id === id)?.kind === 'timeout' || id === 'timeout').reduce((n, [, v]) => n + v, 0);
-  const elapsedLabel = (n: number) => world.clock ? formatMonths(n) : `${n} 行动耗时`;
+  const elapsedLabel = (n: number) => world.clock ? formatMonths(n, world.clock.unit) : `${n} 行动耗时`;
   const lazyLabel = strategies.find(strategy => strategy.id === 'lazy')?.label ?? '原地行动';
+  const randomRates = endingRates.random;
+  const failureFreeRate = endings.filter(ending => ending.kind !== 'failure').reduce((sum, ending) => sum + (randomRates?.[ending.id] ?? 0), 0);
+  const failureRate = endings.filter(ending => ending.kind === 'failure').reduce((sum, ending) => sum + (randomRates?.[ending.id] ?? 0), 0);
+  const pressureIds = Object.entries(defs).filter(([, def]) => def.onMax?.ending || def.onMin?.ending).map(([id]) => id);
+  const bidirectional = pressureIds.filter(id => {
+    const values = resourceBands[id]?.points.map(point => point.p50) ?? [];
+    let rises = false; let falls = false;
+    for (let i = 1; i < values.length; i++) { rises ||= values[i]! > values[i - 1]!; falls ||= values[i]! < values[i - 1]!; }
+    return rises && falls;
+  });
+  const growth = strategyResources(world, opts.profile ?? {}).growth;
+  const growthValues = resourceBands[growth]?.points.map(point => point.p50) ?? [];
+  const growthMonotonic = growthValues.length > 1 && growthValues[growthValues.length - 1]! > growthValues[0]!
+    && growthValues.every((value, index) => index === 0 || value >= growthValues[index - 1]!);
   const checks: PassCheck[] = [
-    {id: 'G1', label: '时长', line: '「随机」首通中位数 ≥ 60 次决策且 ≥ 10,000 字不重复正文', measured: rnd ? `${rnd.decisions} 次决策 · ${rnd.uniqueChars} 字 · ${elapsedLabel(rnd.months)}` : '未运行「随机」', pass: !!rnd && rnd.decisions >= PACING_LINE.decisions && rnd.uniqueChars >= PACING_LINE.uniqueChars},
-    {id: 'G2', label: '结局', line: '每个结局至少 1 种策略 ≥ 5%；「随机」任一结局 ≤ 60%', measured: `${endings.length - unreached.length}/${endings.length} 个结局达标${unreached.length ? `（未达：${unreached.map(e => e.title).join('、')}）` : ''} · 「随机」最高 ${pct(randomMax)}`, pass: !unreached.length && randomMax <= 0.6},
+    {id: 'G1', label: '时长', line: `「随机」首通中位数 ≥ ${pacingLine.decisions} 次决策且 ≥ ${pacingLine.uniqueChars.toLocaleString('en-US')} 字不重复正文`, measured: rnd ? `${rnd.decisions} 次决策 · ${rnd.uniqueChars} 字 · ${elapsedLabel(rnd.months)}` : '未运行「随机」', pass: !!rnd && rnd.decisions >= pacingLine.decisions && rnd.uniqueChars >= pacingLine.uniqueChars},
+    {id: 'G2', label: '结局', line: `每个结局至少 1 种策略 ≥ ${pct(thresholds.minEndingRate)}；「随机」任一结局 ≤ ${pct(thresholds.maxRandomEndingRate)}`, measured: `${endings.length - unreached.length}/${endings.length} 个结局达标${unreached.length ? `（未达：${unreached.map(e => e.title).join('、')}）` : ''} · 「随机」最高 ${pct(randomMax)}`, pass: !unreached.length && randomMax <= thresholds.maxRandomEndingRate},
     {id: 'G4', label: '卡池', line: '连续两回合同一张 = 0 次；没有从未抽到的卡', measured: `连续重复 ${repeats} 次（${pct(consecutiveRepeatRate)}）· 从未抽到 ${neverDrawn.length} 张`, pass: repeats === 0 && neverDrawn.length === 0},
     {id: 'G6', label: '时钟', line: '时限结局在原地策略下可达', measured: endingRates.lazy ? `「${lazyLabel}」时限结局 ${pct(lazyTimeout)}` : `未运行「${lazyLabel}」`, pass: lazyTimeout > 0},
     {id: 'G8', label: '取舍', line: '每回合可见选项里 ≥ 1 个有代价；0 死路', measured: `有代价回合 ${pct(steps ? costSteps / steps : 0)} · 死路 ${deadEnds} · 锁定选项 ${pct(visible ? locked / visible : 0)}`, pass: steps > 0 && costSteps === steps && deadEnds === 0},
-  ];
+    {id: 'pressure-bidirectional', label: '压力节拍', line: '至少 1 个压力资源的中位曲线同时出现上升与下降', measured: pressureIds.length ? `双向 ${bidirectional.length}/${pressureIds.length} 个压力资源` : '没有带边界结局的压力资源', pass: bidirectional.length > 0},
+    {id: 'growth-monotonic', label: '成长曲线', line: `主成长资源「${defs[growth]?.label ?? growth}」中位数逐段单调上升`, measured: growthValues.length ? growthValues.join(' → ') : '未采样主成长资源', pass: growthMonotonic},
+    {id: 'failure-free-ending-rate', label: '治愈结局', line: `「随机」零失败结局率 ≥ ${pct(thresholds.minFailureFreeEndingRate)}`, measured: randomRates ? `零失败结局率 ${pct(failureFreeRate)} · 失败结局 ${pct(failureRate)}` : '未运行「随机」', pass: !!randomRates && failureFreeRate >= thresholds.minFailureFreeEndingRate},
+  ].filter(check => metricEnabled(check.id as FunMetricId));
   const routeCoverage = opts.routes === false ? undefined
     : await coverRoutes(revision, endingRates, strategies.map(s => s.id), opts.routes === undefined || opts.routes === 'auto' ? [] : opts.routes,
-      opts.routeSeeds ?? Math.min(seeds, 20), maxSteps, now, opts.yieldEvery, opts.routeEndings ?? 'all', minByEnding);
+      opts.routeSeeds ?? Math.min(seeds, 20), maxSteps, now, opts.yieldEvery, opts.routeEndings ?? 'all', minByEnding, pacingLine, thresholds.minEndingRate);
+  if (metricEnabled('collection-reachable')) {
+    const ordinary = routeCoverage?.endings.filter(ending => ending.kind === 'ending') ?? [];
+    const reachable = ordinary.filter(ending => ending.status === 'covered' || ending.status === 'goal-only').length;
+    const completion = ordinary.length ? reachable / ordinary.length : 0;
+    checks.push({id: 'collection-reachable', label: '收集完整度', line: `普通结局通用/定向可达率 ≥ ${pct(thresholds.minCollectionCompletionRate)}`,
+      measured: routeCoverage ? `${reachable}/${ordinary.length} 个普通结局可达（${pct(completion)}）` : '未运行路线覆盖',
+      pass: !!routeCoverage && ordinary.length > 0 && completion >= thresholds.minCollectionCompletionRate});
+  }
   if (routeCoverage && opts.guidance && routeCoverage.endings.some(e => e.status === 'goal-only' && e.kind !== 'failure')) {
     const g = typeof opts.guidance === 'object' ? opts.guidance : {};
     const gSeeds = g.seeds ?? Math.min(seeds, 100);
     const rate = async (w: WorldContent, endingId: string) => {
-      const r = await simulateWorld({...revision, content: w}, {seeds: gSeeds, maxSteps, strategies: ['random'], routes: false, pacing: false, now, ...(opts.yieldEvery ? {yieldEvery: opts.yieldEvery} : {})});
+      const r = await simulateWorld({...revision, content: w}, {seeds: gSeeds, maxSteps, strategies: ['random'], routes: false, pacing: false, now, profile: opts.profile ? {...opts.profile, strategyIds: STRATEGY_IDS} : undefined, ...(opts.yieldEvery ? {yieldEvery: opts.yieldEvery} : {})});
       return r.endingRates.random?.[endingId] ?? 0;
     };
     routeCoverage.guidance = await routeGuidance(revision, {routeCoverage}, {seeds: gSeeds, maxSteps, now, rate, ...(g.maxHints ? {maxHints: g.maxHints} : {})});
     for (const h of routeCoverage.guidance) routeCoverage.issues.push({severity: 'warning', ruleId: 'route.guidance', endingId: h.endingId, message: h.message});
   }
-  const pacing = opts.pacing === false ? undefined : diagnosePacing(world, {line: {...PACING_LINE}, ...(rnd ? {random: rnd} : {}), randomRuns: endingRates.random ? seeds : 0,
+  const pacing = opts.pacing === false ? undefined : diagnosePacing(world, {line: {...pacingLine}, ...(rnd ? {random: rnd} : {}), randomRuns: endingRates.random ? seeds : 0,
     randomByEnding, minByEnding, randomPlays});
-  return {...(opts.draftId ? {draftId: opts.draftId} : {}), draftVersion: opts.draftVersion ?? 0, createdAt: now, seeds, maxSteps, timeUnit: world.clock ? 'month' : 'turn',
+  return {...(opts.draftId ? {draftId: opts.draftId} : {}), draftVersion: opts.draftVersion ?? 0, createdAt: now,
+    ...(opts.profile?.id ? {profileId: opts.profile.id} : {}), seeds, maxSteps, timeUnit: world.clock ? world.clock.unit : 'turn',
     strategies: strategies.map(s => ({id: s.id, label: s.label, runs: seeds})), checks, endingRates, endings, medians, resourceBands,
     cards: {neverDrawn, drawRate, consecutiveRepeatRate}, deadEnds, lockedRatio: visible ? locked / visible : 0, pinnedRatio, gatesNeverMet,
     ...(world.recap?.length || world.endings.some(e => e.passages?.length) ? {endingExtras: {
@@ -350,7 +407,8 @@ const ROUTE_HIT_LINE = 0.2;
  * planned route. Generic rates come from the main run. Pacing is judged per ordinary route against the G1 line.
  */
 async function coverRoutes(revision: WorldRevision, generic: PlaytestReport['endingRates'], genericIds: string[], planned: SimRoute[],
-  seeds: number, maxSteps: number, now: string, yieldEvery?: () => Promise<void>, routeEndings: 'all' | 'uncovered' = 'all', minByEnding: Record<string, number> = {}): Promise<RouteCoverageReport> {
+  seeds: number, maxSteps: number, now: string, yieldEvery?: () => Promise<void>, routeEndings: 'all' | 'uncovered' = 'all', minByEnding: Record<string, number> = {},
+  pacingLine: {decisions: number; uniqueChars: number} = PACING_LINE, endingRateLine = 0.05): Promise<RouteCoverageReport> {
   const world = revision.content;
   const suppliers = suppliersOf(world);
   const kindOf = (id: string) => world.endings.find(e => e.id === id)?.kind ?? 'ending';
@@ -373,10 +431,10 @@ async function coverRoutes(revision: WorldRevision, generic: PlaytestReport['end
     const judged = hits > 0 && targets.some(id => kindOf(id) === 'ending');
     routes.push({id: route.id, name: route.name, source, endingIds: targets, strategyId, hitRate: hits / seeds,
       endingRates: Object.fromEntries(Object.entries(counts).map(([k, n]) => [k, n / seeds])), medians, deadEnds,
-      belowPacing: judged && (medians.decisions < PACING_LINE.decisions || medians.uniqueChars < PACING_LINE.uniqueChars)});
+      belowPacing: judged && (medians.decisions < pacingLine.decisions || medians.uniqueChars < pacingLine.uniqueChars)});
   };
   const bestGenericOf = (endingId: string) => Math.max(0, ...genericIds.map(id => generic[id]?.[endingId] ?? 0));
-  for (const e of world.endings) if (routeEndings === 'all' || bestGenericOf(e.id) < 0.05) await run({id: e.id, name: `直奔「${e.title}」`, endingIds: [e.id]}, 'ending');
+  for (const e of world.endings) if (routeEndings === 'all' || bestGenericOf(e.id) < endingRateLine) await run({id: e.id, name: `直奔「${e.title}」`, endingIds: [e.id]}, 'ending');
   for (const r of planned) await run(r, 'plan');
   const issues: RouteCoverageReport['issues'] = [];
   const pct = (x: number) => `${Math.round(x * 1000) / 10}%`;
@@ -385,7 +443,7 @@ async function coverRoutes(revision: WorldRevision, generic: PlaytestReport['end
     let bestGeneric = 0; let bestGenericStrategy: string | undefined;
     for (const id of genericIds) { const v = generic[id]?.[e.id] ?? 0; if (v > bestGeneric) { bestGeneric = v; bestGenericStrategy = id; } }
     const goalRate = routes.find(r => r.source === 'ending' && r.id === e.id)?.hitRate;
-    const status = !triggers ? 'no-trigger' : bestGeneric >= 0.05 ? 'covered' : (goalRate ?? 0) > 0 ? 'goal-only' : 'unreached';
+    const status = !triggers ? 'no-trigger' : bestGeneric >= endingRateLine ? 'covered' : (goalRate ?? 0) > 0 ? 'goal-only' : 'unreached';
     if (status === 'no-trigger') issues.push({severity: 'error', ruleId: 'route.no-trigger', endingId: e.id, message: `结局「${e.title}」没有任何触发来源（无 ending 效果、条件或资源阈值）`});
     if (status === 'unreached') issues.push({severity: 'warning', ruleId: 'route.unreached', endingId: e.id, message: `结局「${e.title}」所有自动策略（含定向）都没有到达；未覆盖不等于不可达，请检查前置条件链`});
     if (status === 'goal-only') issues.push({severity: 'warning', ruleId: 'route.random-starved', endingId: e.id,
@@ -396,9 +454,9 @@ async function coverRoutes(revision: WorldRevision, generic: PlaytestReport['end
     if (r.source === 'plan' && r.hitRate < ROUTE_HIT_LINE) issues.push({severity: 'warning', ruleId: 'route.plan-weak', routeId: r.id,
       message: `规划路线「${r.name}」按路线打只有 ${pct(r.hitRate)} 到达其结局（线 ${pct(ROUTE_HIT_LINE)}）`});
     if (r.belowPacing && r.source === 'plan') issues.push({severity: 'warning', ruleId: 'route.pacing', routeId: r.id,
-      message: `${r.source === 'plan' ? '规划路线' : '直达路线'}「${r.name}」中位 ${r.medians.decisions} 次决策 · ${r.medians.uniqueChars} 字，低于节奏线 ${PACING_LINE.decisions} 次 · ${PACING_LINE.uniqueChars} 字`});
+      message: `${r.source === 'plan' ? '规划路线' : '直达路线'}「${r.name}」中位 ${r.medians.decisions} 次决策 · ${r.medians.uniqueChars} 字，低于节奏线 ${pacingLine.decisions} 次 · ${pacingLine.uniqueChars} 字`});
   }
-  return {seeds, pacing: {...PACING_LINE}, routes, endings, issues};
+  return {seeds, pacing: {...pacingLine}, routes, endings, issues};
 }
 
 /** S5: synchronous goal-directed probe of planned routes (no generic strategies) — cheap enough for plan approval. */

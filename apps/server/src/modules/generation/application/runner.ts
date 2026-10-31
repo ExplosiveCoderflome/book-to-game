@@ -15,12 +15,12 @@ const SEMANTIC_REPAIR = new Set(['INVALID_EVIDENCE', 'INVALID_GENERATED_GAME', '
 export class GenerationRunner {
   constructor(private readonly repository: JobRepository, private readonly sources: SourceReader,
     private readonly provider: GenerationProvider, private readonly createDraft: DraftWriter, private readonly createWorld?: WorldDraftWriter,
-    private readonly logger?: Logger, private readonly repairAttempts = 3) {}
+    private readonly logger?: Logger, private readonly repairAttempts = 3, private readonly leaseMs = 120000) {}
 
   async runOnce(shutdown?: AbortSignal): Promise<boolean> {
     if (shutdown?.aborted) return false;
     const owner = randomUUID();
-    const job = this.repository.claim(owner, Date.now(), 120000);
+    const job = this.repository.claim(owner, Date.now(), this.leaseMs);
     if (!job) return false;
     const controller = new AbortController();
     const signal = shutdown ? AbortSignal.any([shutdown, controller.signal]) : controller.signal;
@@ -30,7 +30,7 @@ export class GenerationRunner {
     const context = {jobId: job.id, requestId: job.requestId};
     const pulse = setInterval(() => {
       try {
-        if (!this.repository.heartbeat(job.id, owner, Date.now(), 120000)) controller.abort();
+        if (!this.repository.heartbeat(job.id, owner, Date.now(), this.leaseMs)) controller.abort();
       } catch { controller.abort(); }
     }, 5000);
     pulse.unref();

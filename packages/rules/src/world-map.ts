@@ -46,12 +46,15 @@ export function hexDistance(a: Axial, b: Axial): number {
 
 export type WorldMapIssueCode = 'poi_unknown_venue' | 'poi_missing_location' | 'poi_out_of_bounds' | 'poi_duplicate_location' | 'poi_cell_shared' | 'location_unbound'
   | 'layer_unknown_terrain' | 'layer_unknown_faction' | 'layer_unknown_region' | 'layer_cell_out_of_bounds' | 'layer_duplicate_id'
-  | 'fill_missing_location' | 'fill_unbound_location' | 'fill_duplicate_id' | 'fill_unbound_marker' | 'fill_marker_out_of_bounds' | 'fill_unknown_building';
-export interface WorldMapIssue { level: 'error' | 'warning'; code: WorldMapIssueCode; message: string; locationId?: string; cell?: CellKey }
+  | 'fill_missing_location' | 'fill_unbound_location' | 'fill_duplicate_id' | 'fill_unbound_marker' | 'fill_marker_out_of_bounds'
+  | 'fill_unknown_building' | 'fill_unknown_route';
+export interface WorldMapIssue { level: 'error' | 'warning'; code: WorldMapIssueCode; message: string; locationId?: string; cell?: CellKey; routeId?: string }
 
 export type ValidateWorldMapOptions = {
   /** When provided, fill placements that reference buildingAssetId must exist in this set (error). */
   buildingAssetIds?: ReadonlySet<string> | readonly string[];
+  /** Authored move-action ids usable as route marker anchors. */
+  routeIds?: ReadonlySet<string> | readonly string[];
 };
 
 /** Validate POI bindings against the location graph. Map never adds edges; it only reports. */
@@ -158,23 +161,30 @@ export function validateMapFill(map: WorldMap, locationIds: readonly string[], o
   const buildingIds = opts?.buildingAssetIds
     ? (opts.buildingAssetIds instanceof Set ? opts.buildingAssetIds : new Set(opts.buildingAssetIds))
     : null;
+  const routeIds = opts?.routeIds
+    ? (opts.routeIds instanceof Set ? opts.routeIds : new Set(opts.routeIds))
+    : null;
+  const checkBuilding = (item: {id: string; buildingAssetId?: string}, locationId?: string) => {
+    if (!item.buildingAssetId) return;
+    if (buildingIds?.has(item.buildingAssetId)) return;
+    issues.push({
+      level: buildingIds ? 'error' : 'warning',
+      code: 'fill_unknown_building',
+      ...(locationId ? {locationId} : {}),
+      message: buildingIds
+        ? `填充项引用了不存在的建筑库资产：${item.id} → ${item.buildingAssetId}`
+        : `填充项引用了建筑库资产，但校验未提供库：${item.id} → ${item.buildingAssetId}`,
+    });
+  };
   for (const p of fill.placements) {
     if (seen.has(p.id)) issues.push({ level: 'error', code: 'fill_duplicate_id', message: `填充项 id 重复：${p.id}` });
     seen.add(p.id);
     if (!known.has(p.locationId)) {
       issues.push({ level: 'error', code: 'fill_missing_location', locationId: p.locationId, message: `填充项指向不存在的地点：${p.id} → ${p.locationId}` });
     } else if (!bound.has(p.locationId)) {
-      issues.push({ level: 'warning', code: 'fill_unbound_location', locationId: p.locationId, message: `填充项地点尚未放到地图上：${p.id} → ${p.locationId}` });
+      issues.push({ level: 'error', code: 'fill_unbound_location', locationId: p.locationId, message: `填充项地点尚未放到地图上：${p.id} → ${p.locationId}` });
     }
-    if (p.buildingAssetId) {
-      if (buildingIds) {
-        if (!buildingIds.has(p.buildingAssetId)) {
-          issues.push({ level: 'error', code: 'fill_unknown_building', locationId: p.locationId, message: `填充项引用了不存在的建筑库资产：${p.id} → ${p.buildingAssetId}` });
-        }
-      } else {
-        issues.push({ level: 'warning', code: 'fill_unknown_building', locationId: p.locationId, message: `填充项引用了建筑库资产，但校验未提供库：${p.id} → ${p.buildingAssetId}` });
-      }
-    }
+    checkBuilding(p, p.locationId);
   }
   for (const m of fill.cellMarkers ?? []) {
     if (seen.has(m.id)) issues.push({ level: 'error', code: 'fill_duplicate_id', message: `填充标记 id 重复：${m.id}` });
@@ -183,7 +193,17 @@ export function validateMapFill(map: WorldMap, locationIds: readonly string[], o
     if (!a || !hexInBounds(map.geometry, a)) {
       issues.push({ level: 'warning', code: 'fill_marker_out_of_bounds', cell: m.cell, message: `格标记超出地图范围：${m.id} @ ${m.cell}` });
     }
-    issues.push({ level: 'warning', code: 'fill_unbound_marker', cell: m.cell, message: `格标记未绑定地点（路上遇怪等预留）：${m.id}` });
+    issues.push({ level: 'warning', code: 'fill_unbound_marker', cell: m.cell, message: `格标记未绑定地点，仅作示意；玩法触发须另有规则挂钩：${m.id}` });
+    checkBuilding(m);
+  }
+  for (const m of fill.routeMarkers ?? []) {
+    if (seen.has(m.id)) issues.push({ level: 'error', code: 'fill_duplicate_id', message: `路段标记 id 重复：${m.id}` });
+    seen.add(m.id);
+    if (routeIds && !routeIds.has(m.routeId)) {
+      issues.push({ level: 'warning', code: 'fill_unknown_route', routeId: m.routeId, message: `路段标记引用了不存在的移动行动：${m.id} → ${m.routeId}` });
+    }
+    issues.push({ level: 'warning', code: 'fill_unbound_marker', routeId: m.routeId, message: `路段标记未绑定地点，仅作示意；不会创建道路或移动：${m.id}` });
+    checkBuilding(m);
   }
   return issues;
 }

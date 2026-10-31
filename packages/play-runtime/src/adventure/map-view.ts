@@ -1,11 +1,11 @@
-import type { AdventureMapView, WorldContent } from '@novel-game/contracts';
-import { applyTerritoryOverlay, locationMap, locationSpatial, mapIdOf, npcsOnMap, relationTable, worldFactions } from '@novel-game/rules';
+import type { AdventureMapView, BuildingLibrary, WorldContent } from '@novel-game/contracts';
+import { applyTerritoryOverlay, locationMap, locationSpatial, mapIdOf, npcsOnMap, projectMapFillIcons, relationTable, worldFactions } from '@novel-game/rules';
 import type { AdventureState } from './adventure-state.js';
 
 type ActionView = { id: string; enabled: boolean };
 
 /** Read-only spatial status for the play map. Derived from session + authored map; mutates nothing. */
-export function projectAdventureMap(world: WorldContent, state: AdventureState, actions: ActionView[]): AdventureMapView | undefined {
+export function projectAdventureMap(world: WorldContent, state: AdventureState, actions: ActionView[], opts: {buildingLibrary?: BuildingLibrary} = {}): AdventureMapView | undefined {
   const authored = locationMap(world, state.locationId); if (!authored) return undefined;
   const overlay = state.territory?.[mapIdOf(authored)];
   const map = applyTerritoryOverlay(authored, overlay);
@@ -21,12 +21,14 @@ export function projectAdventureMap(world: WorldContent, state: AdventureState, 
   const fog = map.fog === true; const mapId = mapIdOf(map);
   const seen = new Set(state.explored?.[mapId] ?? []);
   const npcs = npcsOnMap(world, map, Object.fromEntries(Object.entries(state.npcs).map(([id, n]) => [id, n.locationId]))).filter(n => !fog || seen.has(n.cell));
+  const fillIcons = projectMapFillIcons(map, opts.buildingLibrary, world.actions)
+    .filter(icon => !fog || (seen.has(icon.cell) && (!icon.toCell || seen.has(icon.toCell))));
   return {
     mapId, ...(sp.cell ? { cell: sp.cell } : {}),
     ...(terrain ? { terrain: { id: terrain.id, label: terrain.label } } : {}),
     ...(faction ? { faction: { id: faction.id, name: faction.name } } : {}),
     regions: sp.regionIds.flatMap(id => { const r = layers.regions?.regions.find(x => x.id === id); return r ? [{ id, name: r.name }] : []; }),
-    reachable, fog, ...(npcs.length ? { npcs } : {}),
+    reachable, fog, ...(npcs.length ? { npcs } : {}), ...(fillIcons.length ? {fillIcons} : {}),
     ...(overlay && Object.keys(overlay).length ? { territory: { ...overlay } } : {}),
     relations: relationTable(world, state.factionRelations, worldFactions(world).map(f => f.id)), ...(fog ? { explored: [...(state.explored?.[mapId] ?? [])] } : {}),
   };

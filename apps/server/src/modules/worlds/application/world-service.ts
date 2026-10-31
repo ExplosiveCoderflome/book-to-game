@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { lintWorld } from '@novel-game/rules/preflight';
-import { authorReadSchema, worldContentSchema, type AuthorReadInput, type DraftProvenance, type WorldContent, type WorldDraft, type WorldRevision, type ValidationResult } from '@novel-game/contracts';
+import { authorReadSchema, worldContentSchema, type AuthorReadInput, type DraftProvenance, type ResourceDef, type Storylet, type StoryletChoice, type WorldCondition, type WorldContent, type WorldDraft, type WorldEffect, type WorldRevision, type ValidationResult } from '@novel-game/contracts';
 import { canonicalJson } from '../../../shared/canonical-json.js';
 import { AppError } from '../../../shared/errors.js';
 import { validateWorld } from '../domain/validate-world.js';
@@ -31,6 +31,105 @@ export class WorldService {
     const content = previous.content.provenance ? {...parsed, provenance: previous.content.provenance} : parsed;
     const draft: WorldDraft = {...previous, content, version: input.version + 1, updatedAt: new Date().toISOString()};
     this.repository.updateDraft(draft, input.version); return draft;
+  }
+  addLocation(id: string, input: {version: number; location: WorldContent['locations'][number]}): WorldDraft {
+    return this.editWithRules(id, input.version, content => {
+      if (content.locations.some(location => location.id === input.location.id)) {
+        throw new AppError('LOCATION_EXISTS', `地点已存在：${input.location.id}`, 409);
+      }
+      return {...content, locations: [...content.locations, input.location]};
+    });
+  }
+  updateLocation(id: string, input: {version: number; location: WorldContent['locations'][number]}): WorldDraft {
+    return this.editWithRules(id, input.version, content => {
+      const index = content.locations.findIndex(location => location.id === input.location.id);
+      if (index < 0) throw new AppError('LOCATION_NOT_FOUND', `地点不存在：${input.location.id}`, 404);
+      const locations = [...content.locations]; locations[index] = input.location;
+      return {...content, locations};
+    });
+  }
+  addStorylet(id: string, input: {version: number; storylet: Storylet}): WorldDraft {
+    return this.editWithRules(id, input.version, content => {
+      if ((content.storylets ?? []).some(storylet => storylet.id === input.storylet.id)) {
+        throw new AppError('STORYLET_EXISTS', `剧情卡已存在：${input.storylet.id}`, 409);
+      }
+      return {...content, storylets: [...content.storylets ?? [], input.storylet]};
+    });
+  }
+  updateStorylet(id: string, input: {version: number; storylet: Storylet}): WorldDraft {
+    return this.editStorylet(id, input.version, input.storylet.id, () => input.storylet);
+  }
+  addStoryletCondition(id: string, input: StoryletConditionEdit & {condition: WorldCondition}): WorldDraft {
+    return this.editStoryletCondition(id, input, conditions => [...conditions, input.condition]);
+  }
+  removeStoryletCondition(id: string, input: StoryletConditionEdit & {conditionIndex: number}): WorldDraft {
+    return this.editStoryletCondition(id, input, conditions => removeAt(conditions, input.conditionIndex, '条件'));
+  }
+  addStoryletEffect(id: string, input: {version: number; storyletId: string; choiceId: string; effect: WorldEffect}): WorldDraft {
+    return this.editStoryletChoice(id, input, choice => ({...choice, effects: [...choice.effects, input.effect]}));
+  }
+  removeStoryletEffect(id: string, input: {version: number; storyletId: string; choiceId: string; effectIndex: number}): WorldDraft {
+    return this.editStoryletChoice(id, input, choice => ({...choice, effects: removeAt(choice.effects, input.effectIndex, '效果')}));
+  }
+  addResourceDef(id: string, input: {version: number; resourceId: string; definition: ResourceDef}): WorldDraft {
+    return this.editWithRules(id, input.version, content => {
+      if (Object.hasOwn(content.resourceDefs ?? {}, input.resourceId)) {
+        throw new AppError('RESOURCE_DEF_EXISTS', `资源定义已存在：${input.resourceId}`, 409);
+      }
+      return {...content, resourceDefs: {...content.resourceDefs, [input.resourceId]: input.definition}};
+    });
+  }
+  updateResourceDef(id: string, input: {version: number; resourceId: string; definition: ResourceDef}): WorldDraft {
+    return this.editWithRules(id, input.version, content => {
+      if (!Object.hasOwn(content.resourceDefs ?? {}, input.resourceId)) {
+        throw new AppError('RESOURCE_DEF_NOT_FOUND', `资源定义不存在：${input.resourceId}`, 404);
+      }
+      return {...content, resourceDefs: {...content.resourceDefs, [input.resourceId]: input.definition}};
+    });
+  }
+  private editWithRules(id: string, version: number, change: (content: WorldContent) => WorldContent): WorldDraft {
+    assertVersion(version);
+    const previous = this.get(id);
+    if (previous.version !== version) throw new AppError('DRAFT_VERSION_CONFLICT', '草稿已更新，请刷新后编辑', 409);
+    const content = worldContentSchema.parse(change(previous.content));
+    const validation = validateWorld(content, this.sourceReader.get(previous.sourceId), {buildingAssetIds: this.buildingAssetIds()});
+    if (!validation.valid) throw new AppError('INVALID_WORLD', '细粒度编辑未通过世界规则校验', 400, validation);
+    // Reuse the existing sticky-provenance handling and repository compare-and-swap.
+    return this.update(id, {version, content});
+  }
+  private editStorylet(id: string, version: number, storyletId: string, change: (storylet: Storylet) => Storylet): WorldDraft {
+    return this.editWithRules(id, version, content => {
+      const storylets = [...content.storylets ?? []];
+      const index = storylets.findIndex(storylet => storylet.id === storyletId);
+      if (index < 0) throw new AppError('STORYLET_NOT_FOUND', `剧情卡不存在：${storyletId}`, 404);
+      storylets[index] = change(storylets[index]!);
+      return {...content, storylets};
+    });
+  }
+  private editStoryletCondition(id: string, input: StoryletConditionEdit, change: (conditions: WorldCondition[]) => WorldCondition[]): WorldDraft {
+    return this.editStorylet(id, input.version, input.storyletId, storylet => {
+      const target = input.target ?? 'when';
+      if (target === 'when') {
+        if (input.choiceId) throw new AppError('INVALID_CONDITION_TARGET', '剧情卡出现条件不能指定选项', 400);
+        return {...storylet, when: change(storylet.when ?? [])};
+      }
+      if (!input.choiceId) throw new AppError('INVALID_CONDITION_TARGET', '选项条件必须指定 choiceId', 400);
+      const choices = [...storylet.choices];
+      const index = choices.findIndex(choice => choice.id === input.choiceId);
+      if (index < 0) throw new AppError('STORYLET_CHOICE_NOT_FOUND', `剧情卡选项不存在：${input.choiceId}`, 404);
+      const choice = choices[index]!;
+      choices[index] = {...choice, [target]: change(choice[target] ?? [])};
+      return {...storylet, choices};
+    });
+  }
+  private editStoryletChoice(id: string, input: {version: number; storyletId: string; choiceId: string}, change: (choice: StoryletChoice) => StoryletChoice): WorldDraft {
+    return this.editStorylet(id, input.version, input.storyletId, storylet => {
+      const choices = [...storylet.choices];
+      const index = choices.findIndex(choice => choice.id === input.choiceId);
+      if (index < 0) throw new AppError('STORYLET_CHOICE_NOT_FOUND', `剧情卡选项不存在：${input.choiceId}`, 404);
+      choices[index] = change(choices[index]!);
+      return {...storylet, choices};
+    });
   }
   get(id: string): WorldDraft {
     const draft = this.repository.getDraft(id); if (!draft) throw new AppError('DRAFT_NOT_FOUND', '世界草稿不存在', 404); return draft;
@@ -113,6 +212,18 @@ export class WorldService {
     const revision = this.repository.getRevision(id);
     if (!revision) throw new AppError('WORLD_REVISION_NOT_FOUND', '已发布世界版本不存在', 404); return revision;
   }
+}
+type StoryletConditionEdit = {
+  version: number;
+  storyletId: string;
+  choiceId?: string;
+  target?: 'when' | 'availableWhen' | 'requires';
+};
+function removeAt<T>(items: readonly T[], index: number, label: string): T[] {
+  if (!Number.isSafeInteger(index) || index < 0 || index >= items.length) {
+    throw new AppError('INVALID_INDEX', `${label}索引不存在：${index}`, 400);
+  }
+  return [...items.slice(0, index), ...items.slice(index + 1)];
 }
 function assertVersion(version: number): void {
   if (!Number.isSafeInteger(version) || version < 1) throw new AppError('INVALID_VERSION', '草稿版本必须为正整数', 400);

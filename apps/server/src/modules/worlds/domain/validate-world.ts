@@ -1,5 +1,5 @@
 import {SYSTEM_WAIT_ACTION_ID, validateWorldbookContent, type WorldContent, type WorldCondition, type WorldEffect, type SourceDocument, type ValidationResult} from '@novel-game/contracts';
-import {assessOpeningActions, mapIdOf, validateS1References, walkWorldLogic, validateSubMaps, validateWorldLayer, validateWorldMap, worldFactions, worldMaps} from '@novel-game/rules';
+import {assessOpeningActions, mapIdOf, mapRouteActionIds, validateS1References, walkWorldLogic, validateSubMaps, validateWorldLayer, validateWorldMap, worldFactions, worldMaps} from '@novel-game/rules';
 export type ValidateWorldOptions = {
   buildingAssetIds?: ReadonlySet<string> | readonly string[];
 };
@@ -132,6 +132,9 @@ export function validateWorld(world: WorldContent, source: SourceDocument, opts?
   warnings.push(...wb.warnings);
   for (const issue of validateSubMaps(world)) (issue.level === 'error' ? errors : warnings).push(issue.message);
   for (const issue of validateWorldLayer(world)) (issue.level === 'error' ? errors : warnings).push(issue.message);
-  if (world.map) for (const issue of validateWorldMap(world.map, world.locations.map(l => l.id).filter(id => !(world.subMaps ?? []).some(m => m.pois.some(p => p.locationId === id))), opts?.buildingAssetIds ? { buildingAssetIds: opts.buildingAssetIds } : undefined)) (issue.level === 'error' ? errors : warnings).push(issue.message);
+  if (world.map) for (const issue of validateWorldMap(world.map, world.locations.map(l => l.id).filter(id => !(world.subMaps ?? []).some(m => m.pois.some(p => p.locationId === id))), {
+    ...(opts?.buildingAssetIds ? {buildingAssetIds: opts.buildingAssetIds} : {}),
+    routeIds: mapRouteActionIds(world.actions),
+  })) (issue.level === 'error' ? errors : warnings).push(issue.message);
   return {valid: errors.length === 0, errors, warnings};
 }

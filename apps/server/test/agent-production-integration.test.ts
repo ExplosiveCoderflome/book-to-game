@@ -114,7 +114,7 @@ test('agent production: native tools inspect a saved plan, author confirms via H
     assert.equal(page.version, 1); assert.equal(page.data.entries.length, 2);
     const exact = await client.callTool({name: 'read_world_draft', arguments: {id: draft.id, path: ['storylets', '0']}});
     assert.equal(exact.isError, undefined);
-    const tools = createAgentChatTools(createCommands(w), () => ({summary: ''}));
+    const tools = createAgentChatTools(createCommands(w), {jobs: w.jobs, worlds: w.worlds, games: w.games});
     const readTool = tools.find(t => t.name === 'read_world_draft')!;
     const exactRead = await readTool.execute(readTool.validate({id: draft.id, path: ['storylets', '0']})) as any;
     assert.deepEqual(exactRead.data.value, draft.content.storylets![0]);

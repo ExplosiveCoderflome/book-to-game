@@ -34,5 +34,14 @@ test('switching to custom clears provider-specific endpoint and model for manual
 test('saved custom and preset URLs map back to the provider selector', () => {
   assert.equal(providerPresetForBaseUrl('https://api.openai.com/v1/'), 'openai');
   assert.equal(providerPresetForBaseUrl('http://127.0.0.1:11434/v1'), 'ollama');
+  assert.equal(providerPresetForBaseUrl('https://maas-api.cn-huabei-1.xf-yun.com/v1'), 'xfyun');
   assert.equal(providerPresetForBaseUrl('https://private.example/v1'), 'custom');
+});
+
+test('XFYUN preset selects the verified model without changing the entered key', () => {
+  const fields: ModelSettingsFields = {baseUrl: '', model: '', timeoutSeconds: '90', apiKey: 'keep-me', clearApiKey: false};
+  const next = applyProviderPreset(fields, 'xfyun');
+  assert.equal(next.baseUrl, 'https://maas-api.cn-huabei-1.xf-yun.com/v1');
+  assert.equal(next.model, 'spark-x2.6');
+  assert.equal(next.apiKey, 'keep-me');
 });

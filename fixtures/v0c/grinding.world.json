@@ -1,0 +1,263 @@
+{
+  "schemaVersion": 1,
+  "mode": "open",
+  "title": "碎星试炼场（V0c 刷怪成长夹具）",
+  "premise": "你在碎星荒原的试炼场里反复挑战低阶魔物，把每一场战斗的经验积累成看得见的成长。",
+  "playerRole": "准备参加碎星试炼的冒险者",
+  "goal": "在六十次行动内积累二十四点历练，成为试炼场认可的老练猎手。",
+  "worldRules": [
+    "每次行动耗费一个回合，战斗与训练都会带来历练，历练达到二十四点时完成试炼。",
+    "金币用于购买补给；本夹具只验证成长曲线与可重复卡池，不引入完整战斗或付费模型。"
+  ],
+  "adaptationNotes": "V0c synthetic grinding fixture: non-decreasing growth resource, repeatable encounters and deterministic simulation.",
+  "sourceChapterIds": ["fixture-v0c-grinding"],
+  "initialLocationId": "camp",
+  "timeLimit": 60,
+  "timeoutEnding": "六十次行动结束了，你还没有完成试炼。营地为你保留下一次挑战的位置。",
+  "locations": [
+    {
+      "id": "camp",
+      "title": "试炼营地",
+      "text": "营地的火盆旁挂着记录历练的木牌，猎人们把每次战斗的收获刻在上面，再从补给箱里取出下一场要用的药剂。远处的荒原传来魔物的叫声，近处却有人耐心整理武器、交换掉落物。你可以留在营地训练，也可以沿着熟悉的小路去寻找新的对手。每一次出发都不会抹掉此前的积累，木牌上的数字会清楚地告诉你已经走了多远。营地始终为下一次挑战留着位置。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "ruins",
+      "title": "碎星遗迹",
+      "text": "断裂的石柱散落在荒草之间，缝隙里闪着微弱的星光，低阶魔物沿着旧墙来回巡逻。这里的战斗节奏比营地更快，但每次交锋都能让你熟悉敌人的动作，找到更稳妥的出手时机。遗迹入口有一块供猎人记录掉落的石板，击败魔物后可以把金币和经验一起带回营地。你不必一次解决所有对手，持续积累本身就是试炼的一部分。每场战斗都会成为下一场战斗的准备。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "market",
+      "title": "猎人集市",
+      "text": "集市沿着山脚排开，摊主把药剂、护符和魔物掉落的材料分门别类摆好，讨价还价声混着铁匠敲打武器的声音。你可以把战斗换来的金币留作补给，也可以向老猎人请教下一场试炼的路线。这里没有人催促你立刻变强，老练的猎人更在意每一次行动是否让下一次行动更有把握。休息和准备同样会沉淀成经验，等你回到荒原时就会派上用场。",
+      "origin": "adapted",
+      "evidence": []
+    }
+  ],
+  "facts": [],
+  "npcs": [],
+  "actions": [
+    {
+      "id": "train_at_camp",
+      "label": "在营地训练",
+      "description": "反复练习基础招式，稳定积累历练。",
+      "locationId": "camp",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "现在无法训练",
+      "risk": "训练需要消耗补给。",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {"kind": "resource", "resourceId": "xp", "delta": 2},
+        {"kind": "resource", "resourceId": "coins", "delta": -1}
+      ],
+      "text": "你把一个动作练到熟练，木牌上的历练又向前推进了两格。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "hunt_at_camp",
+      "label": "清理营地附近的魔物",
+      "description": "进行一场短促的遭遇战，获得历练和金币。",
+      "locationId": "camp",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "附近暂时没有目标",
+      "risk": "战斗会消耗一个回合。",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {"kind": "resource", "resourceId": "xp", "delta": 1},
+        {"kind": "resource", "resourceId": "coins", "delta": 3}
+      ],
+      "text": "你击败游荡的魔物，收起掉落物，也把这场战斗的经验记进木牌。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "study_at_camp",
+      "label": "研究魔物图鉴",
+      "description": "总结此前战斗的规律，获得少量历练和金币。",
+      "locationId": "camp",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "图鉴暂时不在手边",
+      "risk": "研究会占去一个回合。",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {"kind": "resource", "resourceId": "xp", "delta": 1},
+        {"kind": "resource", "resourceId": "coins", "delta": 1}
+      ],
+      "text": "你在图鉴边缘补上几笔观察笔记，下一次面对同类魔物会更有准备。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "camp_to_ruins",
+      "label": "前往碎星遗迹",
+      "description": "沿着旧路寻找新的试炼目标。",
+      "locationId": "camp",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "旧路暂时无法通行",
+      "risk": "赶路需要一个回合。",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {"kind": "move", "locationId": "ruins"},
+        {"kind": "resource", "resourceId": "xp", "delta": 1}
+      ],
+      "text": "你在旧路上复盘刚才的战斗，抵达遗迹时对地形已经有了判断。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "camp_to_market",
+      "label": "前往猎人集市",
+      "description": "去集市补充物资并交换试炼情报。",
+      "locationId": "camp",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "集市暂时关闭",
+      "risk": "赶路需要一个回合。",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {"kind": "move", "locationId": "market"},
+        {"kind": "resource", "resourceId": "xp", "delta": 1}
+      ],
+      "text": "你在路上向老猎人请教招式，抵达集市时已把建议记成自己的经验。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "ruins_to_camp",
+      "label": "回到试炼营地",
+      "description": "带着遗迹里的收获回到营地。",
+      "locationId": "ruins",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "现在回不去",
+      "risk": "赶路需要一个回合。",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {"kind": "move", "locationId": "camp"},
+        {"kind": "resource", "resourceId": "xp", "delta": 1}
+      ],
+      "text": "你把遗迹里的战斗重新拆成几个步骤，回到营地时又多了一分把握。",
+      "origin": "adapted",
+      "evidence": []
+    },
+    {
+      "id": "market_to_camp",
+      "label": "回到试炼营地",
+      "description": "带着补给和情报回到营地。",
+      "locationId": "market",
+      "availableWhen": [],
+      "requires": [],
+      "blockedReason": "现在回不去",
+      "risk": "赶路需要一个回合。",
+      "timeCost": 1,
+      "once": false,
+      "effects": [
+        {"kind": "move", "locationId": "camp"},
+        {"kind": "resource", "resourceId": "xp", "delta": 1}
+      ],
+      "text": "你把集市上学到的技巧演练了一遍，回到营地时已经能熟练运用。",
+      "origin": "adapted",
+      "evidence": []
+    }
+  ],
+  "events": [],
+  "storylets": [
+    {
+      "id": "slime_encounter",
+      "title": "史莱姆遭遇",
+      "kind": "repeat",
+      "locationIds": ["camp", "ruins"],
+      "weight": {"base": 10},
+      "repeat": {"cooldownTurns": 1},
+      "textVariants": [
+        "一只半透明的史莱姆从石柱后弹出来，身体里的星光随着动作一晃一晃。它不算强大的对手，却能让你练习如何判断弹跳的方向。你可以正面迎战，把掉落材料和经验一起收下，也可以先观察它的节奏，再用一次稳妥的反击结束遭遇。无论选择哪种方式，战斗都会留下可供下次复盘的线索。",
+        "荒草忽然向两边分开，几只小型史莱姆围着一块发亮的碎石挤来挤去。你发现它们的行动比上次更容易预测，正好可以检验刚练熟的招式。你可以主动出手清理道路，也可以绕到侧面逐个击破，避免把战斗拖得太长。收获不只在掉落物里，也在你逐渐稳定的判断里。你开始期待下一次遇到同样的对手。"
+      ],
+      "choices": [
+        {
+          "id": "fight_slime",
+          "label": "正面迎战",
+          "timeCost": 1,
+          "effects": [
+            {"kind": "resource", "resourceId": "xp", "delta": 2},
+            {"kind": "resource", "resourceId": "coins", "delta": 2}
+          ],
+          "text": "你抓住史莱姆落地的空隙击败它，收起材料，历练和金币都有增加。"
+        },
+        {
+          "id": "study_slime",
+          "label": "观察后稳妥反击",
+          "timeCost": 1,
+          "effects": [
+            {"kind": "resource", "resourceId": "xp", "delta": 1},
+            {"kind": "resource", "resourceId": "coins", "delta": 1}
+          ],
+          "text": "你看清了它的节奏，用一次干净的反击结束遭遇，记下新的战斗经验。"
+        }
+      ]
+    },
+    {
+      "id": "wolf_encounter",
+      "title": "荒原猎狼",
+      "kind": "repeat",
+      "locationIds": ["camp", "ruins", "market"],
+      "weight": {"base": 8},
+      "repeat": {"cooldownTurns": 1},
+      "textVariants": [
+        "一头瘦削的荒原狼在远处停下，鼻尖嗅着风里的气味。它没有立刻扑来，而是绕着你走了半圈，寻找防守的空隙。你可以抢先挥刀，争取在它行动前结束战斗，也可以保持距离观察步伐，再用一次准确的闪避创造机会。每一次遭遇都让你更熟悉荒原的规则，历练会在战斗后稳定留下。",
+        "夜色下的荒原狼守着一小片闪着光的矿脉，听到脚步后低低吼了一声。你握紧武器，想起营地木牌上已经积累的记录，心里没有了第一次出发时的慌乱。你可以迅速解决对手，也可以边退边试探它的攻击距离，把这场战斗变成一次有针对性的训练。你知道每一次交手都会让下一次出手更加从容。"
+      ],
+      "choices": [
+        {
+          "id": "fight_wolf",
+          "label": "抢先出手",
+          "timeCost": 1,
+          "effects": [
+            {"kind": "resource", "resourceId": "xp", "delta": 2},
+            {"kind": "resource", "resourceId": "coins", "delta": 3}
+          ],
+          "text": "你抢在荒原狼扑击前击中要害，带着掉落物和新的历练离开。"
+        },
+        {
+          "id": "evade_wolf",
+          "label": "闪避后寻找破绽",
+          "timeCost": 1,
+          "effects": [
+            {"kind": "resource", "resourceId": "xp", "delta": 1},
+            {"kind": "resource", "resourceId": "coins", "delta": 2}
+          ],
+          "text": "你避开第一次扑击，趁它转身时完成反击，战斗经验又沉淀了一层。"
+        }
+      ]
+    }
+  ],
+  "endings": [
+    {
+      "id": "seasoned_hunter",
+      "title": "老练猎手",
+      "kind": "ending",
+      "text": "二十四点历练刻满木牌，试炼场承认你已经不是初来乍到的新手。你带着稳定的成长走向下一片荒原。",
+      "when": []
+    }
+  ],
+  "resourceDefs": {
+    "xp": {"label": "历练", "min": 0, "max": 24, "initial": 0, "display": "bar", "onMax": {"ending": "seasoned_hunter"}},
+    "coins": {"label": "金币", "min": 0, "max": 200, "initial": 10, "display": "number"}
+  },
+  "storyletRules": {"handSize": 2, "refreshOn": ["move"], "refreshEveryMonths": 1},
+  "production": {"complete": false, "tier": "S", "note": "Small V0c grinding fixture; volume shortfalls are intentionally non-blocking."}
+}

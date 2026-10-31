@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   createBuildingAsset, emptyBuildingLibrary, addBuildingAsset, modelItemToDraftCard,
-  promoteBuildingVariant, resolvePlacementBuilding, uniqueBuildingLabel,
+  promoteBuildingVariant, resolvePlacementBuilding, uniqueBuildingLabel, updateBuildingAsset,
   validateBuildingLibrary,
 } from '@novel-game/contracts';
 import { worldMapSchema } from '@novel-game/contracts';
 import { addFillPlacement, placeFromBuildingAsset, placementToBuildingDraft, updateFillPlacement } from '../src/lib/world-map-fill';
 import { createEmptyMap } from '../src/lib/world-map';
-import { lockMapStructure } from '@novel-game/rules';
+import { lockMapStructure, projectMapFillIcons } from '@novel-game/rules';
 import { filterBuildingAssets } from '../src/lib/building-library-filter';
 
 test('placeFromBuildingAsset wires ref + optional local override label', () => {
@@ -26,6 +26,18 @@ test('placeFromBuildingAsset wires ref + optional local override label', () => {
   assert.ok(worldMapSchema.safeParse(map).success);
   const resolved = resolvePlacementBuilding(lib, p.buildingAssetId, p.buildingAssetVersion, p.localOverrides);
   assert.equal(resolved.asset?.id, asset.id);
+});
+
+test('library rename flows to an unmodified placement while local override wins', () => {
+  const original = createBuildingAsset(emptyBuildingLibrary(), {kind: 'shop', label: '旧店名'});
+  let library = addBuildingAsset(emptyBuildingLibrary(), original);
+  let map = lockMapStructure({...createEmptyMap(4, 4), pois: [{locationId: 'a', anchor: {cell: '0,0'}}]});
+  map = placeFromBuildingAsset(map, 'a', original);
+  assert.equal(map.fill?.placements[0].label, undefined);
+  library = updateBuildingAsset(library, original.id, {label: '新店名'});
+  assert.equal(projectMapFillIcons(map, library)[0].label, '新店名');
+  map = updateFillPlacement(map, map.fill!.placements[0].id, {localOverrides: {label: '只在此地'}});
+  assert.equal(projectMapFillIcons(map, library)[0].label, '只在此地');
 });
 
 test('placementToBuildingDraft + promote path keeps original library asset', () => {

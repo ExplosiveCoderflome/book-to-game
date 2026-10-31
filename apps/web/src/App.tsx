@@ -3,8 +3,6 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import type { AdventureView, WorldDraft, WorldRevision, Draft, GameRevision, GenerationJob, RuntimeInfo, SessionView, SourceSummary } from '@novel-game/contracts';
 import { errorMessage, request } from './lib/api';
 import { Notice } from './components/Notice';
-import { DemoPreview } from './components/DemoPreview';
-import { PlayRouteGate, useIsPlayerShell } from './components/player/PlayRouteGate';
 import { isPlayerRoute, navigateHash, parsePlayRoute, playStoryHash, playWorldHash } from './lib/play-route';
 import { WorkbenchShell } from './components/studio/WorkbenchShell';
 import { ConnectionScreen } from './components/studio/ConnectionScreen';
@@ -12,6 +10,9 @@ import { workbenchTabFromHash, workspacePages, type WorkspaceTab as Tab } from '
 import { draftSwitchIssue, type AgentHandoff, type WorkspaceSearchEntry } from './lib/workspace-search';
 /** Workbench tabs are code-split so the shell stays under the main-chunk budget. */
 const SourcePanel = lazy(() => import('./components/SourcePanel').then(m => ({default: m.SourcePanel})));
+/** The demo and player shells pull in the rules/play runtime; keep them out of the first screen. */
+const DemoPreview = lazy(() => import('./components/DemoPreview').then(m => ({ default: m.DemoPreview })));
+const PlayRouteGate = lazy(() => import('./components/player/PlayRouteGate').then(m => ({ default: m.PlayRouteGate })));
 const GenerationPanel = lazy(() => import('./components/GenerationPanel').then(m => ({default: m.GenerationPanel})));
 const ModelSettingsPanel = lazy(() => import('./components/ModelSettingsPanel').then(m => ({default: m.ModelSettingsPanel})));
 const DraftPanel = lazy(() => import('./components/DraftPanel').then(m => ({ default: m.DraftPanel })));
@@ -140,7 +141,7 @@ function Workbench() {
     searchEntries={searchEntries} onSearchSelect={openSearchEntry} onAskAgent={askAgent}
     onScrollPosition={(page, top) => {scrollPositions.current[page] = top;}}
     historyHost={setHistoryHost} onRefresh={() => refresh().catch(e => setError(errorMessage(e)))}>
-      {!data ? showDemo ? <DemoPreview onBack={() => setShowDemo(false)} /> : <ConnectionScreen connecting={connecting} error={error} onRetry={retryConnection} onDemo={() => setShowDemo(true)} /> : <>
+      {!data ? showDemo ? <Suspense fallback={<WorkspaceLoading />}><DemoPreview onBack={() => setShowDemo(false)} /></Suspense> : <ConnectionScreen connecting={connecting} error={error} onRetry={retryConnection} onDemo={() => setShowDemo(true)} /> : <>
         <Notice text={error} />
         <div hidden={tab !== 'sources'}>{visited('sources') && <Suspense fallback={<WorkspaceLoading />}> <SourcePanel token={token} sources={data.sources} revisions={data.revisions} selectedId={sourceId} select={setSourceId} refresh={refresh} onGenerate={() => setTab('generation')} onDemoReady={revision => { setRevisionId(revision.id); setTab('play'); }} /></Suspense>}</div>
         <div hidden={tab !== 'generation'}>{visited('generation') && <Suspense fallback={<WorkspaceLoading />}> <GenerationPanel token={token} runtime={data.runtime} sources={data.sources} selectedId={sourceId} select={setSourceId} jobs={data.jobs} refresh={refresh} openDraft={openGeneratedDraft} onConfigure={() => setTab('settings')} jobFocus={jobFocus} active={tab === 'generation'} /></Suspense>}</div>
@@ -160,13 +161,24 @@ function Workbench() {
   </WorkbenchShell>;
 }
 
+/** Kept in the entry so the player bundle is not imported just to read the current hash. */
+function useIsPlayerShell(): boolean {
+  const [player, setPlayer] = useState(() => isPlayerRoute(parsePlayRoute()));
+  useEffect(() => {
+    const onHash = () => setPlayer(isPlayerRoute(parsePlayRoute()));
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  return player;
+}
+
 function Root() {
   const player = useIsPlayerShell();
   // Keep hash parse in sync on first paint for deep links.
   useEffect(() => {
     if (!window.location.hash && isPlayerRoute(parsePlayRoute())) return;
   }, []);
-  if (player) return <PlayRouteGate token="" />;
+  if (player) return <Suspense fallback={<WorkspaceLoading />}><PlayRouteGate token="" /></Suspense>;
   return <Workbench />;
 }
 

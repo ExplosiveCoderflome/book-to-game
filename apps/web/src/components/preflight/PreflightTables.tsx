@@ -1,10 +1,25 @@
+import React from 'react';
 import type { GuidanceEdit, LintCategory, PassCheck, PlaytestReport, RouteGuidanceHint } from '@novel-game/contracts';
 import { useI18n } from '../../lib/i18n';
 import { percent1 } from '../../lib/preflight-api';
 
 export const CATEGORY_LABEL: Record<LintCategory, string> = { structure: '结构', resource: '资源平衡', pool: '卡池', text: '文本', volume: '体量' };
 
-/** G1–G10: line / measured come verbatim from the report; G9/G10 are stated facts, not numbers. */
+const FUN_PROFILE_LABELS: Record<string, string> = {
+  default: '默认画像', pressure: '压力型经营', healing: '治愈型经营', grinding: '升级刷怪', collection: '收集 / 人情温度',
+};
+export const funProfileLabel = (id: string) => FUN_PROFILE_LABELS[id] ?? id;
+
+/** A named profile changes the simulation's acceptance matrix, not the underlying seeded play. */
+export function PlaytestProfileNote({ profileId }: { profileId?: string }) {
+  const { t } = useI18n();
+  if (!profileId) return null;
+  return <p className="hint" data-testid="preflight-profile-note" data-profile-id={profileId}>
+    {t('画像：{profile} · 本次模拟按画像指标矩阵验收，未启用的通用指标不参与模拟结论。', { profile: t(funProfileLabel(profileId)) })}
+  </p>;
+}
+
+/** Report rows stay data-driven: profile-specific metrics use the same line / measured contract as G1–G10. */
 export function PassLineTable({ checks }: { checks: PassCheck[] }) {
   const { t } = useI18n();
   const ids = new Set(checks.map(c => c.id));

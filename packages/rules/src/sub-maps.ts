@@ -1,6 +1,7 @@
 import type { WorldContent } from '@novel-game/contracts';
 import { ROOT_MAP_ID, mapIdOf, worldMaps } from './map-session.js';
 import { validateWorldMap, type WorldMapIssue } from './world-map.js';
+import { mapRouteActionIds } from './map-fill-view.js';
 
 export interface SubMapIssue { level: 'error' | 'warning'; code: string; message: string; mapId?: string; locationId?: string }
 
@@ -22,7 +23,7 @@ export function mapPath(world: Pick<WorldContent, 'map' | 'subMaps'>, mapId: str
 }
 
 /** Sub-map + location hierarchy integrity: ids, orphan parents, cycles, ownership, per-map POI checks. */
-export function validateSubMaps(world: Pick<WorldContent, 'map' | 'subMaps' | 'locations'>): SubMapIssue[] {
+export function validateSubMaps(world: Pick<WorldContent, 'map' | 'subMaps' | 'locations'> & Partial<Pick<WorldContent, 'actions'>>): SubMapIssue[] {
   const issues: SubMapIssue[] = []; const subs = world.subMaps ?? [];
   if (!subs.length && !world.locations.some(l => l.parentLocationId)) return issues;
   if (subs.length && !world.map) issues.push({ level: 'error', code: 'submap_without_root', message: '存在子地图但没有世界主地图' });
@@ -49,7 +50,7 @@ export function validateSubMaps(world: Pick<WorldContent, 'map' | 'subMaps' | 'l
     const seen = new Set<string>(); let cur: typeof m | undefined = m;
     while (cur?.parent) { const cid = mapIdOf(cur); if (seen.has(cid)) { issues.push({ level: 'error', code: 'submap_cycle', mapId: m.id, message: `子地图父子关系成环：${m.id}` }); break; } seen.add(cid); cur = byId.get(cur.parent.mapId); }
     const relevant = world.locations.filter(l => m.pois.some(p => p.locationId === l.id)).map(l => l.id);
-    for (const i of validateWorldMap(m, relevant) as WorldMapIssue[]) if (i.code !== 'location_unbound') issues.push({ level: i.level, code: i.code, mapId: m.id, message: `[${m.name ?? m.id}] ${i.message}`, ...(i.locationId ? { locationId: i.locationId } : {}) });
+    for (const i of validateWorldMap(m, relevant, {routeIds: world.actions ? mapRouteActionIds(world.actions) : undefined}) as WorldMapIssue[]) if (i.code !== 'location_unbound') issues.push({ level: i.level, code: i.code, mapId: m.id, message: `[${m.name ?? m.id}] ${i.message}`, ...(i.locationId ? { locationId: i.locationId } : {}) });
   }
   // location hierarchy
   const parentOf = new Map(world.locations.flatMap(l => l.parentLocationId ? [[l.id, l.parentLocationId] as const] : []));

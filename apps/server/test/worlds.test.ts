@@ -4,8 +4,51 @@ import { SqliteDatabase as Database } from '../src/platform/database.js';
 import { WorldService, SqliteWorldRepository } from '../src/modules/worlds/index.js';
 import { source, content } from './helpers/open-fixture.js';
 import { AppError } from '../src/shared/errors.js';
+import type { Storylet, WorldContent, WorldDraft } from '@novel-game/contracts';
+import { worldCommands } from '../src/app/commands/worlds.js';
+import type { Workbench } from '../src/app/workbench.js';
 const status = (n: number) => (e: unknown) => e instanceof AppError && e.status === n;
 function setup(db: Database) { return new WorldService(new SqliteWorldRepository(db), {get: () => structuredClone(source)}); }
+
+const fineCommandNames = [
+  'add_world_location', 'update_world_location', 'add_world_storylet', 'update_world_storylet',
+  'add_storylet_condition', 'remove_storylet_condition', 'add_storylet_effect', 'remove_storylet_effect',
+  'add_world_resource_def', 'update_world_resource_def',
+] as const;
+function storyletFixture(id = 'card'): Storylet {
+  return {id, title: id === 'card' ? '旧卡' : '新卡', text: '剧情正文', locationIds: ['dock'],
+    when: [{kind: 'known', factId: 'secret'}],
+    choices: [{id: 'choice', label: '选择', timeCost: 1, effects: [{kind: 'set', factId: 'bell', value: true}], text: '选择结果'}]};
+}
+function editingContent(): WorldContent {
+  const world = content();
+  world.storylets = [storyletFixture()];
+  world.resourceDefs = {qi: {label: '修为', min: 0, max: 10, initial: 1}};
+  return world;
+}
+function fineInput(name: typeof fineCommandNames[number], world: WorldContent, version: number): Record<string, unknown> {
+  switch (name) {
+    case 'add_world_location': return {version, location: {id: 'attic', title: '阁楼', text: '安静阁楼', origin: 'adapted', evidence: []}};
+    case 'update_world_location': return {version, location: {...world.locations[0]!, title: '新渡口', text: '更新后的渡口'}};
+    case 'add_world_storylet': return {version, storylet: storyletFixture('extra')};
+    case 'update_world_storylet': return {version, storylet: {...world.storylets![0]!, title: '修改后的卡'}};
+    case 'add_storylet_condition': return {version, storyletId: 'card', target: 'when', condition: {kind: 'fact', factId: 'permit', value: true}};
+    case 'remove_storylet_condition': return {version, storyletId: 'card', target: 'when', conditionIndex: 0};
+    case 'add_storylet_effect': return {version, storyletId: 'card', choiceId: 'choice', effect: {kind: 'reveal', factId: 'noticed'}};
+    case 'remove_storylet_effect': return {version, storyletId: 'card', choiceId: 'choice', effectIndex: 0};
+    case 'add_world_resource_def': return {version, resourceId: 'spirit', definition: {label: '灵力', min: 0, max: 20, initial: 2}};
+    case 'update_world_resource_def': return {version, resourceId: 'qi', definition: {label: '真气', min: 0, max: 20, initial: 2}};
+  }
+}
+function commandSetup(db: Database) {
+  const worlds = setup(db);
+  const commands = worldCommands({worlds} as unknown as Workbench);
+  return {worlds, run(name: string, input: Record<string, unknown>) {
+    const command = commands.find(item => item.name === name);
+    assert.ok(command, `missing command ${name}`);
+    return command.execute(input) as WorldDraft;
+  }};
+}
 
 test('world drafts permit incomplete references but refuse publishing them', () => {
   const db = new Database(':memory:'); try {
@@ -134,5 +177,78 @@ test('archived world drafts leave the list but keep revisions readable', () => {
     assert.equal(worlds.list().length, 0); assert.equal(worlds.listRevisions().length, 1);
     assert.equal(worlds.get(draft.id).id, draft.id);
     assert.throws(() => worlds.archive('missing'), status(404));
+  } finally {db.close();}
+});
+
+test('all 10 fine-grained world commands execute their normal path with rules validation and CAS versions', () => {
+  const db = new Database(':memory:'); try {
+    const {worlds, run} = commandSetup(db);
+    const draft = worlds.create({sourceId: source.id, content: editingContent()});
+    fineCommandNames.forEach((name, index) => {
+      const current = worlds.get(draft.id);
+      const updated = run(name, {id: draft.id, ...fineInput(name, current.content, current.version)});
+      assert.equal(updated.version, index + 2, name);
+      assert.equal(worlds.validate(draft.id).valid, true, `${name}: ${worlds.validate(draft.id).errors.join(';')}`);
+    });
+    const result = worlds.get(draft.id);
+    assert.equal(result.version, 11);
+    assert.equal(result.content.locations.find(location => location.id === 'attic')?.title, '阁楼');
+    assert.equal(result.content.locations.find(location => location.id === 'dock')?.title, '新渡口');
+    assert.equal(result.content.storylets?.some(storylet => storylet.id === 'extra'), true);
+    const card = result.content.storylets?.find(storylet => storylet.id === 'card');
+    assert.equal(card?.title, '修改后的卡');
+    assert.deepEqual(card?.when, [{kind: 'fact', factId: 'permit', value: true}]);
+    assert.deepEqual(card?.choices[0]?.effects, [{kind: 'reveal', factId: 'noticed'}]);
+    assert.deepEqual(result.content.resourceDefs?.spirit, {label: '灵力', min: 0, max: 20, initial: 2});
+    assert.deepEqual(result.content.resourceDefs?.qi, {label: '真气', min: 0, max: 20, initial: 2});
+  } finally {db.close();}
+});
+
+test('each fine-grained world command rejects schema or rules validation failures without saving', () => {
+  const db = new Database(':memory:'); try {
+    const {worlds, run} = commandSetup(db);
+    const original = editingContent();
+    const draft = worlds.create({sourceId: source.id, content: original});
+    for (const name of fineCommandNames) {
+      const input = fineInput(name, original, 1);
+      let expected: 'rules' | 'schema' = 'rules';
+      if (name === 'add_world_location' || name === 'update_world_location') {
+        input.location = {...input.location as object, origin: 'source', evidence: []};
+      } else if (name === 'add_world_storylet' || name === 'update_world_storylet') {
+        input.storylet = {...input.storylet as object, locationIds: ['missing']};
+      } else if (name === 'add_storylet_condition') {
+        input.condition = {kind: 'fact', factId: 'missing', value: true};
+      } else if (name === 'remove_storylet_condition') {
+        input.conditionIndex = -1; expected = 'schema';
+      } else if (name === 'add_storylet_effect') {
+        input.effect = {kind: 'resource', resourceId: 'missing', delta: 1};
+      } else if (name === 'remove_storylet_effect') {
+        input.effectIndex = -1; expected = 'schema';
+      } else if (name === 'add_world_resource_def' || name === 'update_world_resource_def') {
+        input.definition = {...input.definition as object, initial: 99};
+      }
+      if (expected === 'rules') {
+        assert.throws(() => run(name, {id: draft.id, ...input}),
+          (error: unknown) => error instanceof AppError && error.code === 'INVALID_WORLD' && error.status === 400, name);
+      } else {
+        assert.throws(() => run(name, {id: draft.id, ...input}), name);
+      }
+      assert.equal(worlds.get(draft.id).version, 1, `${name} must not save a rejected edit`);
+      assert.deepEqual(worlds.get(draft.id).content, original, name);
+    }
+  } finally {db.close();}
+});
+
+test('each fine-grained world command rejects a stale version before editing', () => {
+  const db = new Database(':memory:'); try {
+    const {worlds, run} = commandSetup(db);
+    const original = editingContent();
+    const draft = worlds.create({sourceId: source.id, content: original});
+    for (const name of fineCommandNames) {
+      assert.throws(() => run(name, {id: draft.id, ...fineInput(name, original, 2)}),
+        (error: unknown) => error instanceof AppError && error.code === 'DRAFT_VERSION_CONFLICT' && error.status === 409, name);
+      assert.equal(worlds.get(draft.id).version, 1, name);
+      assert.deepEqual(worlds.get(draft.id).content, original, name);
+    }
   } finally {db.close();}
 });

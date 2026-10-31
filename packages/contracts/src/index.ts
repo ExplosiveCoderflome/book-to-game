@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { productionBriefSchema, type ProductionBrief, type ProductionState } from './production.js';
 export * from './production.js';
+export * from './fun-profiles.js';
 export * from './world.js';
 export * from './world-map.js';
 export * from './map-templates.js';
@@ -10,6 +11,7 @@ export * from './building-image.js';
 export * from './item-catalog.js';
 export * from './item-draft.js';
 export * from './map-draft.js';
+export * from './map-fill-draft.js';
 export type * from './preflight.js';
 export {
   worldbookSchema, worldbookEntrySchema, worldbookConstraintSchema, worldbookEntryKindSchema,
