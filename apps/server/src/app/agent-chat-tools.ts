@@ -18,7 +18,8 @@ export interface AgentChatCommandState {
 }
 type Summarize = (args: Args, state: AgentChatCommandState) => string;
 type AgentChatCommandMetadata = {
-  confirmation: 'auto' | 'confirm';
+  /** Legacy override only. New commands arrive with confirmation on their Command definition. */
+  confirmation?: 'auto' | 'confirm';
   summarize: Summarize;
 } & (
   | {versionCheck: 'none'; readVersion?: never}
@@ -104,38 +105,40 @@ const mapFillFields = {label: '名称', localOverrides: '本地覆盖'};
 
 /** Adding a chat command requires a complete entry here; missing metadata is a TypeScript error. */
 export const agentChatCommandMetadata = {
-  runtime_info: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('查询运行信息')},
-  list_sources: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('查询来源列表')},
-  read_source: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('读取来源')},
-  list_blocks: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('查询积木目录')},
-  list_fun_profiles: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('查询爽感画像目录')},
-  list_jobs: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('查询任务列表')},
-  read_job: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('读取任务')},
-  check_job_plan: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('检查制作规划')},
-  list_world_drafts: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('查询世界草稿列表')},
-  read_world_draft: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('读取世界草稿')},
-  get_world_preflight: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('查询世界预检')},
-  validate_world_draft: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('校验世界草稿')},
+  runtime_info: {versionCheck: 'none', summarize: argsSummary('查询运行信息')},
+  list_sources: {versionCheck: 'none', summarize: argsSummary('查询来源列表')},
+  read_source: {versionCheck: 'none', summarize: argsSummary('读取来源')},
+  list_blocks: {versionCheck: 'none', summarize: argsSummary('查询积木目录')},
+  list_fun_profiles: {versionCheck: 'none', summarize: argsSummary('查询爽感画像目录')},
+  list_jobs: {versionCheck: 'none', summarize: argsSummary('查询任务列表')},
+  read_job: {versionCheck: 'none', summarize: argsSummary('读取任务')},
+  check_job_plan: {versionCheck: 'none', summarize: argsSummary('检查制作规划')},
+  list_world_drafts: {versionCheck: 'none', summarize: argsSummary('查询世界草稿列表')},
+  read_world_draft: {versionCheck: 'none', summarize: argsSummary('读取世界草稿')},
+  get_world_preflight: {versionCheck: 'none', summarize: argsSummary('查询世界预检')},
+  validate_world_draft: {versionCheck: 'none', summarize: argsSummary('校验世界草稿')},
   lint_world_draft: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('体检世界草稿')},
   playtest_world_draft: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('试玩世界草稿')},
-  propose_map_fill: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('生成 Mock 地图填充提案（只读）')},
-  agent_status: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('查询 Agent 状态')},
-  list_agent_decisions: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('查询 Agent 决策列表')},
-  list_agent_repairs: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('查询修复候选列表')},
+  propose_map_fill: {versionCheck: 'none', summarize: argsSummary('生成 Mock 地图填充提案（只读）')},
+  propose_clock_patch: {versionCheck: 'none', summarize: argsSummary('生成 Mock 时钟补丁提案（只读）')},
+  propose_storylet_patch: {versionCheck: 'none', summarize: argsSummary('生成 Mock 剧情卡补丁提案（只读）')},
+  agent_status: {versionCheck: 'none', summarize: argsSummary('查询 Agent 状态')},
+  list_agent_decisions: {versionCheck: 'none', summarize: argsSummary('查询 Agent 决策列表')},
+  list_agent_repairs: {versionCheck: 'none', summarize: argsSummary('查询修复候选列表')},
   create_agent_repair: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('创建修复候选')},
-  list_drafts: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('查询游戏草稿列表')},
-  get_draft: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('读取游戏草稿')},
-  validate_draft: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('校验游戏草稿')},
+  list_drafts: {versionCheck: 'none', summarize: argsSummary('查询游戏草稿列表')},
+  get_draft: {versionCheck: 'none', summarize: argsSummary('读取游戏草稿')},
+  validate_draft: {versionCheck: 'none', summarize: argsSummary('校验游戏草稿')},
   lint_draft: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('体检游戏草稿')},
-  list_world_revisions: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('查询世界版本列表')},
-  list_games: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('查询游戏列表')},
-  create_generation_job: {confirmation: 'confirm', versionCheck: 'none', summarize: argsSummary('创建改编任务')},
-  create_production_job: {confirmation: 'confirm', versionCheck: 'none', summarize: argsSummary('创建角色扮演制作任务')},
-  retry_job: {confirmation: 'confirm', versionCheck: 'updatedAt', readVersion: jobVersion, summarize: jobConfirmationSummary('恢复生成任务')},
-  cancel_job: {confirmation: 'confirm', versionCheck: 'updatedAt', readVersion: jobVersion, summarize: jobConfirmationSummary('取消生成任务')},
-  rewrite_production_unit: {confirmation: 'confirm', versionCheck: 'updatedAt', readVersion: jobVersion, summarize: jobConfirmationSummary('重写指定正文')},
+  list_world_revisions: {versionCheck: 'none', summarize: argsSummary('查询世界版本列表')},
+  list_games: {versionCheck: 'none', summarize: argsSummary('查询游戏列表')},
+  create_generation_job: {versionCheck: 'none', summarize: argsSummary('创建改编任务')},
+  create_production_job: {versionCheck: 'none', summarize: argsSummary('创建角色扮演制作任务')},
+  retry_job: {versionCheck: 'updatedAt', readVersion: jobVersion, summarize: jobConfirmationSummary('恢复生成任务')},
+  cancel_job: {versionCheck: 'updatedAt', readVersion: jobVersion, summarize: jobConfirmationSummary('取消生成任务')},
+  rewrite_production_unit: {versionCheck: 'updatedAt', readVersion: jobVersion, summarize: jobConfirmationSummary('重写指定正文')},
   approve_saved_production_plan: {
-    confirmation: 'confirm', versionCheck: 'updatedAt',
+    versionCheck: 'updatedAt',
     readVersion: (args, state) => {
       const job = state.jobs.get(String(args.id));
       if (job.updatedAt !== args.expectedUpdatedAt || job.status !== 'awaiting_review' || !job.productionState || job.productionState.approved) {
@@ -148,58 +151,58 @@ export const agentChatCommandMetadata = {
       return `确认「${plan.world.title}」当前玩法并开始正文生成：扮演${plan.world.playerRole}；${plan.world.storylets?.length ?? 0}张剧情卡、${plan.world.actions.length}个行动；路线：${plan.routes.map(r => r.name).join('、')}。将使用配置的模型产生费用，不发布游戏。`;
     },
   },
-  apply_agent_repair: {confirmation: 'confirm', versionCheck: 'none', summarize: argsSummary('应用修复候选')},
-  reject_agent_repair: {confirmation: 'confirm', versionCheck: 'none', summarize: argsSummary('驳回修复候选')},
-  publish_world_draft: {confirmation: 'confirm', versionCheck: 'version', readVersion: worldVersion, summarize: worldSummary('发布世界版本')},
+  apply_agent_repair: {versionCheck: 'none', summarize: argsSummary('应用修复候选')},
+  reject_agent_repair: {versionCheck: 'none', summarize: argsSummary('驳回修复候选')},
+  publish_world_draft: {versionCheck: 'version', readVersion: worldVersion, summarize: worldSummary('发布世界版本')},
   publish_draft: {
-    confirmation: 'confirm', versionCheck: 'version',
+    versionCheck: 'version',
     readVersion: (args, state) => state.games.get(String(args.id)).version,
     summarize: (args, state) => {
       const draft = state.games.get(String(args.id));
       return `发布「${draft.content.title}」v${draft.version}`;
     },
   },
-  edit_world_summary: {confirmation: 'confirm', versionCheck: 'version', readVersion: worldVersion, summarize: worldSummary('修改世界摘要')},
-  add_world_location: {confirmation: 'confirm', versionCheck: 'version', readVersion: worldVersion,
+  edit_world_summary: {versionCheck: 'version', readVersion: worldVersion, summarize: worldSummary('修改世界摘要')},
+  add_world_location: {versionCheck: 'version', readVersion: worldVersion,
     summarize: (args, state) => {
       const location = args.location as WorldLocation;
       return worldEditSummary('新增地点', args, state, `${location.id}「${location.title}」；正文：${shortJson(location.text)}`);
     }},
-  update_world_location: {confirmation: 'confirm', versionCheck: 'version', readVersion: worldVersion,
+  update_world_location: {versionCheck: 'version', readVersion: worldVersion,
     summarize: (args, state) => {
       const draft = state.worlds.get(String(args.id));
       const location = args.location as WorldLocation;
       const previous = required(draft.content.locations.find(item => item.id === location.id), `地点 ${location.id}`);
       return worldEditSummary('修改地点', args, state, `${location.id}；${changedValues(previous, location, locationFields)}`);
     }},
-  add_world_storylet: {confirmation: 'confirm', versionCheck: 'version', readVersion: worldVersion,
+  add_world_storylet: {versionCheck: 'version', readVersion: worldVersion,
     summarize: (args, state) => {
       const storylet = args.storylet as Storylet;
       return worldEditSummary('新增剧情卡', args, state,
         `${storylet.id}「${storylet.title}」；地点：${storylet.locationIds?.join('、') || '不限'}；${storylet.choices.length} 个选项`);
     }},
-  update_world_storylet: {confirmation: 'confirm', versionCheck: 'version', readVersion: worldVersion,
+  update_world_storylet: {versionCheck: 'version', readVersion: worldVersion,
     summarize: (args, state) => {
       const draft = state.worlds.get(String(args.id));
       const storylet = args.storylet as Storylet;
       const previous = required((draft.content.storylets ?? []).find(item => item.id === storylet.id), `剧情卡 ${storylet.id}`);
       return worldEditSummary('修改剧情卡', args, state, `${storylet.id}；${changedValues(previous, storylet, storyletFields)}`);
     }},
-  add_storylet_condition: {confirmation: 'confirm', versionCheck: 'version', readVersion: worldVersion,
+  add_storylet_condition: {versionCheck: 'version', readVersion: worldVersion,
     summarize: (args, state) => conditionSummary('新增剧情卡条件', args, state, false)},
-  remove_storylet_condition: {confirmation: 'confirm', versionCheck: 'version', readVersion: worldVersion,
+  remove_storylet_condition: {versionCheck: 'version', readVersion: worldVersion,
     summarize: (args, state) => conditionSummary('删除剧情卡条件', args, state, true)},
-  add_storylet_effect: {confirmation: 'confirm', versionCheck: 'version', readVersion: worldVersion,
+  add_storylet_effect: {versionCheck: 'version', readVersion: worldVersion,
     summarize: (args, state) => effectSummary('新增剧情卡效果', args, state, false)},
-  remove_storylet_effect: {confirmation: 'confirm', versionCheck: 'version', readVersion: worldVersion,
+  remove_storylet_effect: {versionCheck: 'version', readVersion: worldVersion,
     summarize: (args, state) => effectSummary('删除剧情卡效果', args, state, true)},
-  add_world_resource_def: {confirmation: 'confirm', versionCheck: 'version', readVersion: worldVersion,
+  add_world_resource_def: {versionCheck: 'version', readVersion: worldVersion,
     summarize: (args, state) => {
       const definition = args.definition as ResourceDef;
       return worldEditSummary('新增资源定义', args, state,
         `${String(args.resourceId)}「${definition.label}」；范围 ${definition.min}–${definition.max ?? '∞'}，初始 ${definition.initial ?? '未设置'}`);
     }},
-  update_world_resource_def: {confirmation: 'confirm', versionCheck: 'version', readVersion: worldVersion,
+  update_world_resource_def: {versionCheck: 'version', readVersion: worldVersion,
     summarize: (args, state) => {
       const draft = state.worlds.get(String(args.id));
       const resourceId = String(args.resourceId);
@@ -207,7 +210,7 @@ export const agentChatCommandMetadata = {
       return worldEditSummary('修改资源定义', args, state,
         `${resourceId}；${changedValues(previous, args.definition as ResourceDef, resourceFields)}`);
     }},
-  place_map_fill: {confirmation: 'confirm', versionCheck: 'version', readVersion: worldVersion,
+  place_map_fill: {versionCheck: 'version', readVersion: worldVersion,
     summarize: (args, state) => {
       const placement = args.placement as MapFillPlacement;
       const asset = placement.buildingAssetId
@@ -215,14 +218,14 @@ export const agentChatCommandMetadata = {
       return worldEditSummary('放置地图填充', args, state,
         `${args.mapId ? `地图 ${String(args.mapId)}；` : ''}${placement.id}（${placement.kind}）→ 地点 ${placement.locationId}${asset}`);
     }},
-  update_map_fill_placement: {confirmation: 'confirm', versionCheck: 'version', readVersion: worldVersion,
+  update_map_fill_placement: {versionCheck: 'version', readVersion: worldVersion,
     summarize: (args, state) => {
       const previous = mapFillPlacementFrom(args, state);
       const patch = args.patch as Partial<Pick<MapFillPlacement, 'label' | 'localOverrides'>>;
       return worldEditSummary('修改地图填充', args, state,
         `${args.mapId ? `地图 ${String(args.mapId)}；` : ''}${previous.id}；${changedValues(previous, {...previous, ...patch}, mapFillFields)}`);
     }},
-  accept_map_fill: {confirmation: 'confirm', versionCheck: 'version', readVersion: worldVersion,
+  accept_map_fill: {versionCheck: 'version', readVersion: worldVersion,
     summarize: (args, state) => {
       const items = args.items as MapFillProposalItem[];
       const details = items.slice(0, 3).map(item => `${item.proposalId}（${item.kind}@${item.locationId}）`).join('、');
@@ -242,7 +245,7 @@ export function createAgentChatTools(commands: Command[], state: AgentChatComman
     const tool: ChatTool = {
       name: c.name, description: c.description + (c.name === 'playtest_world_draft' ? '（对话内最多40种子）' : ''),
       parameters: z.toJSONSchema(c.inputSchema, {unrepresentable: 'any', reused: 'ref'}) as Record<string, unknown>,
-      requiresConfirmation: metadata.confirmation === 'confirm',
+      requiresConfirmation: (('confirmation' in metadata ? metadata.confirmation : undefined) ?? c.confirmation) === 'confirm',
       validate: input => {
         const value = input && typeof input === 'object' ? {...input} as Record<string, unknown> : {};
         if ('requestId' in c.inputSchema.shape && !value.requestId) value.requestId = randomUUID();

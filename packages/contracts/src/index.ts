@@ -13,6 +13,7 @@ export * from './item-catalog.js';
 export * from './item-draft.js';
 export * from './map-draft.js';
 export * from './map-fill-draft.js';
+export * from './world-patches.js';
 export type * from './preflight.js';
 export {
   worldbookSchema, worldbookEntrySchema, worldbookConstraintSchema, worldbookEntryKindSchema,

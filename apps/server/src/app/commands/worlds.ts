@@ -1,10 +1,12 @@
 import { z } from 'zod';
 import {
   acceptMapFillInputSchema, authorReadSchema, extractMapDraftInputSchema, mapFillPlacementSchema,
-  proposeMapFillInputSchema, resourceDefSchema, storyletSchema, worldConditionSchema, worldContentSchema, worldEffectSchema,
+  proposeClockPatchInputSchema, proposeMapFillInputSchema, proposeStoryletPatchInputSchema,
+  resourceDefSchema, storyletSchema, worldConditionSchema, worldContentSchema, worldEffectSchema,
 } from '@novel-game/contracts';
 import {
-  acceptMapFill, extractMapDraft, mockMapFillModel, placeMapFill, proposeMapFill, updateMapFillPlacement,
+  acceptMapFill, extractMapDraft, mockMapFillModel, mockWorldPatchModel, placeMapFill,
+  proposeClockPatch, proposeMapFill, proposeStoryletPatch, updateMapFillPlacement,
 } from '../../modules/worlds/index.js';
 import { AppError } from '../../shared/errors.js';
 import type { Workbench } from '../workbench.js';
@@ -76,6 +78,12 @@ export function worldCommands(w: Workbench) {
         proposeMapFill(w.worlds, w.buildingLibrary, id, input, mockMapFillModel, AbortSignal.timeout(30_000), 'mock-map-fill')),
     command('accept_map_fill', '接受已审核的既有资产填充提案并一次性写入草稿；新资产须先经建筑库审核入库。',
       acceptMapFillInputSchema.extend({id: z.string()}), false, ({id, ...input}) => acceptMapFill(w.worlds, w.buildingLibrary, id, input)),
+    command('propose_clock_patch', 'Mock AI：生成时钟块级补丁提案，只读；返回可审阅的字段级 diff，不写草稿。',
+      proposeClockPatchInputSchema, true, input => proposeClockPatch(w.worlds, input.worldDraftId, input, mockWorldPatchModel,
+        AbortSignal.timeout(30_000), 'mock-clock-patch')),
+    command('propose_storylet_patch', 'Mock AI：生成剧情卡块级补丁提案，只读；返回可审阅的字段级 diff，不写草稿。',
+      proposeStoryletPatchInputSchema, true, input => proposeStoryletPatch(w.worlds, input.worldDraftId, input, mockWorldPatchModel,
+        AbortSignal.timeout(30_000), 'mock-storylet-patch')),
     command('get_world_schema', '获取v1开放世界JSON Schema；草稿需校验引用与来源后再发布。', emptySchema, true, () => z.toJSONSchema(worldContentSchema)),
     command('create_world_draft', '建立开放世界草稿；作者视图含隐藏事实和NPC私有目标，不可直接作为玩家上下文。',
       z.object({sourceId: z.string().min(1), content: worldContentSchema}), false, input => w.worlds.create(input)),

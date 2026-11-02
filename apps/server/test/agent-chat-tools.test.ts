@@ -9,9 +9,9 @@ import { openDatabase } from '../src/platform/database.js';
 const automaticCommands = [
   'runtime_info', 'list_sources', 'read_source', 'list_jobs', 'read_job', 'check_job_plan',
   'list_world_drafts', 'read_world_draft', 'get_world_preflight', 'validate_world_draft',
-  'lint_world_draft', 'playtest_world_draft', 'propose_map_fill', 'agent_status', 'list_agent_decisions',
-  'list_agent_repairs', 'create_agent_repair', 'list_drafts', 'get_draft', 'validate_draft',
-  'lint_draft', 'list_world_revisions', 'list_games', 'list_blocks', 'list_fun_profiles',
+  'lint_world_draft', 'playtest_world_draft', 'propose_map_fill', 'propose_clock_patch', 'propose_storylet_patch',
+  'agent_status', 'list_agent_decisions', 'list_agent_repairs', 'create_agent_repair', 'list_drafts', 'get_draft',
+  'validate_draft', 'lint_draft', 'list_world_revisions', 'list_games', 'list_blocks', 'list_fun_profiles',
 ];
 
 const confirmationCases: Array<{
@@ -101,7 +101,11 @@ function metadataFor(name: string) {
 }
 
 function commandsFor(names: string[], execute: Command['execute'] = () => ({})): Command[] {
-  return names.map(name => ({name, description: name, inputSchema: z.object({}).passthrough(), readOnly: false, execute}));
+  return names.map(name => {
+    const readOnly = automaticCommands.includes(name);
+    return {name, description: name, inputSchema: z.object({}).passthrough(), readOnly,
+      confirmation: readOnly ? 'auto' as const : 'confirm' as const, risk: readOnly ? 'read' as const : 'write' as const, execute};
+  });
 }
 
 const state = {
@@ -125,7 +129,7 @@ const state = {
   games: {get: () => ({id: 'game-1', version: 4, content: {title: '游戏草稿'}})},
 } as unknown as AgentChatCommandState;
 
-test('agent chat tools: confirmation levels and metadata registry cover all 49 commands', () => {
+test('agent chat tools: confirmation levels and metadata registry cover all 51 commands', () => {
   const allNames = [
     ...automaticCommands, ...confirmationCases.map(item => item.name),
     ...fineGrainedConfirmationCases.map(item => item.name), ...mapFillConfirmationCases.map(item => item.name),
@@ -138,9 +142,9 @@ test('agent chat tools: confirmation levels and metadata registry cover all 49 c
     ...mapFillConfirmationCases.map(item => [item.name, true]),
   ]);
 
-  assert.equal(automaticCommands.length, 25);
+  assert.equal(automaticCommands.length, 27);
   assert.equal(confirmationCases.length, 11);
-  assert.equal(allNames.length, 49);
+  assert.equal(allNames.length, 51);
   assert.deepEqual(Object.keys(agentChatCommandMetadata).sort(), allNames.slice().sort());
   assert.deepEqual(Object.fromEntries(tools.map(tool => [tool.name, tool.requiresConfirmation])), expected);
   for (const name of automaticCommands) {
@@ -176,10 +180,19 @@ test('agent chat tools: all 10 fine-grained edits require confirmation with Chin
 
 test('agent chat tools: map-fill proposals are automatic and all three writes require confirmed world versions', () => {
   assert.equal(mapFillConfirmationCases.length, 3);
+  for (const name of ['propose_map_fill', 'propose_clock_patch', 'propose_storylet_patch']) {
+    const tool = createAgentChatTools(commandsFor([name]), state)[0]!;
+    assert.equal(tool.requiresConfirmation, false, name);
+  }
   const proposal = createAgentChatTools(commandsFor(['propose_map_fill']), state)[0]!;
-  assert.equal(proposal.requiresConfirmation, false);
   assert.deepEqual(proposal.prepare({id: 'world-1', count: 2}), {
     summary: '生成 Mock 地图填充提案（只读）：{"id":"world-1","count":2}',
+  });
+  assert.deepEqual(createAgentChatTools(commandsFor(['propose_clock_patch']), state)[0]!.prepare({worldDraftId: 'world-1', unit: 'day'}), {
+    summary: '生成 Mock 时钟补丁提案（只读）：{"worldDraftId":"world-1","unit":"day"}',
+  });
+  assert.deepEqual(createAgentChatTools(commandsFor(['propose_storylet_patch']), state)[0]!.prepare({worldDraftId: 'world-1', storyletId: 'card'}), {
+    summary: '生成 Mock 剧情卡补丁提案（只读）：{"worldDraftId":"world-1","storyletId":"card"}',
   });
 
   const tools = createAgentChatTools(commandsFor(mapFillConfirmationCases.map(item => item.name)), state);

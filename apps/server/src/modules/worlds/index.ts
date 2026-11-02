@@ -10,3 +10,7 @@ export {
 export {
   proposeMapFill, mockMapFillModel, type MapFillModel, type MapFillModelInput,
 } from './application/propose-map-fill.js';
+export {
+  proposeClockPatch, proposeStoryletPatch, mockWorldPatchModel,
+  type WorldPatchModel, type WorldPatchModelInput,
+} from './application/propose-world-patch.js';
