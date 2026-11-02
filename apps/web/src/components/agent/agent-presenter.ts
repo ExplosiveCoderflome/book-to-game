@@ -8,6 +8,7 @@ const labels: Record<string, string> = {
   create_agent_repair: '生成修复候选', list_agent_repairs: '读取修复候选', apply_agent_repair: '应用修复候选', reject_agent_repair: '驳回修复候选',
   edit_world_summary: '修改世界摘要', publish_world_draft: '发布世界版本', retry_job: '恢复制作任务', cancel_job: '取消制作任务',
   runtime_info: '检查工作空间', agent_status: '查看 Agent 状态', list_agent_decisions: '查看监督记录',
+  list_blocks: '查看积木目录',
 };
 export const toolLabel = (name: string) => labels[name] ?? name;
 export function conversationLabel(title: string) {

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { productionBriefSchema, type ProductionBrief, type ProductionState } from './production.js';
 export * from './production.js';
 export * from './fun-profiles.js';
+export * from './blocks.js';
 export * from './world.js';
 export * from './world-map.js';
 export * from './map-templates.js';

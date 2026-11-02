@@ -107,6 +107,7 @@ export const agentChatCommandMetadata = {
   runtime_info: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('查询运行信息')},
   list_sources: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('查询来源列表')},
   read_source: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('读取来源')},
+  list_blocks: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('查询积木目录')},
   list_jobs: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('查询任务列表')},
   read_job: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('读取任务')},
   check_job_plan: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('检查制作规划')},
