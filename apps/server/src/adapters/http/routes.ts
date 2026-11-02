@@ -2,7 +2,8 @@ import { Router } from 'express';
 import type { Command } from '../../app/commands/index.js';
 
 const routes = [
-  ['get', '/runtime', 'runtime_info'], ['get', '/blocks', 'list_blocks'], ['get', '/fun-profiles', 'list_fun_profiles'], ['post', '/sources', 'import_source'],
+  ['get', '/runtime', 'runtime_info'], ['get', '/blocks', 'list_blocks'], ['get', '/fun-profiles', 'list_fun_profiles'],
+  ['get', '/fun-profiles/:profileId/blocks', 'recommend_blocks_for_profile'], ['post', '/sources', 'import_source'],
   ['get', '/settings/model', 'get_model_settings'], ['put', '/settings/model', 'save_model_settings'],
   ['post', '/settings/model/test', 'test_model_connection'], ['post', '/settings/model/models', 'list_model_names'],
   ['get', '/settings/building-library', 'get_building_library'],
@@ -51,6 +52,7 @@ const routes = [
   ['post', '/worlds/drafts/:id/archive', 'archive_world_draft'], ['post', '/worlds/drafts/:id/validate', 'validate_world_draft'], ['post', '/worlds/drafts/:id/publish', 'publish_world_draft'], ['post', '/worlds/drafts/:id/map-draft', 'extract_map_draft'],
   ['post', '/worlds/drafts/:id/map-fill/place', 'place_map_fill'], ['put', '/worlds/drafts/:id/map-fill/:placementId', 'update_map_fill_placement'],
   ['post', '/worlds/drafts/:id/map-fill/propose', 'propose_map_fill'], ['post', '/worlds/drafts/:id/map-fill/accept', 'accept_map_fill'],
+  ['post', '/worlds/drafts/:worldDraftId/fun-profile/propose', 'propose_fun_profile'],
   ['post', '/worlds/drafts/:worldDraftId/clock-patch/propose', 'propose_clock_patch'],
   ['post', '/worlds/drafts/:worldDraftId/storylet-patch/propose', 'propose_storylet_patch'],
   ['post', '/worlds/drafts/:worldDraftId/patch/apply', 'apply_world_patch'],

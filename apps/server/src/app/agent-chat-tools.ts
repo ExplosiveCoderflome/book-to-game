@@ -119,6 +119,8 @@ export const agentChatCommandMetadata = {
   validate_world_draft: {versionCheck: 'none', summarize: argsSummary('校验世界草稿')},
   lint_world_draft: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('体检世界草稿')},
   playtest_world_draft: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('试玩世界草稿')},
+  propose_fun_profile: {versionCheck: 'none', summarize: argsSummary('生成 Mock 爽感画像提案（只读）')},
+  recommend_blocks_for_profile: {versionCheck: 'none', summarize: argsSummary('推荐画像积木（只读）')},
   propose_map_fill: {versionCheck: 'none', summarize: argsSummary('生成 Mock 地图填充提案（只读）')},
   propose_clock_patch: {versionCheck: 'none', summarize: argsSummary('生成 Mock 时钟补丁提案（只读）')},
   propose_storylet_patch: {versionCheck: 'none', summarize: argsSummary('生成 Mock 剧情卡补丁提案（只读）')},

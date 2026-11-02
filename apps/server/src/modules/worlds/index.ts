@@ -15,3 +15,7 @@ export {
   type WorldPatchModel, type WorldPatchModelInput,
 } from './application/propose-world-patch.js';
 export {applyWorldPatch} from './application/apply-world-patch.js';
+export {
+  proposeFunProfile, recommendBlocksForProfile, resolveProfileBlocks, mockFunProfileModel,
+  type FunProfileModel, type FunProfileModelInput,
+} from './application/propose-fun-profile.js';
