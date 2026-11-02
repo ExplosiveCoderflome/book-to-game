@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Command } from '../../app/commands/index.js';
 
 const routes = [
-  ['get', '/runtime', 'runtime_info'], ['get', '/blocks', 'list_blocks'], ['post', '/sources', 'import_source'],
+  ['get', '/runtime', 'runtime_info'], ['get', '/blocks', 'list_blocks'], ['get', '/fun-profiles', 'list_fun_profiles'], ['post', '/sources', 'import_source'],
   ['get', '/settings/model', 'get_model_settings'], ['put', '/settings/model', 'save_model_settings'],
   ['post', '/settings/model/test', 'test_model_connection'], ['post', '/settings/model/models', 'list_model_names'],
   ['get', '/settings/building-library', 'get_building_library'],

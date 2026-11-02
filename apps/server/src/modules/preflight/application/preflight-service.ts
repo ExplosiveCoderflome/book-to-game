@@ -2,13 +2,14 @@
  * Author-side preflight (§6.6 lint, §6.7 sim; C9). Reports are stored per draft id and carry `draftVersion`
  * so the UI can show "报告基于第 N 版，草稿已改". Nothing here goes into an export package.
  */
-import type { LintReport, PassCheck, PlaytestReport, WorldDraft } from '@novel-game/contracts';
+import type { FunProfile, LintReport, PassCheck, PlaytestReport, WorldDraft } from '@novel-game/contracts';
+import { getFunProfile } from '@novel-game/contracts';
 import { lintStory, lintWorld } from '@novel-game/rules/preflight';
 import { simulateWorld } from '@novel-game/play-runtime/sim';
 import { AppError } from '../../../shared/errors.js';
 import type { PreflightDraftReaders, PreflightRepository, StoredPreflight } from './ports.js';
 
-export interface PlaytestInput {id: string; seeds?: number; strategies?: string[]}
+export interface PlaytestInput {id: string; seeds?: number; strategies?: string[]; profileId?: string}
 export const PLAYTEST_MAX_SEEDS = 500;
 
 export class PreflightService {
@@ -35,11 +36,13 @@ export class PreflightService {
     }
     const seeds = input.seeds ?? 200;
     if (!Number.isInteger(seeds) || seeds < 1 || seeds > PLAYTEST_MAX_SEEDS) throw new AppError('INVALID_SEEDS', `seeds 需在 1–${PLAYTEST_MAX_SEEDS}`, 400);
-    const key = `${input.id}@${draft.version}#${seeds}#${(input.strategies ?? []).join(',')}`;
+    const profile = input.profileId === undefined ? undefined : getFunProfile(input.profileId);
+    if (input.profileId !== undefined && !profile) throw new AppError('INVALID_PROFILE', `未知画像：${input.profileId}`, 400);
+    const key = `${input.id}@${draft.version}#${seeds}#${(input.strategies ?? []).join(',')}#${input.profileId ?? ''}`;
     const pending = this.running.get(key);
     if (pending) return pending;
     const run = (async () => {
-      const inspected = await this.inspectWorldDraft(draft, {seeds, strategies: input.strategies, guidance: true});
+      const inspected = await this.inspectWorldDraft(draft, {seeds, strategies: input.strategies, guidance: true, profile});
       this.repository.savePlaytest(draft.id, inspected.playtest); return inspected.playtest;
     })().finally(() => this.running.delete(key));
     this.running.set(key, run);
@@ -47,11 +50,12 @@ export class PreflightService {
   }
   /** Preview a snapshot without persisting. Agent repair uses the same checks as author preflight. */
   async inspectWorldDraft(draft: Pick<WorldDraft, 'id' | 'sourceId' | 'version' | 'content'>,
-    options: {seeds: number; strategies?: string[]; guidance: boolean}): Promise<{lint: LintReport; playtest: PlaytestReport}> {
+    options: {seeds: number; strategies?: string[]; guidance: boolean; profile?: FunProfile}): Promise<{lint: LintReport; playtest: PlaytestReport}> {
     if (!Number.isInteger(options.seeds) || options.seeds < 1 || options.seeds > PLAYTEST_MAX_SEEDS) throw new AppError('INVALID_SEEDS', `seeds 需在 1–${PLAYTEST_MAX_SEEDS}`, 400);
     const report = await simulateWorld({id: `preflight-${draft.id}`, draftId: draft.id, sourceId: draft.sourceId,
       version: draft.version, content: draft.content, createdAt: new Date().toISOString()},
     {seeds: options.seeds, ...(options.strategies?.length ? {strategies: options.strategies} : {}),
+      ...(options.profile ? {profile: options.profile} : {}),
       draftId: draft.id, draftVersion: draft.version, yieldEvery: this.yieldFn, guidance: options.guidance});
     const lint = lintWorld(draft.content, {draftId: draft.id, draftVersion: draft.version});
     return {lint, playtest: {...report, checks: mergeChecks(report.checks, lint.checks)}};

@@ -11,7 +11,7 @@ const automaticCommands = [
   'list_world_drafts', 'read_world_draft', 'get_world_preflight', 'validate_world_draft',
   'lint_world_draft', 'playtest_world_draft', 'propose_map_fill', 'agent_status', 'list_agent_decisions',
   'list_agent_repairs', 'create_agent_repair', 'list_drafts', 'get_draft', 'validate_draft',
-  'lint_draft', 'list_world_revisions', 'list_games', 'list_blocks',
+  'lint_draft', 'list_world_revisions', 'list_games', 'list_blocks', 'list_fun_profiles',
 ];
 
 const confirmationCases: Array<{
@@ -125,7 +125,7 @@ const state = {
   games: {get: () => ({id: 'game-1', version: 4, content: {title: '游戏草稿'}})},
 } as unknown as AgentChatCommandState;
 
-test('agent chat tools: confirmation levels and metadata registry cover all 48 commands', () => {
+test('agent chat tools: confirmation levels and metadata registry cover all 49 commands', () => {
   const allNames = [
     ...automaticCommands, ...confirmationCases.map(item => item.name),
     ...fineGrainedConfirmationCases.map(item => item.name), ...mapFillConfirmationCases.map(item => item.name),
@@ -138,9 +138,9 @@ test('agent chat tools: confirmation levels and metadata registry cover all 48 c
     ...mapFillConfirmationCases.map(item => [item.name, true]),
   ]);
 
-  assert.equal(automaticCommands.length, 24);
+  assert.equal(automaticCommands.length, 25);
   assert.equal(confirmationCases.length, 11);
-  assert.equal(allNames.length, 48);
+  assert.equal(allNames.length, 49);
   assert.deepEqual(Object.keys(agentChatCommandMetadata).sort(), allNames.slice().sort());
   assert.deepEqual(Object.fromEntries(tools.map(tool => [tool.name, tool.requiresConfirmation])), expected);
   for (const name of automaticCommands) {

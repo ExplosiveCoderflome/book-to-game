@@ -65,28 +65,28 @@ const DEFAULT_THRESHOLDS = {
 const RAW_PROFILES: z.input<typeof funProfileSchema>[] = [
   {
     id: 'default', version: 1, funTags: [],
-    suggestedBlocks: ['clock', 'storylet-pool', 'endings', 'route-coverage'],
+    suggestedBlocks: ['clock', 'storylet-pool', 'endings-recap', 'preflight-sim'],
     pacingLine: {decisions: 60, uniqueChars: 10000}, strategies: ALL_STRATEGIES,
     thresholds: DEFAULT_THRESHOLDS,
     metricMatrix: {G1: true, G2: true, G4: true, G6: true, G8: true},
   },
   {
     id: 'pressure', version: 1, funTags: ['pressure-release', 'warmth'],
-    suggestedBlocks: ['clock', 'storylet-pool', 'resource-pressure', 'route-coverage'],
+    suggestedBlocks: ['clock', 'storylet-pool', 'stat-templates', 'preflight-sim'],
     pacingLine: {decisions: 60, uniqueChars: 10000}, strategies: ALL_STRATEGIES,
     thresholds: DEFAULT_THRESHOLDS,
     metricMatrix: {G1: true, G4: true, G6: true, G8: true, 'pressure-bidirectional': true},
   },
   {
     id: 'healing', version: 1, funTags: ['healing-routine', 'warmth', 'collection'],
-    suggestedBlocks: ['day-clock', 'storylet-pool', 'relationship-resources', 'ending-recap'],
+    suggestedBlocks: ['clock', 'storylet-pool', 'stat-templates', 'endings-recap'],
     pacingLine: {decisions: 15, uniqueChars: 1000}, strategies: ALL_STRATEGIES,
     thresholds: {...DEFAULT_THRESHOLDS, minFailureFreeEndingRate: 0.8},
     metricMatrix: {G1: true, G4: true, G8: true, 'failure-free-ending-rate': true},
   },
   {
     id: 'grinding', version: 1, funTags: ['growth', 'grinding', 'collection'],
-    suggestedBlocks: ['growth-resources', 'encounters', 'loot', 'storylet-pool'],
+    suggestedBlocks: ['stat-templates', 'encounters', 'item-catalog', 'storylet-pool'],
     pacingLine: {decisions: 30, uniqueChars: 3000},
     strategies: ['random', 'greedy-growth', 'greedy-money', 'modao', 'lazy'],
     thresholds: DEFAULT_THRESHOLDS,
@@ -94,7 +94,7 @@ const RAW_PROFILES: z.input<typeof funProfileSchema>[] = [
   },
   {
     id: 'collection', version: 1, funTags: ['collection', 'warmth'],
-    suggestedBlocks: ['relationship-resources', 'goal-strategy', 'storylet-pool', 'endings'],
+    suggestedBlocks: ['stat-templates', 'item-catalog', 'storylet-pool', 'endings-recap'],
     pacingLine: {decisions: 30, uniqueChars: 3000}, strategies: ALL_STRATEGIES,
     thresholds: DEFAULT_THRESHOLDS,
     metricMatrix: {G4: true, G8: true, 'collection-reachable': true},
@@ -106,6 +106,11 @@ export const FUN_PROFILES: readonly FunProfile[] = RAW_PROFILES.map(profile => f
 
 export function getFunProfile(id: string | undefined | null): FunProfile | undefined {
   return FUN_PROFILES.find(profile => profile.id === id);
+}
+
+/** Read-only catalog projection for `list_fun_profiles`. */
+export function getFunProfileCatalog(): readonly FunProfile[] {
+  return FUN_PROFILES;
 }
 
 export const DEFAULT_FUN_PROFILE = getFunProfile('default')!;
