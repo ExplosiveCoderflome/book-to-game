@@ -95,17 +95,19 @@ FunProfile 是 Catalog 数据（新契约 `packages/contracts/src/fun-profiles.t
 
 ## 6. 分阶段路线图（小切片，先做不付费的解耦）
 
-| 切片 | 内容 | 改动范围 | 验收 | 付费调用 |
-|---|---|---|---|---|
-| **V0a 题材解耦** | resource-labels 默认表、sim 默认策略名/标签、`PACING_LINE`、`STRATEGY_IDS` 抽成可传入 profile（默认值=现状）；时钟 unit 放开为 day/week/month/year（schemaVersion 迁移） | `resource-labels.ts`、`simulate.ts`、`world.ts:98`、双运行时包装、迁移文档 | 现有 verify + m1b 导出回归零退化；新增非仙侠合成夹具全绿；旧世界行为不变 | 无 |
-| **V0b BlockSpec 注册表** | §2.1 契约 + 9 模块注册 + lint（requires/composesWith 校验） | contracts 新文件、catalog | 注册完整可 lint；`list_blocks` 只读命令 | 无 |
-| **V0c FunProfile 契约 + 画像化验收** | §3 契约 + `simulateWorld({profile})` + 指标矩阵 + 两个新合成夹具（治愈经营、刷怪成长） | `fun-profiles.ts`、sim、preflight 面板文案 | 治愈夹具不被 60 步卡住、刷怪夹具曲线单调；default profile 下 G1–G10 逐条不变 | 无 |
-| **V1 块级 agent 提议 + 命令元数据** | `propose_*_patch` diff 工具（mock 模型）+ `Command` 元数据（risk/confirmation/guard） | commands、`agent-chat-tools.ts`、workbench | 每个新工具一处注册即得确认卡/guard；16k 回执不被整稿 JSON 撑爆 | 无（mock） |
-| **V2 制作 agent 画像流程** | `propose_fun_profile` + 选积木推荐 + 按 profile 体检解读 | prompts、chat 工具 | 真实小说夹具端到端（mock 模型下先过行为测试） | 需（chat 模型） |
-| **V3 生成管线后置装配** | productionUnits 扩展 map/fill/passages/recap；`production-prompts.ts:13/14` 限制解除（按画像启用） | production prompts、runner | 守灯人/武林夹具：生成后不再需要手工补 recap；S/M 档提示不再含题材偏置示例 | 需（生成模型） |
-| **V4 运行时润色层在线化** | `ai.mode:'polish'`；在线版 narrate/NPC 对话按状态生成 | manifest、导出、播放器（仅在线路径） | 离线包字节级回归不变；存档重放一致（AI 产物不入存档）；开关默认关 | 按需 |
+| 切片 | 内容 | 改动范围 | 验收 | 付费调用 | 状态（2026-11-03） |
+|---|---|---|---|---|---|
+| **V0a 题材解耦** | resource-labels 默认表、sim 默认策略名/标签、`PACING_LINE`、`STRATEGY_IDS` 抽成可传入 profile（默认值=现状）；时钟 unit 放开为 day/week/month/year（schemaVersion 迁移） | `resource-labels.ts`、`simulate.ts`、`world.ts:98`、双运行时包装、迁移文档 | 现有 verify + m1b 导出回归零退化；新增非仙侠合成夹具全绿；旧世界行为不变 | 无 | **部分 / 待拍板**：题材解耦与默认值回退已落地（`apps/server/test/v0a-theme-decoupling.test.ts`、`fixtures/v0a/diner.world.json`）；`clock.unit` 已放开 day/week/month/year（`packages/contracts/src/world.ts`），但无 `schemaVersion` 迁移（`WorldContent` 仍 literal 1），时钟单位正式放开口径待 §7 拍板 |
+| **V0b BlockSpec 注册表** | §2.1 契约 + 9 模块注册 + lint（requires/composesWith 校验） | contracts 新文件、catalog | 注册完整可 lint；`list_blocks` 只读命令 | 无 | **已落地** `1afb457`（9 积木注册 + `list_blocks`）；FunProfile `suggestedBlocks` 对齐真实积木见 `5f0bf47`。缺口：无 |
+| **V0c FunProfile 契约 + 画像化验收** | §3 契约 + `simulateWorld({profile})` + 指标矩阵 + 两个新合成夹具（治愈经营、刷怪成长） | `fun-profiles.ts`、sim、preflight 面板文案 | 治愈夹具不被 60 步卡住、刷怪夹具曲线单调；default profile 下 G1–G10 逐条不变 | 无 | **已完成**：`packages/contracts/src/fun-profiles.ts`、`simulateWorld({profile})`（`packages/play-runtime/src/sim/simulate.ts`）、`fixtures/v0c/{healing,grinding}.world.json`、`apps/server/test/v0c-fun-profile-acceptance.test.ts` |
+| **V1 块级 agent 提议 + 命令元数据** | `propose_*_patch` diff 工具（mock 模型）+ `Command` 元数据（risk/confirmation/guard） | commands、`agent-chat-tools.ts`、workbench | 每个新工具一处注册即得确认卡/guard；16k 回执不被整稿 JSON 撑爆 | 无（mock） | **已落地** `bcdb949`（confirmation/risk 元数据）、`b793731`（`propose_clock_patch` / `propose_storylet_patch`）、`faeb14c`（`apply_world_patch`）。缺口：提议仍为 mock 模型 |
+| **V2 制作 agent 画像流程** | `propose_fun_profile` + 选积木推荐 + 按 profile 体检解读 | prompts、chat 工具 | 真实小说夹具端到端（mock 模型下先过行为测试） | 需（chat 模型） | **部分（thin）** `9039d99`（`propose_fun_profile` mock + `recommend_blocks_for_profile`）。缺口：画像确认落库、真实 chat 模型、按 profile 体检解读文案 |
+| **V3 生成管线后置装配** | productionUnits 扩展 map/fill/passages/recap；`production-prompts.ts:13/14` 限制解除（按画像启用） | production prompts、runner | 守灯人/武林夹具：生成后不再需要手工补 recap；S/M 档提示不再含题材偏置示例 | 需（生成模型） | **未做** |
+| **V4 运行时润色层在线化** | `ai.mode:'polish'`；在线版 narrate/NPC 对话按状态生成 | manifest、导出、播放器（仅在线路径） | 离线包字节级回归不变；存档重放一致（AI 产物不入存档）；开关默认关 | 按需 | **未做** |
 
-V0a 优先级排在 `next-work-2026-10-29.md` 未完成项之前（S6 等策划、S7 等用户 Windows 机、S10 等产品决策，V0a 无外部依赖）；S1–S5 已完成的路线覆盖/引导/节奏/规划检查直接被画像化指标复用。
+V0a 的未完成部分（时钟 `schemaVersion` 迁移与放开口径）仍排在 `next-work-2026-10-29.md` 未完成项之前（S6 等策划、S7 等用户 Windows 机、S10 等产品决策，V0a 无外部依赖）；S1–S5 已完成的路线覆盖/引导/节奏/规划检查直接被画像化指标复用。V0b / V0c / V1 / V2 thin 已不依赖 V0a 收口先落地。
+
+> 2026-11-02/03 通宵切片：V0b、V0c 的 FunProfile/`simulateWorld({profile})`、V1 的 confirmation/risk + propose/apply、V2 thin 已按上表落地；提交仅在本地 `feat/novel-game-foundation`，未 push。V0a 的题材解耦与时钟单位放开已有代码/测试，但 schemaVersion 迁移与放开口径仍待拍板。
 
 **三个示范题材样例**（各自成为 V0c/V3 的验收载体）：
 
