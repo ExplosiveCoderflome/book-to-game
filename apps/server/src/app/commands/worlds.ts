@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import {
-  acceptMapFillInputSchema, authorReadSchema, extractMapDraftInputSchema, mapFillPlacementSchema,
+  acceptMapFillInputSchema, applyWorldPatchInputSchema, authorReadSchema, extractMapDraftInputSchema, mapFillPlacementSchema,
   proposeClockPatchInputSchema, proposeMapFillInputSchema, proposeStoryletPatchInputSchema,
   resourceDefSchema, storyletSchema, worldConditionSchema, worldContentSchema, worldEffectSchema,
 } from '@novel-game/contracts';
 import {
-  acceptMapFill, extractMapDraft, mockMapFillModel, mockWorldPatchModel, placeMapFill,
+  acceptMapFill, applyWorldPatch, extractMapDraft, mockMapFillModel, mockWorldPatchModel, placeMapFill,
   proposeClockPatch, proposeMapFill, proposeStoryletPatch, updateMapFillPlacement,
 } from '../../modules/worlds/index.js';
 import { AppError } from '../../shared/errors.js';
@@ -84,6 +84,8 @@ export function worldCommands(w: Workbench) {
     command('propose_storylet_patch', 'Mock AI：生成剧情卡块级补丁提案，只读；返回可审阅的字段级 diff，不写草稿。',
       proposeStoryletPatchInputSchema, true, input => proposeStoryletPatch(w.worlds, input.worldDraftId, input, mockWorldPatchModel,
         AbortSignal.timeout(30_000), 'mock-storylet-patch')),
+    command('apply_world_patch', '应用已审阅的时钟或剧情卡块级补丁，按版本乐观锁一次性写入草稿并走世界规则校验；拒绝整稿替换与非法路径。',
+      applyWorldPatchInputSchema, false, input => applyWorldPatch(w.worlds, input.worldDraftId, input)),
     command('get_world_schema', '获取v1开放世界JSON Schema；草稿需校验引用与来源后再发布。', emptySchema, true, () => z.toJSONSchema(worldContentSchema)),
     command('create_world_draft', '建立开放世界草稿；作者视图含隐藏事实和NPC私有目标，不可直接作为玩家上下文。',
       z.object({sourceId: z.string().min(1), content: worldContentSchema}), false, input => w.worlds.create(input)),

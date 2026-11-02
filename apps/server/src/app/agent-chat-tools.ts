@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type {
-  GenerationJob, MapFillPlacement, MapFillProposalItem, ResourceDef, Storylet, WorldCondition, WorldContent, WorldEffect,
+  GenerationJob, MapFillPlacement, MapFillProposalItem, ResourceDef, Storylet, WorldCondition, WorldContent, WorldEffect, WorldPatchChange,
 } from '@novel-game/contracts';
 import type { ChatTool } from '../modules/agent/index.js';
 import { jobSummary, type JobService } from '../modules/generation/index.js';
@@ -225,6 +225,16 @@ export const agentChatCommandMetadata = {
       return worldEditSummary('修改地图填充', args, state,
         `${args.mapId ? `地图 ${String(args.mapId)}；` : ''}${previous.id}；${changedValues(previous, {...previous, ...patch}, mapFillFields)}`);
     }},
+  apply_world_patch: {
+    versionCheck: 'version',
+    readVersion: (args, state) => state.worlds.get(String(args.worldDraftId)).version,
+    summarize: (args, state) => {
+      const draft = state.worlds.get(String(args.worldDraftId));
+      const changes = args.changes as WorldPatchChange[];
+      const details = changes.slice(0, 3).map(change => `${change.op} ${change.path}`).join('、');
+      return `应用世界补丁：「${draft.content.title}」v${draft.version}；${changes.length} 项：${details}${changes.length > 3 ? '……' : ''}`;
+    },
+  },
   accept_map_fill: {versionCheck: 'version', readVersion: worldVersion,
     summarize: (args, state) => {
       const items = args.items as MapFillProposalItem[];

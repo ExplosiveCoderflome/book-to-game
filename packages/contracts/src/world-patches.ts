@@ -53,3 +53,11 @@ export const worldPatchProposalSchema = z.object({
   model: z.string().max(120).optional(),
 });
 export type WorldPatchProposal = z.infer<typeof worldPatchProposalSchema>;
+
+/** Apply an already-reviewed field-level proposal. `version` is the optimistic draft lock. */
+export const applyWorldPatchInputSchema = z.object({
+  worldDraftId: z.string().min(1),
+  version: z.number().int().positive(),
+  changes: z.array(worldPatchChangeSchema).min(1).max(24),
+});
+export type ApplyWorldPatchInput = z.infer<typeof applyWorldPatchInputSchema>;

@@ -87,6 +87,9 @@ export class WorldService {
       return {...content, resourceDefs: {...content.resourceDefs, [input.resourceId]: input.definition}};
     });
   }
+  applyContent(id: string, input: {version: number; content: WorldContent}): WorldDraft {
+    return this.editWithRules(id, input.version, () => input.content);
+  }
   private editWithRules(id: string, version: number, change: (content: WorldContent) => WorldContent): WorldDraft {
     assertVersion(version);
     const previous = this.get(id);

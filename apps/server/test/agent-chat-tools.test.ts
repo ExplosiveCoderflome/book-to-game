@@ -43,6 +43,13 @@ const confirmationCases: Array<{
     summary: '发布「游戏草稿」v4'},
   {name: 'edit_world_summary', args: {id: 'world-1', version: 3, title: '新标题', premise: '新背景'}, versionCheck: 'version', guard: '3',
     summary: '修改世界摘要：「旧标题」v3；标题: "旧标题" → "新标题"；背景: "旧背景" → "新背景"'},
+  {name: 'apply_world_patch', args: {worldDraftId: 'world-1', version: 3, changes: [
+    {path: 'clock.unit', op: 'replace', after: 'day'},
+    {path: 'storylets.card.title', op: 'replace', after: '新卡'},
+    {path: 'storylets.card.text', op: 'replace', after: '新正文'},
+    {path: 'clock.limitMonths', op: 'replace', after: 30},
+  ]}, versionCheck: 'version', guard: '3',
+    summary: '应用世界补丁：「旧标题」v3；4 项：replace clock.unit、replace storylets.card.title、replace storylets.card.text……'},
 ];
 
 const mapFillConfirmationCases: typeof confirmationCases = [
@@ -129,7 +136,7 @@ const state = {
   games: {get: () => ({id: 'game-1', version: 4, content: {title: '游戏草稿'}})},
 } as unknown as AgentChatCommandState;
 
-test('agent chat tools: confirmation levels and metadata registry cover all 51 commands', () => {
+test('agent chat tools: confirmation levels and metadata registry cover all 52 commands', () => {
   const allNames = [
     ...automaticCommands, ...confirmationCases.map(item => item.name),
     ...fineGrainedConfirmationCases.map(item => item.name), ...mapFillConfirmationCases.map(item => item.name),
@@ -143,8 +150,8 @@ test('agent chat tools: confirmation levels and metadata registry cover all 51 c
   ]);
 
   assert.equal(automaticCommands.length, 27);
-  assert.equal(confirmationCases.length, 11);
-  assert.equal(allNames.length, 51);
+  assert.equal(confirmationCases.length, 12);
+  assert.equal(allNames.length, 52);
   assert.deepEqual(Object.keys(agentChatCommandMetadata).sort(), allNames.slice().sort());
   assert.deepEqual(Object.fromEntries(tools.map(tool => [tool.name, tool.requiresConfirmation])), expected);
   for (const name of automaticCommands) {

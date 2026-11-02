@@ -53,6 +53,7 @@ const routes = [
   ['post', '/worlds/drafts/:id/map-fill/propose', 'propose_map_fill'], ['post', '/worlds/drafts/:id/map-fill/accept', 'accept_map_fill'],
   ['post', '/worlds/drafts/:worldDraftId/clock-patch/propose', 'propose_clock_patch'],
   ['post', '/worlds/drafts/:worldDraftId/storylet-patch/propose', 'propose_storylet_patch'],
+  ['post', '/worlds/drafts/:worldDraftId/patch/apply', 'apply_world_patch'],
   ['post', '/worlds/drafts/:id/lint', 'lint_world_draft'], ['post', '/worlds/drafts/:id/playtest', 'playtest_world_draft'], ['get', '/worlds/drafts/:id/preflight', 'get_world_preflight'],
   ['get', '/worlds/revisions', 'list_world_revisions'], ['get', '/adventures', 'list_adventures'], ['post', '/adventures', 'start_adventure'],
   ['get', '/adventures/:id', 'get_adventure'], ['post', '/adventures/:id/actions', 'act_adventure'],

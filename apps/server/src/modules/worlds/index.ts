@@ -14,3 +14,4 @@ export {
   proposeClockPatch, proposeStoryletPatch, mockWorldPatchModel,
   type WorldPatchModel, type WorldPatchModelInput,
 } from './application/propose-world-patch.js';
+export {applyWorldPatch} from './application/apply-world-patch.js';
