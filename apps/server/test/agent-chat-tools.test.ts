@@ -22,10 +22,14 @@ const confirmationCases: Array<{
   versionCheck: 'none' | 'version' | 'updatedAt';
   guard?: string;
 }> = [
-  {name: 'create_generation_job', args: {sourceId: 'source-1', requestId: 'request-1'}, versionCheck: 'none',
-    summary: '创建改编任务：{"sourceId":"source-1","requestId":"request-1"}'},
-  {name: 'create_production_job', args: {requestId: 'request-2', brief: {title: '雾港'}}, versionCheck: 'none',
-    summary: '创建角色扮演制作任务：{"requestId":"request-2","brief":{"title":"雾港"}}'},
+  {name: 'create_generation_job', args: {sourceId: 'source-1', requestId: 'request-1', mode: 'story',
+    direction: '尊重原作世界规则，设计一次有明确选择后果的短篇冒险', playerRole: '守灯人', chapterIds: ['chapter-1', 'chapter-2']}, versionCheck: 'none',
+    summary: '创建改编任务：模式：分支故事；方向：尊重原作世界规则，设计一次有明确选择后果的短篇冒险；身份：守灯人；章节：2章'},
+  {name: 'create_production_job', args: {requestId: 'request-2', brief: {
+    title: '雾港·三门之夜', playerRole: '守灯人', goal: '在天亮前找出失踪的守夜人', tone: '潮湿压抑的悬疑', tier: 'S',
+    setting: '雾港的灯塔在午夜熄灭，港务局封锁了所有出口，只有巡夜人知道三扇门通向哪里。',
+  }}, versionCheck: 'none',
+    summary: '创建角色扮演制作任务：「雾港·三门之夜」；身份：守灯人；目标：在天亮前找出失踪的守夜人；基调：潮湿压抑的悬疑；体量：S；设定：雾港的灯塔在午夜熄灭，港务局封锁了所有出口，只有巡夜人知道三扇门通向哪里。'},
   {name: 'retry_job', args: {id: 'job-1'}, versionCheck: 'updatedAt', guard: '2026-10-30T00:00:00.000Z',
     summary: '恢复生成任务：任务 job-1（awaiting_review，production）'},
   {name: 'cancel_job', args: {id: 'job-1'}, versionCheck: 'updatedAt', guard: '2026-10-30T00:00:00.000Z',
@@ -35,9 +39,9 @@ const confirmationCases: Array<{
   {name: 'approve_saved_production_plan', args: {id: 'job-1', expectedUpdatedAt: '2026-10-30T00:00:00.000Z'}, versionCheck: 'updatedAt', guard: '2026-10-30T00:00:00.000Z',
     summary: '确认「雾港」当前玩法并开始正文生成：扮演守灯人；2张剧情卡、1个行动；路线：灯塔线、港湾区。将使用配置的模型产生费用，不发布游戏。'},
   {name: 'apply_agent_repair', args: {id: 'repair-1'}, versionCheck: 'none',
-    summary: '应用修复候选：{"id":"repair-1"}'},
+    summary: '应用修复候选：repair-1'},
   {name: 'reject_agent_repair', args: {id: 'repair-1'}, versionCheck: 'none',
-    summary: '驳回修复候选：{"id":"repair-1"}'},
+    summary: '驳回修复候选：repair-1'},
   {name: 'publish_world_draft', args: {id: 'world-1', version: 3}, versionCheck: 'version', guard: '3',
     summary: '发布世界版本：「旧标题」v3'},
   {name: 'publish_draft', args: {id: 'game-1', version: 4}, versionCheck: 'version', guard: '4',
@@ -171,6 +175,22 @@ test('agent chat tools: every confirmed command retains its Chinese summary and 
     const preview = tools.find(tool => tool.name === item.name)!.prepare(item.args);
     assert.deepEqual(preview, {summary: item.summary, ...(item.guard === undefined ? {} : {guard: item.guard})}, item.name);
   }
+});
+
+test('agent chat tools: job creation confirmations read as prose instead of raw argument JSON', () => {
+  const tools = createAgentChatTools(commandsFor(['create_generation_job', 'create_production_job']), state);
+  for (const item of confirmationCases.filter(candidate => candidate.name.startsWith('create_'))) {
+    const {summary} = tools.find(tool => tool.name === item.name)!.prepare(item.args);
+    assert.doesNotMatch(summary, /\{"|\["/, `${item.name} must not dump raw argument JSON`);
+  }
+  const production = tools.find(tool => tool.name === 'create_production_job')!.prepare(confirmationCases.find(item => item.name === 'create_production_job')!.args).summary;
+  assert.match(production, /「雾港·三门之夜」/);
+  assert.match(production, /身份：守灯人/);
+  assert.match(production, /目标：在天亮前找出失踪的守夜人/);
+  assert.match(production, /体量：S/);
+  const generation = tools.find(tool => tool.name === 'create_generation_job')!.prepare(confirmationCases.find(item => item.name === 'create_generation_job')!.args).summary;
+  assert.match(generation, /模式：分支故事/);
+  assert.match(generation, /章节：2章/);
 });
 
 test('agent chat tools: all 10 fine-grained edits require confirmation with Chinese details and world version guards', () => {

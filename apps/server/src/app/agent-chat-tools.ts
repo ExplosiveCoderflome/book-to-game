@@ -45,6 +45,35 @@ const shortJson = (value: unknown, limit = 180) => {
   const text = value === undefined ? '未设置' : JSON.stringify(value);
   return text.length > limit ? `${text.slice(0, limit)}…` : text;
 };
+const clipped = (value: unknown, limit = 60) => {
+  const text = typeof value === 'string' ? value.trim() : '';
+  return text ? (text.length > limit ? `${text.slice(0, limit)}…` : text) : undefined;
+};
+const textField = (label: string, value: unknown, limit = 60) => {
+  const text = clipped(value, limit);
+  return text ? `${label}：${text}` : undefined;
+};
+const generationJobSummary: Summarize = args => {
+  const details = [
+    `模式：${args.mode === 'open' ? '局部世界' : '分支故事'}`,
+    textField('方向', args.direction, 80),
+    textField('身份', args.playerRole, 40),
+    Array.isArray(args.chapterIds) && args.chapterIds.length ? `章节：${args.chapterIds.length}章` : undefined,
+  ].filter((item): item is string => Boolean(item));
+  return `创建改编任务：${details.join('；')}`;
+};
+const productionJobSummary: Summarize = args => {
+  const brief = (args.brief ?? {}) as Record<string, unknown>;
+  const details = [
+    textField('身份', brief.playerRole, 40),
+    textField('目标', brief.goal, 60),
+    textField('基调', brief.tone, 30),
+    textField('体量', brief.tier, 10),
+    textField('设定', brief.setting, 60),
+  ].filter((item): item is string => Boolean(item));
+  return `创建角色扮演制作任务：「${clipped(brief.title, 80) ?? '未命名'}」${details.length ? `；${details.join('；')}` : ''}`;
+};
+const repairSummary = (label: string): Summarize => args => `${label}：${String(args.id)}`;
 const worldEditSummary = (label: string, args: Args, state: AgentChatCommandState, detail: string) => {
   const draft = state.worlds.get(String(args.id));
   return `${label}：世界「${draft.content.title}」v${draft.version}；${detail}`;
@@ -134,8 +163,8 @@ export const agentChatCommandMetadata = {
   lint_draft: {confirmation: 'auto', versionCheck: 'none', summarize: argsSummary('体检游戏草稿')},
   list_world_revisions: {versionCheck: 'none', summarize: argsSummary('查询世界版本列表')},
   list_games: {versionCheck: 'none', summarize: argsSummary('查询游戏列表')},
-  create_generation_job: {versionCheck: 'none', summarize: argsSummary('创建改编任务')},
-  create_production_job: {versionCheck: 'none', summarize: argsSummary('创建角色扮演制作任务')},
+  create_generation_job: {versionCheck: 'none', summarize: generationJobSummary},
+  create_production_job: {versionCheck: 'none', summarize: productionJobSummary},
   retry_job: {versionCheck: 'updatedAt', readVersion: jobVersion, summarize: jobConfirmationSummary('恢复生成任务')},
   cancel_job: {versionCheck: 'updatedAt', readVersion: jobVersion, summarize: jobConfirmationSummary('取消生成任务')},
   rewrite_production_unit: {versionCheck: 'updatedAt', readVersion: jobVersion, summarize: jobConfirmationSummary('重写指定正文')},
@@ -153,8 +182,8 @@ export const agentChatCommandMetadata = {
       return `确认「${plan.world.title}」当前玩法并开始正文生成：扮演${plan.world.playerRole}；${plan.world.storylets?.length ?? 0}张剧情卡、${plan.world.actions.length}个行动；路线：${plan.routes.map(r => r.name).join('、')}。将使用配置的模型产生费用，不发布游戏。`;
     },
   },
-  apply_agent_repair: {versionCheck: 'none', summarize: argsSummary('应用修复候选')},
-  reject_agent_repair: {versionCheck: 'none', summarize: argsSummary('驳回修复候选')},
+  apply_agent_repair: {versionCheck: 'none', summarize: repairSummary('应用修复候选')},
+  reject_agent_repair: {versionCheck: 'none', summarize: repairSummary('驳回修复候选')},
   publish_world_draft: {versionCheck: 'version', readVersion: worldVersion, summarize: worldSummary('发布世界版本')},
   publish_draft: {
     versionCheck: 'version',
