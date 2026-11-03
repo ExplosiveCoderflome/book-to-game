@@ -1,0 +1,23 @@
+{
+  "fileName": "武林外传：同福客栈营业日-v1.html",
+  "size": 518025,
+  "mode": "open",
+  "kind": "world",
+  "packageId": "btg-world-09098276-4b32-4f6d-bbb6-72b590e7236a",
+  "revision": {
+    "id": "5c354c14-4b2d-4508-b634-63dfe9192540",
+    "version": 1
+  },
+  "contentHash": "88874711c629e14ecf518162c96dd9309ff8acc42b0a003e825d96a5c9e57d45",
+  "formatVersion": 1,
+  "runtimeVersion": "1.1.0",
+  "catalogSnapshot": {
+    "buildingAssets": 0,
+    "items": 0,
+    "hash": "c2284d14a40a11529a720c4385a59b7a82dd9dc27b9fdf9c745b202c1d414749",
+    "subset": true
+  },
+  "degraded": [],
+  "target": "html",
+  "payloadSha256": "2aa7d9e2c7ea9fc39d18e9de11022f9e04911af6c54c8fb7f417ee4d6c99a7bc"
+}
