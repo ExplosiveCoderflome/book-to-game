@@ -35,6 +35,7 @@ migrated only within the authorized task scope.
 - `packages/contracts/src/blocks.ts` is the **积木商店** shelf: a BlockSpec catalog. Genres are *recipes* (FunProfile `suggestedBlocks`) over the same WorldContent substrate; never add a parallel per-genre state machine.
 - New blocks compile down through existing `provides` / `requires`. Stubs (e.g. `encounters`, `combat-stake`, `shop-cycle`) declare params + composition + acceptance and say in the blurb what runtime already does vs what authors/AI fill via actions/storylets.
 - Catalog ops stay `list_blocks` / `list_fun_profiles` / `recommend_blocks_for_profile`; ids such as `building-library` and `item-catalog` are stable.
+- 积木商店按**货架**（`BLOCK_SHELVES`：foundation / world-content / commerce / combat-growth / ops）分类浏览；`BlockSpec.shelves` 可多选，货架只是浏览分区，不绑死玩法。品类配方（经营/打怪 recipe）尚未做。观测页 `book-to-game-block-shop.html` 由 `scripts/gen-block-shop.ts` 从 `getBlockCatalog()` 生成。
 
 ## UI layout
 

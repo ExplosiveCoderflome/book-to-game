@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { BLOCKS, FUN_PROFILES, getFunProfile, type WorldContent } from '@novel-game/contracts';
+import { BLOCKS, FUN_PROFILES, getBlock, getFunProfile, type WorldContent } from '@novel-game/contracts';
 import { funProfileCommands } from '../src/app/commands/fun-profiles.js';
 import { agentChatCommandMetadata, createAgentChatTools, type AgentChatCommandState } from '../src/app/agent-chat-tools.js';
 import type { Workbench } from '../src/app/workbench.js';
@@ -67,12 +67,13 @@ test('V2 recommend_blocks_for_profile: built-in profiles return only registered 
   try {
     for (const profile of FUN_PROFILES) {
       const result = ctx.command('recommend_blocks_for_profile').execute({profileId: profile.id}) as {
-        profileId: string; blocks: {id: string; label: string; blurb: string}[]; warnings: string[]};
+        profileId: string; blocks: {id: string; label: string; blurb: string; shelves: string[]}[]; warnings: string[]};
       assert.equal(result.profileId, profile.id);
       const blockIds = new Set(BLOCKS.map(block => block.id));
       for (const block of result.blocks) {
         assert.ok(blockIds.has(block.id), `${profile.id} recommends unregistered block ${block.id}`);
         assert.ok(block.label.length > 0 && block.blurb.length > 0);
+        assert.deepEqual(block.shelves, getBlock(block.id)!.shelves);
       }
       assert.deepEqual(result.blocks.map(block => block.id), profile.suggestedBlocks);
       assert.deepEqual(result.warnings, []);

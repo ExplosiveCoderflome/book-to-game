@@ -1,0 +1,275 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>积木商店 · 按货架浏览</title>
+<style>
+:root{color-scheme:dark}
+body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;padding:24px;background:#0f1419;color:#e7ecf3}
+h1{font-size:22px;margin:0 0 6px}
+.sub{color:#9aa7b8;margin:0 0 16px;font-size:13px}
+nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px}
+nav a{color:#bfe0ff;text-decoration:none;background:#1a2332;border:1px solid #2b3a4f;border-radius:999px;padding:5px 12px;font-size:13px}
+nav a span{color:#7dd3fc}
+.shelf{margin-bottom:30px}
+.shelf-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;border-bottom:1px solid #2b3a4f;padding-bottom:8px;margin-bottom:12px}
+.shelf-head h2{font-size:17px;margin:0}
+.shelf-head code{font-size:12px;color:#7dd3fc;background:#16202d;border-radius:6px;padding:1px 6px}
+.shelf-head p{margin:0;color:#8b9aab;font-size:12px}
+.count{margin-left:auto;color:#8b9aab;font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.card{background:#1a2332;border:1px solid #2b3a4f;border-radius:12px;padding:14px}
+.card.secondary{border-style:dashed;opacity:.82}
+.card h2{font-size:16px;margin:2px 0 6px}
+.id{font-family:ui-monospace,monospace;font-size:12px;color:#7dd3fc}
+.minor{float:right;font-size:11px;color:#8b9aab;border:1px solid #2b3a4f;border-radius:999px;padding:0 7px}
+.blurb{font-size:13px;color:#c5d0dc;line-height:1.45;margin:8px 0}
+.tags{margin-bottom:6px}
+.tags span{display:inline-block;background:#243447;color:#9ecbff;border-radius:999px;padding:2px 8px;font-size:11px;margin:2px 4px 2px 0}
+.meta{font-size:12px;color:#8b9aab;margin-top:6px;line-height:1.4}
+.muted{color:#6f7f92}
+footer{color:#6f7f92;font-size:12px;border-top:1px solid #2b3a4f;padding-top:12px}
+</style></head><body>
+<h1>积木商店</h1>
+<p class="sub">共 15 块 · 按货架浏览 · 尚未接品类配方</p>
+<nav><a href="#shelf-foundation">基础底座 <span>4</span></a><a href="#shelf-world-content">世界内容 <span>5</span></a><a href="#shelf-commerce">经营向 <span>4</span></a><a href="#shelf-combat-growth">打怪成长向 <span>5</span></a><a href="#shelf-ops">验收/运维 <span>1</span></a></nav>
+<section class="shelf" id="shelf-foundation">
+ <header class="shelf-head">
+  <h2>基础底座 <code>foundation</code></h2>
+  <span class="count">4 块</span>
+  <p>数值、地图、时钟与验收等可复用的底座积木。</p>
+  
+ </header>
+ <div class="grid">
+<article class="card">
+ <div class="id">stat-templates · v1</div>
+ <h2>数值体系模板</h2>
+ <p class="blurb">资源/关系/旗标/进度/压力五类角色词汇，编译为 GameContent.variables 的命名与初值骨架。</p>
+ <div class="tags"><span>growth</span><span>pressure-release</span></div>
+ <div class="meta">依赖：—</div>
+ 
+ <div class="meta">提供：variables</div>
+ <div class="meta">参数：stat_template_id<span class="muted">(模板)</span></div>
+</article>
+<article class="card">
+ <div class="id">world-map · v1</div>
+ <h2>世界与地图</h2>
+ <p class="blurb">地点拓扑与六边形地图层；编辑/校验成熟，compile-down 为 locations 与 map.fill。</p>
+ <div class="tags"><span>mystery</span></div>
+ <div class="meta">依赖：—</div>
+ 
+ <div class="meta">提供：locations, map.fill</div>
+ <div class="meta">参数：geometry<span class="muted">(几何)</span> · size_preset<span class="muted">(尺寸档)</span></div>
+</article>
+<article class="card">
+ <div class="id">clock · v1</div>
+ <h2>时钟</h2>
+ <p class="blurb">推进时间与期限；unit 放开为日/周/月/年，治愈经营的「一天营业」可表达。</p>
+ <div class="tags"><span>pressure-release</span><span>healing-routine</span></div>
+ <div class="meta">依赖：—</div>
+ 
+ <div class="meta">提供：clock</div>
+ <div class="meta">参数：unit<span class="muted">(时间单位)</span> · limit<span class="muted">(期限刻度)</span> · countdown_resource<span class="muted">(倒计时资源)</span></div>
+</article>
+<article class="card">
+ <div class="id">preflight-sim · v1</div>
+ <h2>体检与模拟策略</h2>
+ <p class="blurb">确定性 lint/sim 验收；pacingLine 与策略集合按画像解析，是「非退化」硬承诺的执行者。</p>
+ <div class="tags"><span class="muted">无标签</span></div>
+ <div class="meta">依赖：—</div>
+ 
+ <div class="meta">提供：preflight-sim</div>
+ <div class="meta">参数：pacing_decisions<span class="muted">(节奏·决策数)</span> · pacing_chars<span class="muted">(节奏·不重复字数)</span></div>
+</article>
+ </div>
+</section>
+<section class="shelf" id="shelf-world-content">
+ <header class="shelf-head">
+  <h2>世界内容 <code>world-content</code></h2>
+  <span class="count">5 块</span>
+  <p>建筑、物品、剧情卡池与结局回顾等世界内容资产。</p>
+  
+ </header>
+ <div class="grid">
+<article class="card secondary">
+ <div class="id">world-map · v1<span class="minor">次要货架</span></div>
+ <h2>世界与地图</h2>
+ <p class="blurb">地点拓扑与六边形地图层；编辑/校验成熟，compile-down 为 locations 与 map.fill。</p>
+ <div class="tags"><span>mystery</span></div>
+ <div class="meta">依赖：—</div>
+ 
+ <div class="meta">提供：locations, map.fill</div>
+ <div class="meta">参数：geometry<span class="muted">(几何)</span> · size_preset<span class="muted">(尺寸档)</span></div>
+</article>
+<article class="card">
+ <div class="id">building-library · v1</div>
+ <h2>建筑库</h2>
+ <p class="blurb">积木商店货架：可复用建筑资产（商店/补给/任务/遭遇/Boss），放置到地图已绑定地点，本地覆盖不写回库。</p>
+ <div class="tags"><span>collection</span></div>
+ <div class="meta">依赖：world-map</div>
+ 
+ <div class="meta">提供：building-library, map.fill</div>
+ <div class="meta">参数：shelf_rows<span class="muted">(货架行来源)</span></div>
+</article>
+<article class="card">
+ <div class="id">item-catalog · v1</div>
+ <h2>物品库</h2>
+ <p class="blurb">跨世界可复用物品资产；价格/掉落是软提示，货币绑定走 world.resourceDefs。</p>
+ <div class="tags"><span>collection</span></div>
+ <div class="meta">依赖：building-library</div>
+ 
+ <div class="meta">提供：item-catalog</div>
+ <div class="meta">参数：default_price_hint<span class="muted">(默认价格提示)</span></div>
+</article>
+<article class="card">
+ <div class="id">storylet-pool · v1</div>
+ <h2>剧情卡池</h2>
+ <p class="blurb">手牌抽取 + 出现条件 + 状态化文案；引擎成熟，S4 支持按状态正文。</p>
+ <div class="tags"><span>mystery</span><span>pressure-release</span><span>healing-routine</span></div>
+ <div class="meta">依赖：—</div>
+ 
+ <div class="meta">提供：storylets</div>
+ <div class="meta">参数：hand_size<span class="muted">(手牌数)</span> · refresh_on<span class="muted">(刷新时机)</span></div>
+</article>
+<article class="card">
+ <div class="id">endings-recap · v1</div>
+ <h2>结局与回顾</h2>
+ <p class="blurb">结局、条件结局正文与「这一生」回顾；运行时成熟，passages/recap 需作者补全。</p>
+ <div class="tags"><span>warmth</span><span>pressure-release</span></div>
+ <div class="meta">依赖：storylet-pool</div>
+ 
+ <div class="meta">提供：endings, recap</div>
+ <div class="meta">参数：—</div>
+</article>
+ </div>
+</section>
+<section class="shelf" id="shelf-commerce">
+ <header class="shelf-head">
+  <h2>经营向 <code>commerce</code></h2>
+  <span class="count">4 块</span>
+  <p>营业日、客流与账本等经营骨架；仍编译到同一 WorldContent。</p>
+  
+ </header>
+ <div class="grid">
+<article class="card secondary">
+ <div class="id">item-catalog · v1<span class="minor">次要货架</span></div>
+ <h2>物品库</h2>
+ <p class="blurb">跨世界可复用物品资产；价格/掉落是软提示，货币绑定走 world.resourceDefs。</p>
+ <div class="tags"><span>collection</span></div>
+ <div class="meta">依赖：building-library</div>
+ 
+ <div class="meta">提供：item-catalog</div>
+ <div class="meta">参数：default_price_hint<span class="muted">(默认价格提示)</span></div>
+</article>
+<article class="card">
+ <div class="id">shop-cycle · v1</div>
+ <h2>营业日循环</h2>
+ <p class="blurb">积木商店货架上的经营骨架：进货 → 定价 → 营业日推进，编译为时钟 + 剧情卡（每日事件卡）与资源增减；日结/排队/客流仍是作者用行动与卡池补的，本积木不自建营业引擎。</p>
+ <div class="tags"><span>healing-routine</span><span>collection</span><span>warmth</span></div>
+ <div class="meta">依赖：clock, item-catalog, stat-templates</div>
+ 
+ <div class="meta">提供：clock, storylets</div>
+ <div class="meta">参数：day_unit<span class="muted">(营业日单位)</span> · restock_cost_hint<span class="muted">(进货成本提示)</span> · open_days<span class="muted">(一个周期营业天数)</span></div>
+</article>
+<article class="card">
+ <div class="id">customer-flow · v1</div>
+ <h2>客人需求流</h2>
+ <p class="blurb">积木商店的客流侧：客人带着需求来、按满意度留下人情与回头客。编译为事实旗标 + 剧情卡 + 关系资源，满意度只做软提示；真正的排队/翻台规则由作者在行动里写。</p>
+ <div class="tags"><span>warmth</span><span>collection</span><span>healing-routine</span></div>
+ <div class="meta">依赖：shop-cycle, stat-templates</div>
+ 
+ <div class="meta">提供：storylets, facts</div>
+ <div class="meta">参数：customer_pool_size<span class="muted">(常客规模)</span> · satisfaction_metric<span class="muted">(满意度资源)</span> · return_visit_flag<span class="muted">(回头客事实键)</span></div>
+</article>
+<article class="card">
+ <div class="id">ledger · v1</div>
+ <h2>账本流水</h2>
+ <p class="blurb">积木商店的账本：把进货、售价与库存变动写成资源增减与账目卡，方便作者核对收支。只提供流水提示与货币绑定参数，不做自动日结或财务报表。</p>
+ <div class="tags"><span>collection</span><span>pressure-release</span></div>
+ <div class="meta">依赖：item-catalog, stat-templates</div>
+ 
+ <div class="meta">提供：variables, storylets</div>
+ <div class="meta">参数：money_resource<span class="muted">(货币资源)</span> · opening_balance<span class="muted">(开账余额)</span> · ledger_granularity<span class="muted">(流水粒度)</span></div>
+</article>
+ </div>
+</section>
+<section class="shelf" id="shelf-combat-growth">
+ <header class="shelf-head">
+  <h2>打怪成长向 <code>combat-growth</code></h2>
+  <span class="count">5 块</span>
+  <p>遭遇、成长曲线、掉落与胜负代价等成长骨架。</p>
+  
+ </header>
+ <div class="grid">
+<article class="card secondary">
+ <div class="id">item-catalog · v1<span class="minor">次要货架</span></div>
+ <h2>物品库</h2>
+ <p class="blurb">跨世界可复用物品资产；价格/掉落是软提示，货币绑定走 world.resourceDefs。</p>
+ <div class="tags"><span>collection</span></div>
+ <div class="meta">依赖：building-library</div>
+ 
+ <div class="meta">提供：item-catalog</div>
+ <div class="meta">参数：default_price_hint<span class="muted">(默认价格提示)</span></div>
+</article>
+<article class="card">
+ <div class="id">encounters · v1</div>
+ <h2>遭遇</h2>
+ <p class="blurb">遭遇桩：engage 旗 + 确定性掉落；无战斗运行时，掉落概率带由参数约束。</p>
+ <div class="tags"><span>grinding</span><span>pressure-release</span></div>
+ <div class="meta">依赖：building-library</div>
+ 
+ <div class="meta">提供：encounters</div>
+ <div class="meta">参数：drop_rate_band<span class="muted">(掉落概率带)</span></div>
+</article>
+<article class="card">
+ <div class="id">growth-curve · v1</div>
+ <h2>成长曲线</h2>
+ <p class="blurb">等级/经验/属性成长骨架：编译为 GameContent.variables 的进度与资源命名，配经验曲线预设供作者填数值。本积木只给骨架与验收口径，不自动结算升级。</p>
+ <div class="tags"><span>growth</span><span>grinding</span></div>
+ <div class="meta">依赖：stat-templates</div>
+ 
+ <div class="meta">提供：variables</div>
+ <div class="meta">参数：xp_curve<span class="muted">(经验曲线)</span> · level_cap<span class="muted">(等级上限)</span> · xp_resource<span class="muted">(经验资源)</span> · attribute_keys<span class="muted">(属性键)</span></div>
+</article>
+<article class="card">
+ <div class="id">loot-table · v1</div>
+ <h2>掉落表</h2>
+ <p class="blurb">积木商店的战斗掉落约定：把物品库条目按掉落概率带绑定到遭遇，收紧掉落分档。只产出表与事实提示，实际发放仍走现有遭遇/行动效果。</p>
+ <div class="tags"><span>collection</span><span>grinding</span></div>
+ <div class="meta">依赖：encounters, item-catalog</div>
+ 
+ <div class="meta">提供：item-catalog, facts</div>
+ <div class="meta">参数：drop_bands<span class="muted">(掉落分档)</span> · guaranteed_drop<span class="muted">(必掉保底)</span> · drop_rate_band<span class="muted">(掉落概率带)</span></div>
+</article>
+<article class="card">
+ <div class="id">combat-stake · v1</div>
+ <h2>遭遇代价</h2>
+ <p class="blurb">桩：把遭遇的胜负代价编译为事实旗标 + 资源增减的行动/剧情卡，仍无独立战斗引擎与回合结算。作者或 AI 负责写具体行动文案与数值，本积木只约定代价口径。</p>
+ <div class="tags"><span>pressure-release</span><span>grinding</span></div>
+ <div class="meta">依赖：encounters, stat-templates</div>
+ 
+ <div class="meta">提供：facts, actions</div>
+ <div class="meta">参数：win_fact<span class="muted">(胜利事实键)</span> · lose_fact<span class="muted">(失败事实键)</span> · hp_resource<span class="muted">(生命/损耗资源)</span> · defeat_penalty<span class="muted">(失败代价提示)</span></div>
+</article>
+ </div>
+</section>
+<section class="shelf" id="shelf-ops">
+ <header class="shelf-head">
+  <h2>验收/运维 <code>ops</code></h2>
+  <span class="count">1 块</span>
+  <p>体检、模拟与验收口径，帮助作者检查非退化。</p>
+  
+ </header>
+ <div class="grid">
+<article class="card secondary">
+ <div class="id">preflight-sim · v1<span class="minor">次要货架</span></div>
+ <h2>体检与模拟策略</h2>
+ <p class="blurb">确定性 lint/sim 验收；pacingLine 与策略集合按画像解析，是「非退化」硬承诺的执行者。</p>
+ <div class="tags"><span class="muted">无标签</span></div>
+ <div class="meta">依赖：—</div>
+ 
+ <div class="meta">提供：preflight-sim</div>
+ <div class="meta">参数：pacing_decisions<span class="muted">(节奏·决策数)</span> · pacing_chars<span class="muted">(节奏·不重复字数)</span></div>
+</article>
+ </div>
+</section>
+<footer>货架是浏览分区，不是玩法绑定；同一块可出现在多条货架。拼装约束仍以 dependsOn / conflictsWith 为准。本页由 <code>scripts/gen-block-shop.ts</code> 从 <code>getBlockCatalog()</code> 生成。</footer>
+</body></html>

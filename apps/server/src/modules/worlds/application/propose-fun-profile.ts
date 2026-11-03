@@ -77,7 +77,7 @@ export function resolveProfileBlocks(profileId: string): RecommendBlocksForProfi
       warnings.push(`已过滤画像引用但未注册的积木：${id}`);
       continue;
     }
-    blocks.push({id: block.id, label: block.label, blurb: block.blurb, funTags: block.funTags});
+    blocks.push({id: block.id, label: block.label, blurb: block.blurb, funTags: block.funTags, shelves: block.shelves});
   }
   return recommendBlocksForProfileResultSchema.parse({profileId: profile.id, blocks, warnings});
 }

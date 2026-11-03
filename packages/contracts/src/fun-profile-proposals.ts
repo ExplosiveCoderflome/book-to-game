@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { funTagSchema } from './fun-profiles.js';
+import { blockShelfIdSchema } from './blocks.js';
 
 /** Read-only author input for `propose_fun_profile`. The draft is the source of truth. */
 export const proposeFunProfileInputSchema = z.object({
@@ -17,6 +18,8 @@ export const funBlockRecommendationSchema = z.object({
   label: z.string().min(1).max(80),
   blurb: z.string().min(1).max(400),
   funTags: z.array(funTagSchema).max(16),
+  /** 积木商店货架归属，便于按货架分组展示。 */
+  shelves: z.array(blockShelfIdSchema).min(1).max(5),
 });
 export type FunBlockRecommendation = z.infer<typeof funBlockRecommendationSchema>;
 

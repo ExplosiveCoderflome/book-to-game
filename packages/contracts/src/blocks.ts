@@ -12,9 +12,37 @@ import { funTagSchema, funMetricIdSchema } from './fun-profiles.js';
  * - `params`: tunable parameters with defaults (e.g. clock `limitMonths`, pool `handSize`).
  * - `provides`: which WorldContent fragments it emits when compiled — never a parallel state machine.
  * - `acceptance`: references into the FunProfile metric matrix (§3).
+ * - `shelves`: 积木商店的浏览分区（可多选）。货架只影响作者浏览，不改变 requires/provides 拼装约束。
  */
 
 const blockId = z.string().regex(/^[a-z][a-z0-9_-]{0,39}$/);
+
+/**
+ * 积木商店货架：面向作者的浏览分区。
+ *
+ * 货架不是玩法绑定，也不会生成本品类配方；同一块积木可以挂在多条货架上（例如
+ * item-catalog 同时服务世界内容、经营与打怪成长）。真正的拼装约束仍是
+ * `requires` / `composesWith.dependsOn` / `conflictsWith`。
+ */
+const BLOCK_SHELF_IDS = ['foundation', 'world-content', 'commerce', 'combat-growth', 'ops'] as const;
+export const blockShelfIdSchema = z.enum(BLOCK_SHELF_IDS);
+export type BlockShelfId = z.infer<typeof blockShelfIdSchema>;
+
+export interface BlockShelf {
+  id: BlockShelfId;
+  label: string;
+  blurb?: string;
+  /** Sort order for the shop UI; smaller comes first. */
+  order: number;
+}
+
+export const BLOCK_SHELVES: readonly BlockShelf[] = [
+  {id: 'foundation', label: '基础底座', blurb: '数值、地图、时钟与验收等可复用的底座积木。', order: 10},
+  {id: 'world-content', label: '世界内容', blurb: '建筑、物品、剧情卡池与结局回顾等世界内容资产。', order: 20},
+  {id: 'commerce', label: '经营向', blurb: '营业日、客流与账本等经营骨架；仍编译到同一 WorldContent。', order: 30},
+  {id: 'combat-growth', label: '打怪成长向', blurb: '遭遇、成长曲线、掉落与胜负代价等成长骨架。', order: 40},
+  {id: 'ops', label: '验收/运维', blurb: '体检、模拟与验收口径，帮助作者检查非退化。', order: 50},
+];
 
 /** Closed set of Substrate contract fragments a block may `require`. */
 export const SUBSTRATE_CONTRACTS = [
@@ -77,6 +105,8 @@ export const blockSpecSchema = z.object({
   provides: z.array(blockProvideSchema).min(1).max(16),
   /** Acceptance metric references into the FunProfile metric matrix (§3). */
   acceptance: z.array(funMetricIdSchema).max(16),
+  /** 积木商店货架归属（浏览分区，可多选）；至少一条，不绑死玩法。 */
+  shelves: z.array(blockShelfIdSchema).min(1).max(BLOCK_SHELF_IDS.length),
 }).superRefine((block, ctx) => {
   const names = new Set<string>();
   for (const [index, param] of block.params.entries()) {
@@ -106,7 +136,7 @@ const RAW_BLOCKS = [
     composesWith: {dependsOn: [], conflictsWith: []},
     params: [{key: 'stat_template_id', label: '模板', type: 'select', description: '题材化数值骨架。',
       options: ['xianxia_pressure', 'mystery_deduction', 'trade_venture', 'relationship_drama']}],
-    provides: ['variables'], acceptance: ['G1', 'G2'],
+    provides: ['variables'], acceptance: ['G1', 'G2'], shelves: ['foundation'],
   },
   {
     id: 'world-map', version: 1,
@@ -117,7 +147,7 @@ const RAW_BLOCKS = [
       {key: 'geometry', label: '几何', type: 'select', options: ['hex']},
       {key: 'size_preset', label: '尺寸档', type: 'select', options: ['small', 'medium', 'large']},
     ],
-    provides: ['locations', 'map.fill'], acceptance: ['G1', 'G6'],
+    provides: ['locations', 'map.fill'], acceptance: ['G1', 'G6'], shelves: ['foundation', 'world-content'],
   },
   {
     id: 'building-library', version: 1,
@@ -125,7 +155,7 @@ const RAW_BLOCKS = [
     funTags: ['collection'], requires: ['world.locations'],
     composesWith: {dependsOn: ['world-map'], conflictsWith: []},
     params: [{key: 'shelf_rows', label: '货架行来源', type: 'array', description: '引用物品库货架。', default: []}],
-    provides: ['building-library', 'map.fill'], acceptance: ['G4'],
+    provides: ['building-library', 'map.fill'], acceptance: ['G4'], shelves: ['world-content'],
   },
   {
     id: 'item-catalog', version: 1,
@@ -133,7 +163,7 @@ const RAW_BLOCKS = [
     funTags: ['collection'], requires: [],
     composesWith: {dependsOn: ['building-library'], conflictsWith: []},
     params: [{key: 'default_price_hint', label: '默认价格提示', type: 'number', default: 0}],
-    provides: ['item-catalog'], acceptance: ['G4'],
+    provides: ['item-catalog'], acceptance: ['G4'], shelves: ['world-content', 'commerce', 'combat-growth'],
   },
   {
     id: 'storylet-pool', version: 1,
@@ -144,7 +174,7 @@ const RAW_BLOCKS = [
       {key: 'hand_size', label: '手牌数', type: 'integer', default: 3},
       {key: 'refresh_on', label: '刷新时机', type: 'array', options: ['move', 'clock'], default: ['move']},
     ],
-    provides: ['storylets'], acceptance: ['G4'],
+    provides: ['storylets'], acceptance: ['G4'], shelves: ['world-content'],
   },
   {
     id: 'endings-recap', version: 1,
@@ -152,7 +182,7 @@ const RAW_BLOCKS = [
     funTags: ['warmth', 'pressure-release'], requires: ['world.endings'],
     composesWith: {dependsOn: ['storylet-pool'], conflictsWith: []},
     params: [],
-    provides: ['endings', 'recap'], acceptance: ['G2', 'G6', 'G8'],
+    provides: ['endings', 'recap'], acceptance: ['G2', 'G6', 'G8'], shelves: ['world-content'],
   },
   {
     id: 'clock', version: 1,
@@ -166,7 +196,7 @@ const RAW_BLOCKS = [
       {key: 'limit', label: '期限刻度', type: 'integer', default: 24},
       {key: 'countdown_resource', label: '倒计时资源', type: 'string', description: '可选资源倒计时。'},
     ],
-    provides: ['clock'], acceptance: ['G6'],
+    provides: ['clock'], acceptance: ['G6'], shelves: ['foundation'],
   },
   {
     id: 'encounters', version: 1,
@@ -174,7 +204,7 @@ const RAW_BLOCKS = [
     funTags: ['grinding', 'pressure-release'], requires: ['world.facts'],
     composesWith: {dependsOn: ['building-library'], conflictsWith: []},
     params: [{key: 'drop_rate_band', label: '掉落概率带', type: 'array', description: '确定性掉落概率带。', default: [0.1, 0.9]}],
-    provides: ['encounters'], acceptance: ['growth-monotonic'],
+    provides: ['encounters'], acceptance: ['growth-monotonic'], shelves: ['combat-growth'],
   },
   {
     id: 'shop-cycle', version: 1,
@@ -186,7 +216,7 @@ const RAW_BLOCKS = [
       {key: 'restock_cost_hint', label: '进货成本提示', type: 'number', description: '单次进货的建议成本，编译为资源减量提示，不强制结算。', default: 1},
       {key: 'open_days', label: '一个周期营业天数', type: 'integer', default: 6},
     ],
-    provides: ['clock', 'storylets'], acceptance: ['G1', 'G6', 'failure-free-ending-rate'],
+    provides: ['clock', 'storylets'], acceptance: ['G1', 'G6', 'failure-free-ending-rate'], shelves: ['commerce'],
   },
   {
     id: 'customer-flow', version: 1,
@@ -198,7 +228,7 @@ const RAW_BLOCKS = [
       {key: 'satisfaction_metric', label: '满意度资源', type: 'string', description: '绑定到 resourceDefs 的关系/声望资源名。', default: 'reputation'},
       {key: 'return_visit_flag', label: '回头客事实键', type: 'string', description: '事实层记录回头客，不另建状态机。', default: 'returning_guest'},
     ],
-    provides: ['storylets', 'facts'], acceptance: ['G4', 'G8', 'collection-reachable'],
+    provides: ['storylets', 'facts'], acceptance: ['G4', 'G8', 'collection-reachable'], shelves: ['commerce'],
   },
   {
     id: 'ledger', version: 1,
@@ -210,7 +240,7 @@ const RAW_BLOCKS = [
       {key: 'opening_balance', label: '开账余额', type: 'number', default: 10},
       {key: 'ledger_granularity', label: '流水粒度', type: 'select', options: ['per_day', 'per_transaction'], default: 'per_day'},
     ],
-    provides: ['variables', 'storylets'], acceptance: ['G4', 'collection-reachable'],
+    provides: ['variables', 'storylets'], acceptance: ['G4', 'collection-reachable'], shelves: ['commerce'],
   },
   {
     id: 'growth-curve', version: 1,
@@ -223,7 +253,7 @@ const RAW_BLOCKS = [
       {key: 'xp_resource', label: '经验资源', type: 'string', default: 'xp'},
       {key: 'attribute_keys', label: '属性键', type: 'array', description: '从属属性名，绑定 variables。', default: []},
     ],
-    provides: ['variables'], acceptance: ['growth-monotonic', 'G4'],
+    provides: ['variables'], acceptance: ['growth-monotonic', 'G4'], shelves: ['combat-growth'],
   },
   {
     id: 'loot-table', version: 1,
@@ -235,7 +265,7 @@ const RAW_BLOCKS = [
       {key: 'guaranteed_drop', label: '必掉保底', type: 'boolean', default: false},
       {key: 'drop_rate_band', label: '掉落概率带', type: 'array', description: '与 encounters 的概率带保持一致。', default: [0.1, 0.9]},
     ],
-    provides: ['item-catalog', 'facts'], acceptance: ['collection-reachable', 'growth-monotonic'],
+    provides: ['item-catalog', 'facts'], acceptance: ['collection-reachable', 'growth-monotonic'], shelves: ['combat-growth'],
   },
   {
     id: 'combat-stake', version: 1,
@@ -248,7 +278,7 @@ const RAW_BLOCKS = [
       {key: 'hp_resource', label: '生命/损耗资源', type: 'string', default: 'hp'},
       {key: 'defeat_penalty', label: '失败代价提示', type: 'number', description: '失败时的建议资源减量，编译进行动效果提示。', default: 1},
     ],
-    provides: ['facts', 'actions'], acceptance: ['G8', 'pressure-bidirectional'],
+    provides: ['facts', 'actions'], acceptance: ['G8', 'pressure-bidirectional'], shelves: ['combat-growth'],
   },
   {
     id: 'preflight-sim', version: 1,
@@ -259,7 +289,7 @@ const RAW_BLOCKS = [
       {key: 'pacing_decisions', label: '节奏·决策数', type: 'integer', default: 60},
       {key: 'pacing_chars', label: '节奏·不重复字数', type: 'integer', default: 10000},
     ],
-    provides: ['preflight-sim'], acceptance: ['G1', 'G2', 'G4', 'G6', 'G8'],
+    provides: ['preflight-sim'], acceptance: ['G1', 'G2', 'G4', 'G6', 'G8'], shelves: ['foundation', 'ops'],
   },
 ] as const;
 
@@ -274,7 +304,9 @@ export function getBlock(id: string | undefined | null): BlockSpec | undefined {
 export interface BlockLintIssue {
   severity: 'error' | 'warning';
   blockId?: string;
-  ruleId: 'blocks.duplicate-id' | 'blocks.unknown-require' | 'blocks.unknown-composes' | 'blocks.duplicate-provides';
+  shelfId?: BlockShelfId;
+  ruleId: 'blocks.duplicate-id' | 'blocks.unknown-require' | 'blocks.unknown-composes' | 'blocks.duplicate-provides'
+    | 'blocks.unknown-shelf' | 'blocks.empty-shelf' | 'blocks.duplicate-shelf';
   message: string;
 }
 
@@ -283,11 +315,15 @@ export interface BlockLintIssue {
  *  - unique ids (+ duplicate id implies a broken version bump),
  *  - every `requires` target is a known substrate contract (already guaranteed by schema),
  *  - every `composesWith.dependsOn` / `conflictsWith` id resolves to a registered block,
- *  - no duplicate `provides` within a single block.
+ *  - no duplicate `provides` within a single block,
+ *  - every `shelves` entry resolves to a known shop shelf and is not repeated,
+ *  - warn when a declared shelf has no blocks (an empty shelf is legal but suspicious).
  */
 export function lintBlocks(): BlockLintIssue[] {
   const issues: BlockLintIssue[] = [];
   const byId = new Map<string, BlockSpec>();
+  const shelfIds = new Set<BlockShelfId>(BLOCK_SHELVES.map(shelf => shelf.id));
+  const usedShelves = new Set<BlockShelfId>();
   for (const block of BLOCKS) {
     if (byId.has(block.id)) {
       issues.push({severity: 'error', blockId: block.id, ruleId: 'blocks.duplicate-id',
@@ -319,11 +355,36 @@ export function lintBlocks(): BlockLintIssue[] {
       issues.push({severity: 'warning', blockId: block.id, ruleId: 'blocks.duplicate-provides',
         message: `block ${block.id} lists duplicate provides`});
     }
+    const shelves = new Set<BlockShelfId>();
+    for (const shelf of block.shelves) {
+      if (!shelfIds.has(shelf)) {
+        issues.push({severity: 'error', blockId: block.id, shelfId: shelf, ruleId: 'blocks.unknown-shelf',
+          message: `unknown shop shelf: ${shelf}`});
+        continue;
+      }
+      usedShelves.add(shelf);
+      if (shelves.has(shelf)) {
+        issues.push({severity: 'warning', blockId: block.id, shelfId: shelf, ruleId: 'blocks.duplicate-shelf',
+          message: `block ${block.id} lists duplicate shelf: ${shelf}`});
+      }
+      shelves.add(shelf);
+    }
+  }
+  for (const shelf of BLOCK_SHELVES) {
+    if (!usedShelves.has(shelf.id)) {
+      issues.push({severity: 'warning', shelfId: shelf.id, ruleId: 'blocks.empty-shelf',
+        message: `shop shelf ${shelf.id} has no blocks`});
+    }
   }
   return issues;
 }
 
-/** Read-only catalog projection for `list_blocks`: funTags / requires / params / composesWith. */
+/** Shelf metadata for shop browsing, ordered by `order`. Catalog blocks carry their `shelves`. */
+export function getBlockShelves(): BlockShelf[] {
+  return [...BLOCK_SHELVES].sort((a, b) => a.order - b.order);
+}
+
+/** Read-only catalog projection for `list_blocks`: id / label / blurb / funTags / requires / params / provides / composesWith / shelves. */
 export function getBlockCatalog(): BlockSpec[] {
   return [...BLOCKS];
 }

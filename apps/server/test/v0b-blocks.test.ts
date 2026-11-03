@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  BLOCKS, blockSpecSchema, getBlock, getBlockCatalog, lintBlocks,
+  BLOCKS, BLOCK_SHELVES, blockShelfIdSchema, blockSpecSchema, getBlock, getBlockCatalog, getBlockShelves, lintBlocks,
 } from '@novel-game/contracts';
 import { openDatabase } from '../src/platform/database.js';
 import { createWorkbench } from '../src/app/workbench.js';
@@ -24,8 +24,11 @@ test('V0b: 15 blocks parse, expose the closed catalog shape, and lint clean', ()
     assert.deepEqual(blockSpecSchema.parse(block), block);
     assert.ok(block.version >= 1);
     assert.ok(block.provides.length >= 1, `${block.id} must provide something`);
+    assert.ok(block.shelves.length >= 1, `${block.id} must belong to a shelf`);
+    for (const shelf of block.shelves) assert.ok(blockShelfIdSchema.safeParse(shelf).success);
   }
   assert.deepEqual(getBlockCatalog().map(b => b.id), BLOCKS.map(b => b.id));
+  assert.deepEqual(getBlockCatalog().map(b => b.shelves), BLOCKS.map(b => b.shelves));
   assert.equal(getBlock('clock')?.id, 'clock');
   assert.equal(getBlock('missing'), undefined);
   assert.deepEqual(lintBlocks(), []);
@@ -89,13 +92,41 @@ test('V0b: list_blocks is a read-only command providing funTags/requires/params'
     const command = commands.find(c => c.name === 'list_blocks')!;
     assert.ok(command, 'list_blocks command registered');
     assert.equal(command.readOnly, true);
-    const result = command.execute({}) as {blocks: unknown[]; lint: unknown[]};
+    const result = command.execute({}) as {blocks: unknown[]; shelves: {id: string; label: string}[]; lint: unknown[]};
     assert.equal(result.blocks.length, 15);
+    assert.deepEqual(result.shelves.map(shelf => shelf.id), ['foundation', 'world-content', 'commerce', 'combat-growth', 'ops']);
+    assert.ok(result.shelves.every(shelf => shelf.label.length > 0));
     assert.deepEqual(result.lint, []);
     const first = result.blocks[0] as Record<string, unknown>;
-    assert.ok('funTags' in first && 'requires' in first && 'params' in first && 'provides' in first && 'acceptance' in first);
+    assert.ok('funTags' in first && 'requires' in first && 'params' in first && 'provides' in first && 'acceptance' in first && 'shelves' in first);
+    assert.ok(Array.isArray(first.shelves) && (first.shelves as string[]).length >= 1);
   } finally {
     db.close();
     rmSync(dir, {recursive: true, force: true});
   }
+});
+test('V0b: shop shelves group every block; schema rejects empty/unknown shelves', () => {
+  assert.deepEqual(BLOCK_SHELVES.map(shelf => shelf.id), ['foundation', 'world-content', 'commerce', 'combat-growth', 'ops']);
+  assert.deepEqual(getBlockShelves().map(shelf => shelf.id), ['foundation', 'world-content', 'commerce', 'combat-growth', 'ops']);
+  for (const shelf of BLOCK_SHELVES) assert.ok(shelf.label.length > 0, `${shelf.id} needs a Chinese label`);
+
+  const groups = new Map<string, string[]>();
+  for (const block of getBlockCatalog()) {
+    for (const shelf of block.shelves) groups.set(shelf, [...(groups.get(shelf) ?? []), block.id]);
+  }
+  for (const shelf of BLOCK_SHELVES) {
+    assert.ok((groups.get(shelf.id) ?? []).length > 0, `shelf ${shelf.id} is empty`);
+  }
+  assert.ok(groups.get('commerce')!.includes('shop-cycle'));
+  assert.ok(groups.get('combat-growth')!.includes('encounters'));
+  assert.ok(groups.get('world-content')!.includes('building-library'));
+  assert.ok(groups.get('foundation')!.includes('stat-templates'));
+
+  const clock = getBlock('clock')!;
+  assert.throws(() => blockSpecSchema.parse({...clock, shelves: []}));
+  assert.throws(() => blockSpecSchema.parse({...clock, shelves: ['not-a-shelf']}));
+
+  assert.deepEqual(lintBlocks(), []);
+  const shelfIds = new Set<string>(BLOCK_SHELVES.map(shelf => shelf.id));
+  for (const block of BLOCKS) for (const shelf of block.shelves) assert.ok(shelfIds.has(shelf));
 });
