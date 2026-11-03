@@ -4224,3 +4224,254 @@ button.chip.active {
   .agent-chat-sidebar ul { max-height: 130px; overflow: auto; }
   .agent-chat-log { flex: auto; height: 45dvh; min-height: 220px; padding: 12px; }
 }
+
+/* ── Scene lens (play shell) ─────────────────────────────────────────────────
+   Product-level player structure shared by story + open play (player shell, export
+   package and author playtest): compact top HUD, dominant scene text, a short
+   primary action dock and one folded drawer for everything secondary. */
+
+.scene-lens-hud {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--green);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+}
+.scene-lens-stat {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 2px 10px 2px 0;
+  border-right: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+.scene-lens-stat:last-child { border-right: 0; padding-right: 0; }
+.scene-lens-stat-label {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scene-lens-stat-value {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.scene-lens-stat.is-warn .scene-lens-stat-value { color: var(--rust); }
+.scene-lens-stat-delta {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.scene-lens-stat-delta.tone-gain { color: var(--green); }
+.scene-lens-stat-delta.tone-loss { color: var(--muted); }
+.scene-lens-stat-delta.tone-pressure { color: var(--rust); }
+.scene-lens-stat-meter {
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line) 80%, var(--surface));
+  overflow: hidden;
+}
+.scene-lens-stat-meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--green);
+}
+.scene-lens-stat.is-warn .scene-lens-stat-meter-fill { background: var(--rust); }
+.scene-lens-stat.tone-pressure .scene-lens-stat-meter-fill { background: color-mix(in srgb, var(--rust) 70%, var(--green)); }
+
+/* Scene dominates: the title and prose get the vertical weight; chrome stays quiet. */
+.player-shell .reading-page {
+  padding: 26px 30px 24px;
+}
+.reading-page > .scene-lens-hud + h3,
+.reading-page > .reader-meta + .scene-lens-hud + h3 {
+  font-size: 24px;
+  margin-bottom: 14px;
+}
+.reading-page .reader-text p { line-height: 2.05; }
+
+/* One-line beat feedback right under the prose. */
+.scene-lens-feedback {
+  display: grid;
+  gap: 4px;
+  margin: 14px 0 4px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--green);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--surface-muted);
+  font-size: 12px;
+}
+.scene-lens-feedback-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: baseline;
+  margin: 0;
+}
+.scene-lens-feedback-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.scene-lens-feedback-chip { color: var(--ink); font-variant-numeric: tabular-nums; }
+.scene-lens-feedback-note { margin: 0; color: var(--muted); }
+.scene-lens-feedback-note.is-new { color: var(--green); }
+.scene-lens-feedback-note.is-gone { color: var(--rust); }
+
+/* A changed readout gets a quiet marker instead of a colour flash that fights the scene text. */
+.scene-lens-stat.is-changed .scene-lens-stat-label { color: var(--ink); font-weight: 600; }
+
+/* Goal/time strip: supporting detail under the prose, not a competing first-screen block. */
+.scene-lens-goal {
+  margin: 12px 0 18px;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+.scene-lens-goal strong { font-size: 13px; }
+.scene-lens-goal p { margin: 2px 0 0; color: var(--muted); }
+
+/* Bottom action dock: short primary list + folded overflow. */
+.scene-lens-actions {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.scene-lens-focus {
+  margin: 0 0 10px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+.scene-lens-primary {
+  display: grid;
+  gap: 8px;
+}
+.scene-lens-primary .reader-choice {
+  padding: 13px 15px;
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  transition: border-color 120ms ease, background 120ms ease, transform 80ms ease;
+}
+@media (hover: hover) {
+  .scene-lens-primary .reader-choice:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--green) 7%, var(--surface));
+    border-color: color-mix(in srgb, var(--green) 30%, var(--line));
+  }
+}
+.scene-lens-primary > :first-child .reader-choice,
+.scene-lens-primary > .reader-choice:first-child {
+  border-left: 3px solid var(--green);
+  padding-left: 13px;
+}
+.scene-lens-primary .reader-choice:active:not(:disabled) { transform: translateY(1px); }
+.scene-lens-primary .reader-choice:disabled { opacity: 0.7; cursor: not-allowed; }
+.scene-lens-primary .reader-choice-label { font-size: 14px; font-weight: 500; }
+
+/* The open-play dock already sits inside `.adventure-actions` (which owns the top gap). */
+.adventure-actions > .scene-lens-actions {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Open-play actions reuse the same dock: the first row carries the focus line. */
+.scene-lens-primary > .adventure-action:first-child button {
+  border-left: 3px solid var(--green);
+}
+.scene-lens-primary .adventure-action-label { font-size: 14px; }
+.scene-lens-overflow .adventure-action button,
+.scene-lens-overflow .reader-choice { padding: 10px 12px; }
+.scene-lens-actions .storylet-hand { margin-top: 14px; }
+
+.scene-lens-more { margin-top: 10px; }
+.scene-lens-more > summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 4px 2px;
+  border-top: 1px dashed var(--line);
+}
+.scene-lens-more > summary::-webkit-details-marker { display: none; }
+.scene-lens-more > summary::before { content: '＋ '; color: var(--green); }
+.scene-lens-more[open] > summary::before { content: '－ '; }
+.scene-lens-overflow { display: grid; gap: 8px; padding: 6px 0 2px; }
+
+/* Everything secondary lives one level down. */
+.scene-lens-drawer {
+  margin-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.scene-lens-drawer > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 10px 2px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+.scene-lens-drawer > summary::-webkit-details-marker { display: none; }
+.scene-lens-drawer > summary::before { content: '▾ '; color: var(--green); }
+.scene-lens-drawer:not([open]) > summary::before { content: '▸ '; }
+.scene-lens-drawer-body { display: grid; gap: 12px; padding-top: 4px; }
+.scene-lens-drawer-body .play-stats { margin-top: 0; }
+.scene-lens-drawer-body .history { margin-top: 0; }
+
+/* Player shell: scene column becomes the visual focus surface. */
+.player-shell .reading-page {
+  max-width: none;
+  min-height: 0;
+}
+.player-shell .play-layout.player-play-layout:not(.with-map) {
+  grid-template-columns: minmax(220px, 272px) minmax(0, 1fr);
+}
+.player-shell .reading-page > .reader-meta { margin-bottom: 14px; }
+/* During a run the page heading is just a quiet breadcrumb: no second title competing with the scene. */
+.player-shell .player-story-page.has-session > .section-heading,
+.player-shell .player-world-page.has-session > .section-heading {
+  display: none;
+}
+
+@media (width <= 760px) {
+  .scene-lens-hud {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 10px;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    border-radius: var(--radius-sm);
+    box-shadow: 0 0 0 4px var(--surface), 0 5px 0 0 color-mix(in srgb, var(--ink) 6%, transparent);
+  }
+  .scene-lens-stat { border-right: 0; padding-right: 0; }
+  .scene-lens-stat-value { font-size: 16px; }
+  .scene-lens-actions { margin-top: 18px; }
+  .scene-lens-primary .reader-choice { min-height: 48px; }
+  .scene-lens-more > summary,
+  .scene-lens-drawer > summary { min-height: 44px; display: flex; align-items: center; }
+  .player-shell .reading-page { padding: 18px 16px 20px; }
+  .reading-page > .scene-lens-hud + h3,
+  .reading-page > .reader-meta + .scene-lens-hud + h3 { font-size: 20px; }
+  .adventure-result { scroll-margin-top: 96px; }
+}

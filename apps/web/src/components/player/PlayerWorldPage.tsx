@@ -181,7 +181,7 @@ export function PlayerWorldPage({ port, revisionId, initialAdventureId, pkg }: P
   }
 
   return (
-    <section className={`work-section player-world-page${pkg ? ' package-page' : ''}`} data-testid="player-world-page">
+    <section className={`work-section player-world-page${pkg ? ' package-page' : ''}${session ? ' has-session' : ''}`} data-testid="player-world-page">
       <div className="section-heading">
         <div>
           <p className="eyebrow">{pkg ? t('{mode} · v{version}', { mode: t('开放世界'), version: revision.version }) : t('开放世界')}</p>

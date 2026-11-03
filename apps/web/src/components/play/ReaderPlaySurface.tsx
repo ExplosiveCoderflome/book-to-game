@@ -3,6 +3,7 @@ import type { GameRevision, NarrateResult, ProposeActResult, SessionView } from 
 import { useI18n } from '../../lib/i18n';
 import { playOverlayFromSession } from '../../lib/play-overlay';
 import { costHintForChoice, type OptionChangeSummary, type VariableDelta } from '../../lib/variable-delta';
+import { pickLensStats, splitPrimaryActions } from '../../lib/scene-lens';
 import { BranchGraphCanvas } from '../BranchGraphCanvas';
 import { Empty, Notice } from '../Notice';
 import { NarrateBox } from '../NarrateBox';
@@ -11,6 +12,7 @@ import { PlayEndingPanel, endingSummaryFromVariables } from '../PlayEndingPanel'
 import { ProposeActBox } from '../ProposeActBox';
 import { TiandaoToggle } from '../TiandaoToggle';
 import { ReaderChoiceRow } from './ReaderChoiceRow';
+import { SceneLensActions, SceneLensDrawer, SceneLensFeedback, SceneLensHud } from './SceneLens';
 
 export type ReaderPlaySurfaceProps = {
   session: SessionView | null;
@@ -53,9 +55,30 @@ export function ReaderPlaySurface({
     if (!session || !revision) return null;
     return playOverlayFromSession(revision.content, session);
   }, [session, revision]);
+  const lensStats = useMemo(() => pickLensStats({
+    variables: session?.variables ?? {},
+    deltas: varDeltas,
+    statTemplateId: revision?.content.statTemplateId,
+    statTemplateVersion: revision?.content.statTemplateVersion,
+  }), [session, varDeltas, revision]);
 
   if (busy && !session) return <p role="status">{t('正在读取存档…')}</p>;
   if (!session) return <Empty>{emptyHint ?? t('选择一本已发布的故事，或者打开左侧存档。')}</Empty>;
+
+  const choiceSplit = splitPrimaryActions(session.scene.choices, () => true, 4);
+  const choiceRow = (choice: SessionView['scene']['choices'][number], index: number) => {
+    const cost = costHintForChoice(revision?.content, session.scene.id, choice.id);
+    return (
+      <ReaderChoiceRow
+        key={choice.id}
+        index={index + 1}
+        label={choice.label}
+        costHint={cost || undefined}
+        disabled={busy}
+        onClick={() => void onAct(choice.id)}
+      />
+    );
+  };
 
   return (
     <>
@@ -63,16 +86,10 @@ export function ReaderPlaySurface({
         <span>{revision?.content.title ?? t('文字冒险')} · v{revision?.version ?? '—'}</span>
         <span>{t('第 {turn} 幕', { turn: session.turn + 1 })}</span>
       </div>
+      <SceneLensHud stats={lensStats} />
       <h3>{session.scene.title}</h3>
       <div className="reader-text">{session.scene.text.split(/\n+/).map((text, i) => <p key={i}>{text}</p>)}</div>
-      <PlayStatsBar
-        variables={session.variables ?? {}}
-        deltas={varDeltas}
-        optionChanges={optionChanges}
-        showEmpty
-        statTemplateId={revision?.content.statTemplateId}
-        statTemplateVersion={revision?.content.statTemplateVersion}
-      />
+      <SceneLensFeedback deltas={varDeltas} optionChanges={optionChanges} />
       {session.ended && (
         <PlayEndingPanel
           mode="story"
@@ -96,68 +113,73 @@ export function ReaderPlaySurface({
         </button>
       )}
       {!session.ended && !uncertain && (
-        <div className="reader-choices">
-          <p className="eyebrow">{t('你将如何选择？')}</p>
-          {session.scene.choices.map((choice, i) => {
-            const cost = costHintForChoice(revision?.content, session.scene.id, choice.id);
-            return (
-              <ReaderChoiceRow
-                key={choice.id}
-                index={i + 1}
-                label={choice.label}
-                costHint={cost || undefined}
-                disabled={busy}
-                onClick={() => void onAct(choice.id)}
-              />
-            );
-          })}
-          {!session.scene.choices.length && <p className="hint">{t('当前没有可见选项。')}</p>}
-        </div>
-      )}
-      {showAiAux && onNarrate && onPropose && (
-        <div className="reader-aux stack">
-          <TiandaoToggle disabled={busy || !!uncertain} />
-          <NarrateBox visitKey={`${session.id}:${session.scene.id}:${session.turn}`} disabled={busy || !!uncertain} onNarrate={onNarrate} />
-          {!session.ended && !uncertain && (
-            <ProposeActBox disabled={busy} busy={busy} onPropose={onPropose} onPickCandidate={id => void onAct(id)} />
-          )}
-        </div>
-      )}
-      <div className="reader-footer">
-        <p className="hint" data-testid="autosave-hint">{autosaveHint ?? t('选择成功后自动保存。')}</p>
-        {onReload && (
-          <button type="button" className="quiet small" disabled={busy} onClick={onReload}>{t('重新读取存档')}</button>
-        )}
-      </div>
-      <details className="history">
-        <summary>{t('回看行程 · {count} 条记录', { count: session.history.length })}</summary>
-        {session.history.map((entry, i) => (
-          <div key={i}>
-            <p className="eyebrow">{t('第 {turn} 幕', { turn: entry.turn + 1 })}{entry.choiceLabel ? ` · ${entry.choiceLabel}` : ''}</p>
-            <p>{entry.text}</p>
-          </div>
-        ))}
-      </details>
-      {revision && (
-        <div className="play-path-panel" data-testid="play-path-panel">
-          <div className="panel-heading">
-            <h3>{t('分支路径')}</h3>
-            <button type="button" className="small" onClick={() => setShowPath(v => !v)}>
-              {t(showPath ? '收起路径画布' : '展开路径画布')}
-            </button>
-          </div>
-          {showPath && playOverlay && (
-            <BranchGraphCanvas
-              content={revision.content}
-              selectedSceneId={session.scene.id}
-              onSelectScene={() => { /* play view follows session */ }}
-              playOverlay={playOverlay}
-              readOnly
-              playabilityMode="publish"
+        session.scene.choices.length
+          ? (
+            <SceneLensActions
+              eyebrow={t('你将如何选择？')}
+              primary={choiceSplit.primary.map(choiceRow)}
+              overflow={choiceSplit.overflow.length
+                ? <>{choiceSplit.overflow.map((choice, i) => choiceRow(choice, choiceSplit.primary.length + i))}</>
+                : undefined}
+              overflowCount={choiceSplit.overflow.length}
             />
+          )
+          : <p className="hint">{t('当前没有可见选项。')}</p>
+      )}
+      <SceneLensDrawer defaultOpen={showAiAux}>
+        <PlayStatsBar
+          variables={session.variables ?? {}}
+          deltas={varDeltas}
+          optionChanges={optionChanges}
+          showEmpty
+          statTemplateId={revision?.content.statTemplateId}
+          statTemplateVersion={revision?.content.statTemplateVersion}
+        />
+        {showAiAux && onNarrate && onPropose && (
+          <div className="reader-aux stack">
+            <TiandaoToggle disabled={busy || !!uncertain} />
+            <NarrateBox visitKey={`${session.id}:${session.scene.id}:${session.turn}`} disabled={busy || !!uncertain} onNarrate={onNarrate} />
+            {!session.ended && !uncertain && (
+              <ProposeActBox disabled={busy} busy={busy} onPropose={onPropose} onPickCandidate={id => void onAct(id)} />
+            )}
+          </div>
+        )}
+        <div className="reader-footer">
+          <p className="hint" data-testid="autosave-hint">{autosaveHint ?? t('选择成功后自动保存。')}</p>
+          {onReload && (
+            <button type="button" className="quiet small" disabled={busy} onClick={onReload}>{t('重新读取存档')}</button>
           )}
         </div>
-      )}
+        <details className="history">
+          <summary>{t('回看行程 · {count} 条记录', { count: session.history.length })}</summary>
+          {session.history.map((entry, i) => (
+            <div key={i}>
+              <p className="eyebrow">{t('第 {turn} 幕', { turn: entry.turn + 1 })}{entry.choiceLabel ? ` · ${entry.choiceLabel}` : ''}</p>
+              <p>{entry.text}</p>
+            </div>
+          ))}
+        </details>
+        {revision && (
+          <div className="play-path-panel" data-testid="play-path-panel">
+            <div className="panel-heading">
+              <h3>{t('分支路径')}</h3>
+              <button type="button" className="small" onClick={() => setShowPath(v => !v)}>
+                {t(showPath ? '收起路径画布' : '展开路径画布')}
+              </button>
+            </div>
+            {showPath && playOverlay && (
+              <BranchGraphCanvas
+                content={revision.content}
+                selectedSceneId={session.scene.id}
+                onSelectScene={() => { /* play view follows session */ }}
+                playOverlay={playOverlay}
+                readOnly
+                playabilityMode="publish"
+              />
+            )}
+          </div>
+        )}
+      </SceneLensDrawer>
     </>
   );
 }

@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>场景镜头 · 玩家壳观察页</title>
+<style>
+  :root {
+    --font-ui: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+    --serif: "Noto Serif SC", "Songti SC", "SimSun", Georgia, serif;
+    --bg: #f4f4f2; --paper: #fff; --surface: #fff; --surface-muted: #f7f7f5;
+    --ink: #1c1c1a; --muted: #6b6b67; --line: #e4e4e0; --line-strong: #d0d0cb;
+    --green: #2f6b4f; --rust: #b42318; --radius: 8px; --radius-sm: 6px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--font-ui); font-size: 14px; line-height: 1.5;
+  }
+  header.site {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 12px 20px; background: var(--paper); border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; gap: 10px; align-items: center; }
+  .brand-seal {
+    width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center;
+    background: var(--green); color: #fff; font-family: var(--serif); font-size: 18px;
+  }
+  .brand strong { display: block; font-size: 14px; }
+  .brand small { color: var(--muted); font-size: 11px; }
+  .pill { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+  main { max-width: 1180px; margin: 0 auto; padding: 24px 20px 56px; }
+  .eyebrow { margin: 0 0 6px; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+  .page-head h1 { margin: 0; font-size: 22px; }
+  .page-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  .layout { display: grid; grid-template-columns: minmax(220px, 272px) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .panel { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); }
+  .rail { padding: 14px; display: grid; gap: 10px; }
+  .rail h2 { margin: 0; font-size: 14px; }
+  .rail p { margin: 0; color: var(--muted); font-size: 12px; }
+  .slot { text-align: left; padding: 9px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-muted); font-size: 12px; }
+  .slot.active { border-color: color-mix(in srgb, var(--green) 40%, var(--line)); background: color-mix(in srgb, var(--green) 7%, var(--paper)); }
+  .slot small { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .reading { padding: 26px 30px 24px; }
+  .reader-meta { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); padding-bottom: 12px; margin-bottom: 14px; }
+
+  /* ── scene lens HUD ── */
+  .scene-lens-hud {
+    display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px;
+    margin: 0 0 18px; padding: 10px 12px; border: 1px solid var(--line); border-left: 3px solid var(--green);
+    border-radius: var(--radius-sm); background: var(--surface-muted);
+  }
+  .scene-lens-stat { display: grid; gap: 4px; padding: 2px 10px 2px 0; border-right: 1px solid var(--line); }
+  .scene-lens-stat:last-child { border-right: 0; padding-right: 0; }
+  .scene-lens-stat-label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .scene-lens-stat-value { display: flex; align-items: baseline; gap: 6px; font-size: 17px; font-weight: 600; }
+  .scene-lens-stat.is-warn .scene-lens-stat-value { color: var(--rust); }
+  .scene-lens-stat-delta { font-size: 11px; font-weight: 600; color: var(--muted); }
+  .scene-lens-stat-delta.tone-gain { color: var(--green); }
+  .scene-lens-stat-delta.tone-pressure { color: var(--rust); }
+  .scene-lens-stat-meter { display: block; height: 4px; border-radius: 999px; background: color-mix(in srgb, var(--line) 80%, var(--surface)); overflow: hidden; }
+  .scene-lens-stat-meter-fill { display: block; height: 100%; background: var(--green); }
+  .scene-lens-stat.is-warn .scene-lens-stat-meter-fill { background: var(--rust); }
+
+  h3.scene-title { margin: 0 0 14px; font-size: 24px; letter-spacing: -.01em; }
+  .reader-text p { font-family: var(--serif); font-size: 17px; line-height: 2.05; margin: 0 0 12px; white-space: pre-wrap; }
+  .scene-lens-feedback {
+    display: grid; gap: 4px; margin: 14px 0 4px; padding: 8px 12px;
+    border-left: 3px solid var(--green); border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    background: var(--surface-muted); font-size: 12px;
+  }
+  .scene-lens-feedback-line { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; margin: 0; }
+  .scene-lens-feedback-label { font-size: 11px; font-weight: 600; letter-spacing: .04em; color: var(--muted); }
+  .scene-lens-feedback-chip { color: var(--ink); }
+  .scene-lens-feedback-note { margin: 0; color: var(--green); }
+  .scene-lens-goal { margin: 12px 0 18px; padding: 10px 14px; background: var(--surface-muted); border-left: 3px solid var(--green); border-radius: var(--radius-sm); font-size: 13px; }
+  .scene-lens-goal p { margin: 2px 0 0; color: var(--muted); }
+
+  .scene-lens-actions { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .scene-lens-focus { margin: 0 0 10px; font-size: 13px; font-weight: 600; }
+  .scene-lens-primary { display: grid; gap: 8px; }
+  .choice {
+    display: flex; gap: 12px; align-items: center; width: 100%; text-align: left;
+    padding: 13px 15px; background: var(--surface-muted); border: 1px solid var(--line);
+    border-radius: var(--radius-sm); font: inherit; color: inherit; cursor: pointer;
+  }
+  .choice:first-child { border-left: 3px solid var(--green); }
+  .choice:hover { background: color-mix(in srgb, var(--green) 7%, var(--paper)); border-color: color-mix(in srgb, var(--green) 30%, var(--line)); }
+  .choice-index { font-size: 11px; color: var(--muted); border-right: 1px solid var(--line); padding-right: 12px; }
+  .choice-body { display: grid; gap: 2px; }
+  .choice-label { font-weight: 500; }
+  .choice-cost { font-size: 11px; color: var(--muted); }
+  .choice-arrow { margin-left: auto; color: var(--green); }
+  .scene-lens-more { margin-top: 10px; }
+  .scene-lens-more summary {
+    cursor: pointer; list-style: none; font-size: 12px; color: var(--muted);
+    padding: 6px 2px; border-top: 1px dashed var(--line);
+  }
+  .scene-lens-more summary::before { content: '＋ '; color: var(--green); }
+  .scene-lens-more[open] summary::before { content: '－ '; }
+  .scene-lens-more .scene-lens-primary { padding-top: 8px; }
+  .scene-lens-drawer { margin-top: 18px; border-top: 1px solid var(--line); }
+  .scene-lens-drawer > summary {
+    cursor: pointer; list-style: none; padding: 10px 2px; font-size: 12px; font-weight: 600; color: var(--muted);
+  }
+  .scene-lens-drawer > summary::before { content: '▸ '; color: var(--green); }
+  .scene-lens-drawer[open] > summary::before { content: '▾ '; }
+  .drawer-body { display: grid; gap: 12px; padding: 4px 0 8px; }
+  .stat-chart { display: grid; gap: 6px; border: 1px solid var(--line); border-left: 3px solid var(--green); border-radius: var(--radius-sm); background: var(--surface-muted); padding: 10px; }
+  .stat-row { display: flex; align-items: baseline; gap: 8px; font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+  .stat-row:last-child { border-bottom: 0; }
+  .stat-row span:first-child { color: var(--muted); }
+  .stat-row strong { margin-left: auto; }
+  .history-entry { font-size: 12px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 8px; }
+  .note { margin-top: 24px; font-size: 12px; color: var(--muted); }
+  .note code { background: var(--surface-muted); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
+  @media (max-width: 760px) {
+    .layout { grid-template-columns: minmax(0, 1fr); }
+    .rail { order: 2; }
+    .scene-lens-hud { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-flow: row; }
+    .scene-lens-stat { border-right: 0; }
+    .reading { padding: 18px 16px 20px; }
+    h3.scene-title { font-size: 20px; }
+    .choice { min-height: 48px; }
+  }
+</style>
+</head>
+<body>
+<header class="site">
+  <div class="brand">
+    <span class="brand-seal" aria-hidden="true">叙</span>
+    <div><strong>故事工坊</strong><small>故事工坊 · 游玩</small></div>
+  </div>
+  <span class="pill">场景镜头 · 观察页</span>
+</header>
+
+<main>
+  <div class="page-head">
+    <div>
+      <p class="eyebrow">分支故事 · 示例</p>
+      <h1>同福客栈 · 打烊前</h1>
+      <p>顶部 2–4 个关键资源（含上一拍 Δ）· 中间场景正文 · 底部 3–4 个主行动，其余收进折叠层。</p>
+    </div>
+  </div>
+
+  <div class="layout">
+    <aside class="panel rail">
+      <h2>我的存档</h2>
+      <p>存档固定在发布版本上。</p>
+      <button class="slot active" type="button">第 4 幕 · 后厨<small>2 分钟前 · 自动保存</small></button>
+      <button class="slot" type="button">第 2 幕 · 大堂<small>昨天 · 已自动保存</small></button>
+    </aside>
+
+    <article class="panel reading">
+      <div class="reader-meta"><span>同福客栈 · v3</span><span>第 4 幕</span></div>
+
+      <div class="scene-lens-hud" role="status" aria-live="polite" aria-label="状态">
+        <div class="scene-lens-stat is-changed tone-pressure">
+          <span class="scene-lens-stat-label">掌柜信任</span>
+          <span class="scene-lens-stat-value">62<span class="scene-lens-stat-delta tone-gain">↑ +5</span></span>
+          <span class="scene-lens-stat-meter"><span class="scene-lens-stat-meter-fill" style="width:62%"></span></span>
+        </div>
+        <div class="scene-lens-stat is-warn">
+          <span class="scene-lens-stat-label">麻烦</span>
+          <span class="scene-lens-stat-value">8/10</span>
+          <span class="scene-lens-stat-meter"><span class="scene-lens-stat-meter-fill" style="width:80%"></span></span>
+        </div>
+        <div class="scene-lens-stat">
+          <span class="scene-lens-stat-label">银两</span>
+          <span class="scene-lens-stat-value">12 两</span>
+        </div>
+        <div class="scene-lens-stat">
+          <span class="scene-lens-stat-label">今日时辰</span>
+          <span class="scene-lens-stat-value">打烊前</span>
+        </div>
+      </div>
+
+      <h3 class="scene-title">后厨的灯还亮着</h3>
+      <div class="reader-text">
+        <p>灶上的汤咕嘟作响，风从门缝里钻进来，吹得油灯一晃。佟掌柜把账本合上，抬眼看你——她今晚话不多，却像什么都知道。</p>
+        <p>白展堂靠在门边擦刀，郭芙蓉的声音从大堂传来，正跟客人拌嘴。你手里还捏着那张没交出去的纸条。</p>
+      </div>
+
+      <div class="scene-lens-feedback">
+        <p class="scene-lens-feedback-line">
+          <span class="scene-lens-feedback-label">刚刚变化</span>
+          <span class="scene-lens-feedback-chip">掌柜信任 +5</span>
+          <span class="scene-lens-feedback-chip">麻烦 +1</span>
+        </p>
+        <p class="scene-lens-feedback-note">新可选：把纸条交给佟掌柜</p>
+      </div>
+
+      <div class="scene-lens-goal">
+        <strong>跑堂伙计 · 今晚当值</strong>
+        <p>目标：在天亮前弄清纸条的来路，别让佟掌柜起疑。</p>
+      </div>
+
+      <section class="scene-lens-actions">
+        <p class="scene-lens-focus">你将如何选择？</p>
+        <div class="scene-lens-primary">
+          <button class="choice" type="button">
+            <span class="choice-index">01</span>
+            <span class="choice-body">
+              <span class="choice-label">把纸条递给佟掌柜</span>
+              <span class="choice-cost">代价：掌柜信任 +5 · 麻烦 +1</span>
+            </span>
+            <span class="choice-arrow" aria-hidden="true">→</span>
+          </button>
+          <button class="choice" type="button">
+            <span class="choice-index">02</span>
+            <span class="choice-body">
+              <span class="choice-label">先问白展堂这是什么</span>
+              <span class="choice-cost">代价：麻烦 −2</span>
+            </span>
+            <span class="choice-arrow" aria-hidden="true">→</span>
+          </button>
+          <button class="choice" type="button">
+            <span class="choice-index">03</span>
+            <span class="choice-body">
+              <span class="choice-label">把纸条藏进袖子里</span>
+              <span class="choice-cost">代价：掌柜信任 −3</span>
+            </span>
+            <span class="choice-arrow" aria-hidden="true">→</span>
+          </button>
+        </div>
+
+        <details class="scene-lens-more">
+          <summary>更多选择（2）</summary>
+          <div class="scene-lens-primary">
+            <button class="choice" type="button">
+              <span class="choice-index">04</span>
+              <span class="choice-body"><span class="choice-label">去大堂帮郭芙蓉解围</span><span class="choice-cost">代价：麻烦 −1</span></span>
+              <span class="choice-arrow" aria-hidden="true">→</span>
+            </button>
+            <button class="choice" type="button" disabled>
+              <span class="choice-index">05</span>
+              <span class="choice-body"><span class="choice-label">直接上二楼翻账房</span><span class="choice-cost">未解锁：掌柜信任不足</span></span>
+            </button>
+          </div>
+        </details>
+      </section>
+
+      <details class="scene-lens-drawer">
+        <summary>更多信息 · 状态与记录</summary>
+        <div class="drawer-body">
+          <div class="stat-chart" role="status">
+            <div class="stat-row"><span>掌柜信任</span><strong>62</strong></div>
+            <div class="stat-row"><span>麻烦</span><strong>8 / 10</strong></div>
+            <div class="stat-row"><span>银两</span><strong>12 两</strong></div>
+            <div class="stat-row"><span>拿着纸条</span><strong>是</strong></div>
+          </div>
+          <p class="history-entry">第 3 幕 · 大堂 —— 你把客人的话记在了纸条背面。</p>
+          <p class="history-entry">第 4 幕 · 后厨 —— 佟掌柜合上账本，等你开口。</p>
+        </div>
+      </details>
+    </article>
+  </div>
+
+  <p class="note">
+    本页是 <code>apps/web</code> 场景镜头布局的静态观察页（zh-CN 文案，示意数据）。
+    真实结构见 <code>apps/web/src/components/play/SceneLens.tsx</code> 与 <code>apps/web/src/styles.css</code> 的「Scene lens」段。
+  </p>
+</main>
+</body>
+</html>

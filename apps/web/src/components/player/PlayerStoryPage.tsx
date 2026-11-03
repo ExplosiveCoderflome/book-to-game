@@ -181,7 +181,7 @@ export function PlayerStoryPage({ port, revisionId, initialSessionId, pkg }: Pro
   }
 
   return (
-    <section className={`work-section player-story-page${pkg ? ' package-page' : ''}`} data-testid="player-story-page">
+    <section className={`work-section player-story-page${pkg ? ' package-page' : ''}${session ? ' has-session' : ''}`} data-testid="player-story-page">
       <div className="section-heading">
         <div>
           <p className="eyebrow">{pkg ? t('{mode} · v{version}', { mode: t('分支故事'), version: revision.version }) : t('分支故事')}</p>
@@ -193,7 +193,7 @@ export function PlayerStoryPage({ port, revisionId, initialSessionId, pkg }: Pro
       <Notice text={error} />
       <Notice kind="info" text={info} />
       <Notice kind="info" text={uncertain ? (pkg ? t('上一步的结果尚未确认。请重试原选择，不会重复推进。') : t('上一选择的请求结果尚未确认。请重试原选择，服务会返回同一结果，不会重复推进故事。')) : null} />
-      <div className="play-layout player-play-layout">
+      <div className={`play-layout player-play-layout${session ? ' has-session' : ''}`}>
         <aside className="panel stack">
           <div className="player-open-actions">
             <button type="button" className="primary" disabled={busy || uncertain} onClick={() => void start()}>{t('开始新存档')}</button>
