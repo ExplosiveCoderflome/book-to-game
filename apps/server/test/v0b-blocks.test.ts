@@ -11,11 +11,14 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-test('V0b: nine blocks parse, expose the closed catalog shape, and lint clean', () => {
-  assert.equal(BLOCKS.length, 9);
+test('V0b: 15 blocks parse, expose the closed catalog shape, and lint clean', () => {
+  assert.equal(BLOCKS.length, 15);
   assert.deepEqual(BLOCKS.map(b => b.id), [
     'stat-templates', 'world-map', 'building-library', 'item-catalog', 'storylet-pool',
-    'endings-recap', 'clock', 'encounters', 'preflight-sim',
+    'endings-recap', 'clock', 'encounters',
+    'shop-cycle', 'customer-flow', 'ledger',
+    'growth-curve', 'loot-table', 'combat-stake',
+    'preflight-sim',
   ]);
   for (const block of BLOCKS) {
     assert.deepEqual(blockSpecSchema.parse(block), block);
@@ -26,6 +29,25 @@ test('V0b: nine blocks parse, expose the closed catalog shape, and lint clean', 
   assert.equal(getBlock('clock')?.id, 'clock');
   assert.equal(getBlock('missing'), undefined);
   assert.deepEqual(lintBlocks(), []);
+});
+
+test('V0b: 经营/成长货架积木以桩形式注册，compile-down 不新增运行时', () => {
+  const shop = ['shop-cycle', 'customer-flow', 'ledger'];
+  const growth = ['growth-curve', 'loot-table', 'combat-stake'];
+  for (const id of [...shop, ...growth]) {
+    const block = getBlock(id);
+    assert.ok(block, `missing block ${id}`);
+    assert.deepEqual(blockSpecSchema.parse(block), block);
+    assert.ok(block.provides.length >= 1, `${id} must provide something`);
+    assert.ok(block.label.length > 0 && block.blurb.length > 0);
+  }
+  assert.deepEqual(getBlock('shop-cycle')!.composesWith.dependsOn, ['clock', 'item-catalog', 'stat-templates']);
+  assert.deepEqual(getBlock('growth-curve')!.composesWith.dependsOn, ['stat-templates']);
+  assert.deepEqual(getBlock('loot-table')!.composesWith.dependsOn, ['encounters', 'item-catalog']);
+  assert.deepEqual(getBlock('combat-stake')!.composesWith.dependsOn, ['encounters', 'stat-templates']);
+  assert.ok(getBlock('combat-stake')!.provides.includes('facts'));
+  assert.ok(getBlock('combat-stake')!.provides.includes('actions'));
+  assert.match(getBlock('combat-stake')!.blurb, /桩|无独立战斗引擎/);
 });
 
 test('V0b: requires only reference known substrate contracts and composesWith resolves', () => {
@@ -68,7 +90,7 @@ test('V0b: list_blocks is a read-only command providing funTags/requires/params'
     assert.ok(command, 'list_blocks command registered');
     assert.equal(command.readOnly, true);
     const result = command.execute({}) as {blocks: unknown[]; lint: unknown[]};
-    assert.equal(result.blocks.length, 9);
+    assert.equal(result.blocks.length, 15);
     assert.deepEqual(result.lint, []);
     const first = result.blocks[0] as Record<string, unknown>;
     assert.ok('funTags' in first && 'requires' in first && 'params' in first && 'provides' in first && 'acceptance' in first);

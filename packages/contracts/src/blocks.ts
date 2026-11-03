@@ -26,10 +26,17 @@ export const SUBSTRATE_CONTRACTS = [
 export const substrateContractSchema = z.enum(SUBSTRATE_CONTRACTS);
 export type SubstrateContract = z.infer<typeof substrateContractSchema>;
 
-/** Closed set of WorldContent fragments a block may `provide` on compile-down. */
+/**
+ * Closed set of WorldContent fragments a block may `provide` on compile-down.
+ *
+ * `actions` / `facts` were added for compile-down stubs (e.g. `combat-stake`) that express
+ * encounter stakes as ordinary WorldContent actions and facts instead of a parallel combat
+ * state machine. The substrate already models both, only the provide vocabulary was missing.
+ */
 export const BLOCK_PROVIDES = [
   'variables', 'resource-defs', 'locations', 'map.fill', 'building-library',
   'item-catalog', 'storylets', 'endings', 'recap', 'clock', 'encounters', 'preflight-sim',
+  'actions', 'facts',
 ] as const;
 export const blockProvideSchema = z.enum(BLOCK_PROVIDES);
 export type BlockProvide = z.infer<typeof blockProvideSchema>;
@@ -114,7 +121,7 @@ const RAW_BLOCKS = [
   },
   {
     id: 'building-library', version: 1,
-    label: '建筑库', blurb: '可复用建筑资产（商店/补给/任务/遭遇/Boss），放置到地图已绑定地点，本地覆盖不写回库。',
+    label: '建筑库', blurb: '积木商店货架：可复用建筑资产（商店/补给/任务/遭遇/Boss），放置到地图已绑定地点，本地覆盖不写回库。',
     funTags: ['collection'], requires: ['world.locations'],
     composesWith: {dependsOn: ['world-map'], conflictsWith: []},
     params: [{key: 'shelf_rows', label: '货架行来源', type: 'array', description: '引用物品库货架。', default: []}],
@@ -168,6 +175,80 @@ const RAW_BLOCKS = [
     composesWith: {dependsOn: ['building-library'], conflictsWith: []},
     params: [{key: 'drop_rate_band', label: '掉落概率带', type: 'array', description: '确定性掉落概率带。', default: [0.1, 0.9]}],
     provides: ['encounters'], acceptance: ['growth-monotonic'],
+  },
+  {
+    id: 'shop-cycle', version: 1,
+    label: '营业日循环', blurb: '积木商店货架上的经营骨架：进货 → 定价 → 营业日推进，编译为时钟 + 剧情卡（每日事件卡）与资源增减；日结/排队/客流仍是作者用行动与卡池补的，本积木不自建营业引擎。',
+    funTags: ['healing-routine', 'collection', 'warmth'], requires: ['world.clock', 'world.storylets', 'item.catalog', 'game.variables'],
+    composesWith: {dependsOn: ['clock', 'item-catalog', 'stat-templates'], conflictsWith: []},
+    params: [
+      {key: 'day_unit', label: '营业日单位', type: 'select', options: ['day', 'week', 'month'], default: 'day'},
+      {key: 'restock_cost_hint', label: '进货成本提示', type: 'number', description: '单次进货的建议成本，编译为资源减量提示，不强制结算。', default: 1},
+      {key: 'open_days', label: '一个周期营业天数', type: 'integer', default: 6},
+    ],
+    provides: ['clock', 'storylets'], acceptance: ['G1', 'G6', 'failure-free-ending-rate'],
+  },
+  {
+    id: 'customer-flow', version: 1,
+    label: '客人需求流', blurb: '积木商店的客流侧：客人带着需求来、按满意度留下人情与回头客。编译为事实旗标 + 剧情卡 + 关系资源，满意度只做软提示；真正的排队/翻台规则由作者在行动里写。',
+    funTags: ['warmth', 'collection', 'healing-routine'], requires: ['world.npcs', 'world.facts', 'world.storylets', 'world.resourceDefs'],
+    composesWith: {dependsOn: ['shop-cycle', 'stat-templates'], conflictsWith: []},
+    params: [
+      {key: 'customer_pool_size', label: '常客规模', type: 'integer', default: 8},
+      {key: 'satisfaction_metric', label: '满意度资源', type: 'string', description: '绑定到 resourceDefs 的关系/声望资源名。', default: 'reputation'},
+      {key: 'return_visit_flag', label: '回头客事实键', type: 'string', description: '事实层记录回头客，不另建状态机。', default: 'returning_guest'},
+    ],
+    provides: ['storylets', 'facts'], acceptance: ['G4', 'G8', 'collection-reachable'],
+  },
+  {
+    id: 'ledger', version: 1,
+    label: '账本流水', blurb: '积木商店的账本：把进货、售价与库存变动写成资源增减与账目卡，方便作者核对收支。只提供流水提示与货币绑定参数，不做自动日结或财务报表。',
+    funTags: ['collection', 'pressure-release'], requires: ['item.catalog', 'game.variables', 'world.storylets'],
+    composesWith: {dependsOn: ['item-catalog', 'stat-templates'], conflictsWith: []},
+    params: [
+      {key: 'money_resource', label: '货币资源', type: 'string', description: '绑定 world.resourceDefs 中的货币键。', default: 'coin'},
+      {key: 'opening_balance', label: '开账余额', type: 'number', default: 10},
+      {key: 'ledger_granularity', label: '流水粒度', type: 'select', options: ['per_day', 'per_transaction'], default: 'per_day'},
+    ],
+    provides: ['variables', 'storylets'], acceptance: ['G4', 'collection-reachable'],
+  },
+  {
+    id: 'growth-curve', version: 1,
+    label: '成长曲线', blurb: '等级/经验/属性成长骨架：编译为 GameContent.variables 的进度与资源命名，配经验曲线预设供作者填数值。本积木只给骨架与验收口径，不自动结算升级。',
+    funTags: ['growth', 'grinding'], requires: ['game.variables'],
+    composesWith: {dependsOn: ['stat-templates'], conflictsWith: []},
+    params: [
+      {key: 'xp_curve', label: '经验曲线', type: 'select', options: ['linear', 'quadratic', 'milestone'], default: 'quadratic'},
+      {key: 'level_cap', label: '等级上限', type: 'integer', default: 20},
+      {key: 'xp_resource', label: '经验资源', type: 'string', default: 'xp'},
+      {key: 'attribute_keys', label: '属性键', type: 'array', description: '从属属性名，绑定 variables。', default: []},
+    ],
+    provides: ['variables'], acceptance: ['growth-monotonic', 'G4'],
+  },
+  {
+    id: 'loot-table', version: 1,
+    label: '掉落表', blurb: '积木商店的战斗掉落约定：把物品库条目按掉落概率带绑定到遭遇，收紧掉落分档。只产出表与事实提示，实际发放仍走现有遭遇/行动效果。',
+    funTags: ['collection', 'grinding'], requires: ['item.catalog', 'world.facts'],
+    composesWith: {dependsOn: ['encounters', 'item-catalog'], conflictsWith: []},
+    params: [
+      {key: 'drop_bands', label: '掉落分档', type: 'select', options: ['common_rare', 'tiered'], default: 'tiered'},
+      {key: 'guaranteed_drop', label: '必掉保底', type: 'boolean', default: false},
+      {key: 'drop_rate_band', label: '掉落概率带', type: 'array', description: '与 encounters 的概率带保持一致。', default: [0.1, 0.9]},
+    ],
+    provides: ['item-catalog', 'facts'], acceptance: ['collection-reachable', 'growth-monotonic'],
+  },
+  {
+    id: 'combat-stake', version: 1,
+    label: '遭遇代价', blurb: '桩：把遭遇的胜负代价编译为事实旗标 + 资源增减的行动/剧情卡，仍无独立战斗引擎与回合结算。作者或 AI 负责写具体行动文案与数值，本积木只约定代价口径。',
+    funTags: ['pressure-release', 'grinding'], requires: ['world.facts', 'world.actions', 'game.variables'],
+    composesWith: {dependsOn: ['encounters', 'stat-templates'], conflictsWith: []},
+    params: [
+      {key: 'win_fact', label: '胜利事实键', type: 'string', default: 'won_encounter'},
+      {key: 'lose_fact', label: '失败事实键', type: 'string', default: 'lost_encounter'},
+      {key: 'hp_resource', label: '生命/损耗资源', type: 'string', default: 'hp'},
+      {key: 'defeat_penalty', label: '失败代价提示', type: 'number', description: '失败时的建议资源减量，编译进行动效果提示。', default: 1},
+    ],
+    provides: ['facts', 'actions'], acceptance: ['G8', 'pressure-bidirectional'],
   },
   {
     id: 'preflight-sim', version: 1,

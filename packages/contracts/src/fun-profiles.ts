@@ -79,14 +79,20 @@ const RAW_PROFILES: z.input<typeof funProfileSchema>[] = [
   },
   {
     id: 'healing', version: 1, funTags: ['healing-routine', 'warmth', 'collection'],
-    suggestedBlocks: ['clock', 'storylet-pool', 'stat-templates', 'endings-recap'],
+    suggestedBlocks: [
+      'clock', 'storylet-pool', 'stat-templates', 'endings-recap',
+      'shop-cycle', 'customer-flow', 'ledger',
+    ],
     pacingLine: {decisions: 15, uniqueChars: 1000}, strategies: ALL_STRATEGIES,
     thresholds: {...DEFAULT_THRESHOLDS, minFailureFreeEndingRate: 0.8},
     metricMatrix: {G1: true, G4: true, G8: true, 'failure-free-ending-rate': true},
   },
   {
     id: 'grinding', version: 1, funTags: ['growth', 'grinding', 'collection'],
-    suggestedBlocks: ['stat-templates', 'encounters', 'item-catalog', 'storylet-pool'],
+    suggestedBlocks: [
+      'stat-templates', 'encounters', 'item-catalog', 'storylet-pool',
+      'growth-curve', 'loot-table', 'combat-stake',
+    ],
     pacingLine: {decisions: 30, uniqueChars: 3000},
     strategies: ['random', 'greedy-growth', 'greedy-money', 'modao', 'lazy'],
     thresholds: DEFAULT_THRESHOLDS,

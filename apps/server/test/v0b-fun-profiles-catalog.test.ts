@@ -21,6 +21,16 @@ test('B: Catalog 对齐：每个画像 suggestedBlocks 都指向真实 Block id'
   assert.deepEqual(getFunProfileCatalog().map(p => p.id), FUN_PROFILES.map(p => p.id));
 });
 
+test('B: 经营/成长画像把新货架积木编入 suggestedBlocks', () => {
+  const byId = new Map(FUN_PROFILES.map(profile => [profile.id, profile]));
+  for (const id of ['shop-cycle', 'customer-flow', 'ledger']) {
+    assert.ok(byId.get('healing')!.suggestedBlocks.includes(id), `healing missing ${id}`);
+  }
+  for (const id of ['growth-curve', 'loot-table', 'combat-stake']) {
+    assert.ok(byId.get('grinding')!.suggestedBlocks.includes(id), `grinding missing ${id}`);
+  }
+});
+
 test('B: list_fun_profiles 是只读命令，返回画像目录并携带 suggestedBlocks', () => {
   const db = openDatabase(':memory:');
   const dir = mkdtempSync(path.join(tmpdir(), 'v0b-fun-profiles-'));

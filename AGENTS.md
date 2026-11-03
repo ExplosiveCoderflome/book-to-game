@@ -30,6 +30,12 @@ migrated only within the authorized task scope.
 - For the open-adventure slice on 2026-10-10, the user explicitly approved two gpt-6.1-sol subagents for frontend and runtime work. That assignment is complete; it is not standing approval for future delegations. Follow the latest user delegation instructions for each new assignment.
 - Never commit secrets, local novels, SQLite files or generated runtime data.
 
+## Block catalog (积木商店)
+
+- `packages/contracts/src/blocks.ts` is the **积木商店** shelf: a BlockSpec catalog. Genres are *recipes* (FunProfile `suggestedBlocks`) over the same WorldContent substrate; never add a parallel per-genre state machine.
+- New blocks compile down through existing `provides` / `requires`. Stubs (e.g. `encounters`, `combat-stake`, `shop-cycle`) declare params + composition + acceptance and say in the blurb what runtime already does vs what authors/AI fill via actions/storylets.
+- Catalog ops stay `list_blocks` / `list_fun_profiles` / `recommend_blocks_for_profile`; ids such as `building-library` and `item-catalog` are stable.
+
 ## UI layout
 
 - Prefer **content-first horizontal fill**: App shell and primary work surfaces (especially the infinite canvas) use nearly full viewport width with small consistent gutters (`--shell-gutter*`). Avoid large bilateral whitespace from `max-width` + `margin: auto` shells.
