@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { adventureActSchema, narrateInputSchema, proposeAdventureActInputSchema } from '@novel-game/contracts';
+import { adventureActSchema, narrateInputSchema, npcDialogInputSchema, proposeAdventureActInputSchema } from '@novel-game/contracts';
 import type { Workbench } from '../workbench.js';
 import { command, emptySchema, idSchema } from './definition.js';
-import { narrateAdventure, proposeActAdventure } from '../../modules/adventure-sessions/index.js';
+import { narrateAdventure, npcDialogAdventure, proposeActAdventure } from '../../modules/adventure-sessions/index.js';
 import { AppError } from '../../shared/errors.js';
 
 export function adventureCommands(w: Workbench) {
@@ -25,6 +25,14 @@ export function adventureCommands(w: Workbench) {
           return { status: 'unavailable', text: null, sceneId: view.location.id, turn: view.turn, reason: '尚未配置模型。请进入“模型设置”后再开启旁白。', cached: false };
         }
         return narrateAdventure(w.adventures, w.worlds, id, input, w.createPlayProvider());
+      }),
+    command('npc_dialog_adventure', 'L1 旁支：为当前地点可见的 NPC 生成 1–2 句临场台词（对话气泡），只接受当前可见 npcId；不改行动/事实/存档，失败 soft-fail，默认由客户端关闭。',
+      npcDialogInputSchema.extend({id: z.string()}), false, async ({id, ...input}) => {
+        if (!w.providerConfigured) {
+          const view = w.adventures.get(id);
+          return { status: 'unavailable', text: null, npcId: input.npcId, sceneId: view.location.id, turn: view.turn, reason: '尚未配置模型。请进入“模型设置”后再开启 NPC 对话。', cached: false };
+        }
+        return npcDialogAdventure(w.adventures, w.worlds, id, input, w.createPlayProvider());
       }),
   ];
 }

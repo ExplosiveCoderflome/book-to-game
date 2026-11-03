@@ -208,7 +208,9 @@ export {
 
 export {
   narrateModelOutputSchema, narrateInputSchema, narrateResultSchema,
+  npcDialogModelOutputSchema, npcDialogInputSchema, npcDialogResultSchema,
   type NarrateModelOutput, type NarrateInput, type NarrateResult,
+  type NpcDialogModelOutput, type NpcDialogInput, type NpcDialogResult,
 } from './narrate.js';
 
 export {

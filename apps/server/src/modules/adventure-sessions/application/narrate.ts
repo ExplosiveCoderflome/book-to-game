@@ -1,31 +1,23 @@
 import {narrateInputSchema, type AdventureView, type NarrateInput, type NarrateResult, type WorldRevision} from '@novel-game/contracts';
 import {entriesForPlace, locationSpatial} from '@novel-game/rules';
 import { AppError } from '../../../shared/errors.js';
+import { clearPlayAiCache, runPlayAi, type PlayAiModel } from '../../play-ai/index.js';
 import type { AdventureService } from './adventure-service.js';
 import type { RevisionReader } from './ports.js';
 
 /** Same provider surface as story narrate — location maps onto scene fields. */
-export interface AdventureNarrateModel {
-  narrate(input: {
-    sceneTitle: string;
-    sceneText: string;
-    choices: { id: string; label: string }[];
-    variables: Record<string, string | number | boolean>;
-    worldbookSnippets: { title: string; content: string; kind: string }[];
-    tiandaoCorrect?: boolean;
-  }, signal: AbortSignal): Promise<{ narration: string }>;
-}
+export type AdventureNarrateModel = PlayAiModel;
 
 /** Single-process soft cache only — not shared across workers/replicas; lost on restart.
- *  One narrate blob per adventure visit (adventure+location+turn). Do not treat as durable storage. */
-const visitCache = new Map<string, NarrateResult>();
-
+ *  Delegated to the shared play-ai cache (one blob per adventure visit: adventure+location+turn). */
 function visitKey(adventureId: string, locationId: string, turn: number, tiandaoCorrect: boolean): string {
   return `adv:${adventureId}:${locationId}:${turn}:td${tiandaoCorrect ? 1 : 0}`;
 }
 
+const CACHE_PREFIX = 'narration:adv:';
+
 export function clearAdventureNarrateCache(): void {
-  visitCache.clear();
+  clearPlayAiCache(CACHE_PREFIX);
 }
 
 function variablesFromView(view: AdventureView): Record<string, string | number | boolean> {
@@ -51,8 +43,9 @@ function worldbookSnippetsFor(view: AdventureView, revisionReader: RevisionReade
 
 /**
  * L1 adventure parity: optional play-time flavor narration.
- * Never mutates adventure state / actions / facts. Soft-fails on model errors.
- * Reuses NarrateInput/NarrateResult; sceneId carries the current location id.
+ * Never mutates adventure state / actions / facts. Soft-fails on model errors
+ * (shared play-ai helper). Reuses NarrateInput/NarrateResult; sceneId carries
+ * the current location id.
  */
 export async function narrateAdventure(
   adventures: AdventureService,
@@ -68,43 +61,29 @@ export async function narrateAdventure(
     throw new AppError('STALE_TURN', '回合已变化，请刷新后再请求旁白。', 409, { expectedTurn: view.turn });
   }
   const tiandaoCorrect = !!input.tiandaoCorrect;
-  const key = visitKey(adventureId, view.location.id, view.turn, tiandaoCorrect);
-  if (!input.force) {
-    const hit = visitCache.get(key);
-    if (hit) return { ...hit, cached: true };
-  }
-  try {
-    const modelOut = await model.narrate({
+  const result = await runPlayAi({
+    kind: 'narration',
+    model,
+    budget: {sessionId: adventureId},
+    signal,
+    force: !!input.force,
+    cacheKey: visitKey(adventureId, view.location.id, view.turn, tiandaoCorrect),
+    context: {
+      kind: 'narration',
       sceneTitle: view.location.title,
       sceneText: view.location.text,
       choices: view.actions.map(a => ({ id: a.id, label: a.label })),
       variables: variablesFromView(view),
       worldbookSnippets: worldbookSnippetsFor(view, revisionReader),
       tiandaoCorrect,
-    }, signal);
-    const text = modelOut.narration.trim().slice(0, 800);
-    const result: NarrateResult = {
-      status: 'ok',
-      text,
-      sceneId: view.location.id,
-      turn: view.turn,
-      reason: null,
-      cached: false,
-    };
-    visitCache.set(key, { ...result, cached: false });
-    return result;
-  } catch (error) {
-    if (error instanceof AppError && error.code === 'STALE_TURN') throw error;
-    const reason = error instanceof AppError
-      ? error.message
-      : (error instanceof Error ? error.message : '旁白生成失败');
-    return {
-      status: 'unavailable',
-      text: null,
-      sceneId: view.location.id,
-      turn: view.turn,
-      reason,
-      cached: false,
-    };
-  }
+    },
+  });
+  return {
+    status: result.status,
+    text: result.text,
+    sceneId: view.location.id,
+    turn: view.turn,
+    reason: result.reason,
+    cached: result.cached ?? false,
+  };
 }

@@ -62,6 +62,7 @@ const routes = [
   ['get', '/adventures/:id', 'get_adventure'], ['post', '/adventures/:id/actions', 'act_adventure'],
   ['post', '/adventures/:id/propose-act', 'propose_act_adventure'],
   ['post', '/adventures/:id/narrate', 'narrate_adventure'],
+  ['post', '/adventures/:id/npc-dialog', 'npc_dialog_adventure'],
   ['post', '/exports/play-package', 'export_play_package'], ['get', '/exports/targets', 'export_targets'],
 ] as const;
 export function apiRouter(commands: Command[]) {

@@ -171,3 +171,14 @@ test('V0b recipes: GET /api/genre-recipes exposes the same read-only catalog', a
     rmSync(dir, {recursive: true, force: true});
   }
 });
+
+test('V0b recipes: AI live blocks are optional, never required', () => {
+  for (const recipe of GENRE_RECIPES) {
+    for (const id of ['ai-narration', 'ai-npc-dialog', 'ai-slot-template']) {
+      assert.ok(!recipe.requiredBlocks.includes(id), `${recipe.id} must not require ${id}`);
+    }
+    assert.ok(recipe.optionalBlocks.includes('ai-narration'), `${recipe.id} should offer ai-narration as optional`);
+    assert.ok(recipe.optionalBlocks.includes('ai-npc-dialog'), `${recipe.id} should offer ai-npc-dialog as optional`);
+  }
+  assert.deepEqual(lintGenreRecipes(), []);
+});

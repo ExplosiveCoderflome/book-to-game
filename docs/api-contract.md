@@ -49,6 +49,7 @@
 | POST | /api/adventures/:id/actions | AdventureActInput → AdventureView |
 | POST | /api/adventures/:id/propose-act | ProposeAdventureActInput → ProposeAdventureActResult（L2；可选 `tiandaoCorrect`） |
 | POST | /api/adventures/:id/narrate | NarrateInput → NarrateResult（L1 旁白；sceneId=locationId；不改状态；可选 `tiandaoCorrect`） |
+| POST | /api/adventures/:id/npc-dialog | NpcDialogInput（`{npcId}` 来自当前视图）→ NpcDialogResult（L1 NPC 气泡；未知/隐藏 npcId 为 404；不改状态；可选 `tiandaoCorrect`） |
 
 DTO 来自 packages/contracts/src/index.ts。客户端请求超时或失败不自动创建新 requestId，动作确认完成后才生成下一个 ID。草稿版本冲突由用户刷新后重新编辑，不能静默覆盖。
 

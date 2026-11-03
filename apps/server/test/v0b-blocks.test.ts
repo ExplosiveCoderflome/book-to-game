@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   BLOCKS, BLOCK_SHELVES, blockShelfIdSchema, blockSpecSchema, getBlock, getBlockCatalog, getBlockShelves, lintBlocks,
+  type BlockSpec,
 } from '@novel-game/contracts';
 import { openDatabase } from '../src/platform/database.js';
 import { createWorkbench } from '../src/app/workbench.js';
@@ -11,13 +12,14 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-test('V0b: 15 blocks parse, expose the closed catalog shape, and lint clean', () => {
-  assert.equal(BLOCKS.length, 15);
+test('V0b: 18 blocks parse, expose the closed catalog shape, and lint clean', () => {
+  assert.equal(BLOCKS.length, 18);
   assert.deepEqual(BLOCKS.map(b => b.id), [
     'stat-templates', 'world-map', 'building-library', 'item-catalog', 'storylet-pool',
     'endings-recap', 'clock', 'encounters',
     'shop-cycle', 'customer-flow', 'ledger',
     'growth-curve', 'loot-table', 'combat-stake',
+    'ai-narration', 'ai-npc-dialog', 'ai-slot-template',
     'preflight-sim',
   ]);
   for (const block of BLOCKS) {
@@ -93,8 +95,8 @@ test('V0b: list_blocks is a read-only command providing funTags/requires/params'
     assert.ok(command, 'list_blocks command registered');
     assert.equal(command.readOnly, true);
     const result = command.execute({}) as {blocks: unknown[]; shelves: {id: string; label: string}[]; lint: unknown[]};
-    assert.equal(result.blocks.length, 15);
-    assert.deepEqual(result.shelves.map(shelf => shelf.id), ['foundation', 'world-content', 'commerce', 'combat-growth', 'ops']);
+    assert.equal(result.blocks.length, 18);
+    assert.deepEqual(result.shelves.map(shelf => shelf.id), ['foundation', 'world-content', 'commerce', 'combat-growth', 'ops', 'ai-live']);
     assert.ok(result.shelves.every(shelf => shelf.label.length > 0));
     assert.deepEqual(result.lint, []);
     const first = result.blocks[0] as Record<string, unknown>;
@@ -106,8 +108,8 @@ test('V0b: list_blocks is a read-only command providing funTags/requires/params'
   }
 });
 test('V0b: shop shelves group every block; schema rejects empty/unknown shelves', () => {
-  assert.deepEqual(BLOCK_SHELVES.map(shelf => shelf.id), ['foundation', 'world-content', 'commerce', 'combat-growth', 'ops']);
-  assert.deepEqual(getBlockShelves().map(shelf => shelf.id), ['foundation', 'world-content', 'commerce', 'combat-growth', 'ops']);
+  assert.deepEqual(BLOCK_SHELVES.map(shelf => shelf.id), ['foundation', 'world-content', 'commerce', 'combat-growth', 'ops', 'ai-live']);
+  assert.deepEqual(getBlockShelves().map(shelf => shelf.id), ['foundation', 'world-content', 'commerce', 'combat-growth', 'ops', 'ai-live']);
   for (const shelf of BLOCK_SHELVES) assert.ok(shelf.label.length > 0, `${shelf.id} needs a Chinese label`);
 
   const groups = new Map<string, string[]>();
@@ -129,4 +131,50 @@ test('V0b: shop shelves group every block; schema rejects empty/unknown shelves'
   assert.deepEqual(lintBlocks(), []);
   const shelfIds = new Set<string>(BLOCK_SHELVES.map(shelf => shelf.id));
   for (const block of BLOCKS) for (const shelf of block.shelves) assert.ok(shelfIds.has(shelf));
+});
+
+test('V0b: AI live shelf exposes narration, npc dialog and the universal slot template', () => {
+  const narration = getBlock('ai-narration')!;
+  assert.ok(narration.shelves.includes('ai-live'));
+  assert.deepEqual(narration.provides, ['ai-overlay']);
+  assert.equal(narration.params.find(param => param.key === 'enabled_default')?.default, false);
+  assert.ok(narration.params.some(param => param.key === 'max_calls_per_session'));
+  assert.ok(narration.params.some(param => param.key === 'max_chars'));
+  assert.match(narration.blurb, /默认关|soft-fail|不改/);
+
+  const npc = getBlock('ai-npc-dialog')!;
+  assert.ok(npc.shelves.includes('ai-live'));
+  assert.deepEqual(npc.requires, ['world.npcs', 'world.facts']);
+  assert.ok(npc.params.some(param => param.key === 'target_npc_hint'));
+  assert.ok(npc.params.some(param => param.key === 'max_turns_hint'));
+  assert.deepEqual(npc.provides, ['ai-overlay']);
+
+  const template = getBlock('ai-slot-template')!;
+  assert.deepEqual(template.shelves, ['ai-live']);
+  const trigger = template.params.find(param => param.key === 'trigger')!;
+  assert.deepEqual(trigger.options, ['after-act', 'on-enter', 'on-demand']);
+  const writeback = template.params.find(param => param.key === 'writeback')!;
+  assert.deepEqual(writeback.options, ['narration', 'suggestion', 'dialog']);
+  assert.ok(template.params.some(param => param.key === 'context_pack' && param.type === 'select'));
+  assert.ok(template.params.some(param => param.key === 'recipe_hint'));
+  assert.match(template.blurb, /配方/);
+
+  const shelf = getBlockShelves().find(candidate => candidate.id === 'ai-live')!;
+  assert.ok(shelf.label.length > 0);
+  assert.ok(getBlockCatalog().filter(block => block.shelves.includes('ai-live')).length >= 3);
+});
+
+test('V0b: lintBlocks keeps AI blocks overlay-only and off the WorldContent path', () => {
+  // No shipped block violates the AI overlay discipline.
+  assert.deepEqual(lintBlocks(), []);
+  const narration = getBlock('ai-narration')!;
+  // A fabricated AI block that claims WorldContent provides is rejected by lint.
+  const offending = {...narration, provides: ['ai-overlay', 'storylets'] as BlockSpec['provides']};
+  assert.ok(lintBlocks([offending]).some(issue => issue.ruleId === 'blocks.ai-shelf-writes-world' && issue.severity === 'error'));
+  // Conversely, an ai-overlay provider off the ai-live shelf is rejected.
+  const overlayOffShelf = {...narration, shelves: ['world-content'] as BlockSpec['shelves']};
+  assert.ok(lintBlocks([overlayOffShelf]).some(issue => issue.ruleId === 'blocks.ai-overlay-without-shelf'));
+  for (const block of getBlockCatalog().filter(candidate => candidate.shelves.includes('ai-live'))) {
+    assert.deepEqual(block.provides, ['ai-overlay'], `${block.id} must only emit ai-overlay`);
+  }
 });

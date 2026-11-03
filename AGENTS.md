@@ -35,7 +35,8 @@ migrated only within the authorized task scope.
 - `packages/contracts/src/blocks.ts` is the **积木商店** shelf: a BlockSpec catalog. Genres are *recipes* (`packages/contracts/src/genre-recipes.ts`) over the same WorldContent substrate; never add a parallel per-genre state machine.
 - New blocks compile down through existing `provides` / `requires`. Stubs (e.g. `encounters`, `combat-stake`, `shop-cycle`) declare params + composition + acceptance and say in the blurb what runtime already does vs what authors/AI fill via actions/storylets.
 - Catalog ops stay `list_blocks` / `list_fun_profiles` / `list_genre_recipes` / `recommend_blocks_for_profile`; ids such as `building-library` and `item-catalog` are stable.
-- 积木商店按**货架**（`BLOCK_SHELVES`：foundation / world-content / commerce / combat-growth / ops）分类浏览；`BlockSpec.shelves` 可多选，货架只是浏览分区，不绑死玩法。**品类配方**（`GENRE_RECIPES`：`sim-commerce` 模拟经营 / `combat-growth` 打怪成长）是独立目录的声明式拼装菜单（required / recommended / optional），通过 `list_genre_recipes` 只读暴露；FunProfile `suggestedBlocks` 表达爽感推荐，GenreRecipe 表达品类拼装，两者不互相冒充。观测页 `book-to-game-block-shop.html` 由 `scripts/gen-block-shop.ts` 从 `getBlockCatalog()` + `getGenreRecipes()` 生成。
+- `ai-overlay` is a `provides` value, not WorldContent: it marks ephemeral play-time text (narration / NPC bubble / suggestion) that never persists into a revision or save.
+- 积木商店按**货架**（`BLOCK_SHELVES`：foundation / world-content / commerce / combat-growth / ops / ai-live）分类浏览；`BlockSpec.shelves` 可多选，货架只是浏览分区，不绑死玩法。**品类配方**（`GENRE_RECIPES`：`sim-commerce` 模拟经营 / `combat-growth` 打怪成长）是独立目录的声明式拼装菜单（required / recommended / optional），通过 `list_genre_recipes` 只读暴露；FunProfile `suggestedBlocks` 表达爽感推荐，GenreRecipe 表达品类拼装，两者不互相冒充。观测页 `book-to-game-block-shop.html` 由 `scripts/gen-block-shop.ts` 从 `getBlockCatalog()` + `getGenreRecipes()` 生成。
 
 ## UI layout
 
@@ -45,7 +46,10 @@ migrated only within the authorized task scope.
 
 ## AI fusion layers
 
+- **Shared play-time AI helper:** `apps/server/src/modules/play-ai` (`runPlayAi({kind, budget, context, signal})` → `{status:'ok'|'unavailable', text, reason, cached?}`). `narrateSession` / `narrateAdventure` / `npcDialogAdventure` all route through it; it owns soft-fail, per-save call budgets and an in-memory text cache (explicitly non-durable). Model access still comes from `createPlayProvider()`; never add a second HTTP client.
+- **AI 积木（shelf `ai-live`「临场 AI」）:** `ai-narration` (wraps the existing narrator), `ai-npc-dialog` (1–2 line NPC bubble from currently visible NPCs only; next slice extends story mode), `ai-slot-template` (declarative by-recipe AI slot: trigger / context_pack / writeback / recipe_hint; catalog + lint only, no codegen executor yet). All AI blocks default OFF, are optional in genre recipes (never required), emit only `ai-overlay`, and must never mutate graph/state, variables/facts, or invent choices/actions.
 - **L1 narrate (play-time, optional, default OFF):** flavor旁白 via `POST /api/sessions/:id/narrate` (story) and `POST /api/adventures/:id/narrate` (open adventure). Same NarrateInput/Result; adventure `sceneId` = location id. Must not mutate graph/state, variables/facts, or invent choices/actions.
+- **L1 NPC bubble (adventure, optional, default OFF):** `POST /api/adventures/:id/npc-dialog` with `{npcId}` from the current view; unknown/hidden NPC ids are 404, never invented. Story-mode NPC dialog is a documented next slice (block ships as catalog-only there).
 - **L2 propose-act (play-time):** free text mapped only onto currently visible/worldbook-filtered edges; rule engine still advances state.
 - **天道修正 (play-time, optional, default OFF):** when ON, narrate / propose-act (story + adventure) append a soft system-prompt block so the model stays in worldbook/graph scope and replies with in-world「天道修正」tone if the player tries to rewrite rules via language. Phase 1 is prompt-only (no classifier); never mutates engine state.
 - **L3 author-time:** graph growth (generate / extend). Node/graph + variables remain the hard source of truth; worldbook constrains agency.

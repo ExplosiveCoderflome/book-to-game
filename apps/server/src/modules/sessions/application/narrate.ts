@@ -1,30 +1,23 @@
 import {narrateInputSchema, type NarrateInput, type NarrateResult, type SessionView} from '@novel-game/contracts';
 import {entriesForScene} from '@novel-game/rules';
 import { AppError } from '../../../shared/errors.js';
+import { clearPlayAiCache, runPlayAi, type PlayAiModel } from '../../play-ai/index.js';
 import type { RevisionReader } from './ports.js';
 import type { SessionService } from './session-service.js';
 
-export interface StoryNarrateModel {
-  narrate(input: {
-    sceneTitle: string;
-    sceneText: string;
-    choices: { id: string; label: string }[];
-    variables: Record<string, string | number | boolean>;
-    worldbookSnippets: { title: string; content: string; kind: string }[];
-    tiandaoCorrect?: boolean;
-  }, signal: AbortSignal): Promise<{ narration: string }>;
-}
+/** Kept as the module-facing name: same provider surface as `runPlayAi`. */
+export type StoryNarrateModel = PlayAiModel;
 
 /** Single-process soft cache only — not shared across workers/replicas; lost on restart.
- *  One narrate blob per session visit (session+scene+turn). Do not treat as durable storage. */
-const visitCache = new Map<string, NarrateResult>();
-
+ *  Delegated to the shared play-ai cache (one blob per session visit: session+scene+turn). */
 function visitKey(sessionId: string, sceneId: string, turn: number, tiandaoCorrect: boolean): string {
-  return `${sessionId}:${sceneId}:${turn}:td${tiandaoCorrect ? 1 : 0}`;
+  return `story:${sessionId}:${sceneId}:${turn}:td${tiandaoCorrect ? 1 : 0}`;
 }
 
+const CACHE_PREFIX = 'narration:story:';
+
 export function clearNarrateCache(): void {
-  visitCache.clear();
+  clearPlayAiCache(CACHE_PREFIX);
 }
 
 function worldbookSnippetsFor(view: SessionView, revisionReader: RevisionReader): { title: string; content: string; kind: string }[] {
@@ -39,7 +32,7 @@ function worldbookSnippetsFor(view: SessionView, revisionReader: RevisionReader)
 
 /**
  * L1: optional play-time flavor narration. Never mutates session/graph/variables.
- * Soft-fails to status=unavailable when the model errors.
+ * Soft-fails to status=unavailable when the model errors (shared play-ai helper).
  */
 export async function narrateSession(
   sessions: SessionService,
@@ -55,45 +48,29 @@ export async function narrateSession(
     throw new AppError('STALE_TURN', '回合已变化，请刷新后再请求旁白。', 409, { expectedTurn: view.turn });
   }
   const tiandaoCorrect = !!input.tiandaoCorrect;
-  const key = visitKey(sessionId, view.scene.id, view.turn, tiandaoCorrect);
-  if (!input.force) {
-    const hit = visitCache.get(key);
-    if (hit) return { ...hit, cached: true };
-  }
-  try {
-    const modelOut = await model.narrate({
+  const result = await runPlayAi({
+    kind: 'narration',
+    model,
+    budget: {sessionId},
+    signal,
+    force: !!input.force,
+    cacheKey: visitKey(sessionId, view.scene.id, view.turn, tiandaoCorrect),
+    context: {
+      kind: 'narration',
       sceneTitle: view.scene.title,
       sceneText: view.scene.text,
       choices: view.scene.choices.map(c => ({ id: c.id, label: c.label })),
       variables: { ...(view.variables ?? {}) },
       worldbookSnippets: worldbookSnippetsFor(view, revisionReader),
       tiandaoCorrect,
-    }, signal);
-    const text = modelOut.narration.trim().slice(0, 800);
-    const result: NarrateResult = {
-      status: 'ok',
-      text,
-      sceneId: view.scene.id,
-      turn: view.turn,
-      reason: null,
-      cached: false,
-    };
-    visitCache.set(key, { ...result, cached: false });
-    return result;
-  } catch (error) {
-    if (error instanceof AppError && error.code === 'STALE_TURN') throw error;
-    const reason = error instanceof AppError
-      ? error.message
-      : (error instanceof Error ? error.message : '旁白生成失败');
-    const result: NarrateResult = {
-      status: 'unavailable',
-      text: null,
-      sceneId: view.scene.id,
-      turn: view.turn,
-      reason,
-      cached: false,
-    };
-    // Do not cache hard failures so a refresh can retry.
-    return result;
-  }
+    },
+  });
+  return {
+    status: result.status,
+    text: result.text,
+    sceneId: view.scene.id,
+    turn: view.turn,
+    reason: result.reason,
+    cached: result.cached ?? false,
+  };
 }

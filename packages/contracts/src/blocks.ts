@@ -24,7 +24,7 @@ const blockId = z.string().regex(/^[a-z][a-z0-9_-]{0,39}$/);
  * item-catalog 同时服务世界内容、经营与打怪成长）。真正的拼装约束仍是
  * `requires` / `composesWith.dependsOn` / `conflictsWith`。
  */
-const BLOCK_SHELF_IDS = ['foundation', 'world-content', 'commerce', 'combat-growth', 'ops'] as const;
+const BLOCK_SHELF_IDS = ['foundation', 'world-content', 'commerce', 'combat-growth', 'ops', 'ai-live'] as const;
 export const blockShelfIdSchema = z.enum(BLOCK_SHELF_IDS);
 export type BlockShelfId = z.infer<typeof blockShelfIdSchema>;
 
@@ -42,6 +42,7 @@ export const BLOCK_SHELVES: readonly BlockShelf[] = [
   {id: 'commerce', label: '经营向', blurb: '营业日、客流与账本等经营骨架；仍编译到同一 WorldContent。', order: 30},
   {id: 'combat-growth', label: '打怪成长向', blurb: '遭遇、成长曲线、掉落与胜负代价等成长骨架。', order: 40},
   {id: 'ops', label: '验收/运维', blurb: '体检、模拟与验收口径，帮助作者检查非退化。', order: 50},
+  {id: 'ai-live', label: '临场 AI', blurb: '玩时可选 AI 文案层：旁白、NPC 气泡与按配方展开的万能槽位；只写回文案，不改存档状态，默认关。', order: 60},
 ];
 
 /** Closed set of Substrate contract fragments a block may `require`. */
@@ -60,11 +61,16 @@ export type SubstrateContract = z.infer<typeof substrateContractSchema>;
  * `actions` / `facts` were added for compile-down stubs (e.g. `combat-stake`) that express
  * encounter stakes as ordinary WorldContent actions and facts instead of a parallel combat
  * state machine. The substrate already models both, only the provide vocabulary was missing.
+ *
+ * `ai-overlay` is the临场 AI 覆盖层: ephemeral play-time text (narration / NPC bubble /
+ * suggestion) produced by the shared play-ai helper. It is not WorldContent and never
+ * persists into a revision or save; it exists so AI blocks can declare what they emit
+ * without pretending to add a parallel state machine.
  */
 export const BLOCK_PROVIDES = [
   'variables', 'resource-defs', 'locations', 'map.fill', 'building-library',
   'item-catalog', 'storylets', 'endings', 'recap', 'clock', 'encounters', 'preflight-sim',
-  'actions', 'facts',
+  'actions', 'facts', 'ai-overlay',
 ] as const;
 export const blockProvideSchema = z.enum(BLOCK_PROVIDES);
 export type BlockProvide = z.infer<typeof blockProvideSchema>;
@@ -281,6 +287,50 @@ const RAW_BLOCKS = [
     provides: ['facts', 'actions'], acceptance: ['G8', 'pressure-bidirectional'], shelves: ['combat-growth'],
   },
   {
+    id: 'ai-narration', version: 1,
+    label: 'AI 临场旁白', blurb: '积木商店的玩时旁白层：包装现有 narrate_session / narrate_adventure，由共享 play-ai 助手统一调用、限额与 soft-fail。默认关；只写旁白文案，不改图、不改变量/事实、不发明选项。',
+    funTags: ['warmth', 'mystery'], requires: [],
+    composesWith: {dependsOn: [], conflictsWith: []},
+    params: [
+      {key: 'enabled_default', label: '默认开启', type: 'boolean', description: '玩时旁白默认关闭，由客户端开关决定。', default: false},
+      {key: 'max_calls_per_session', label: '每存档调用上限', type: 'integer', description: '内存计数，非持久；重启后重置。', default: 20},
+      {key: 'max_chars', label: '旁白字数上限', type: 'integer', default: 800},
+      {key: 'model_profile', label: '模型档位', type: 'string', description: '复用模型设置/玩时 provider 的档位名，留空即用默认。', default: 'play'},
+    ],
+    provides: ['ai-overlay'], acceptance: [], shelves: ['ai-live', 'world-content'],
+  },
+  {
+    id: 'ai-npc-dialog', version: 1,
+    label: 'AI NPC 临场对话', blurb: '积木商店的 NPC 气泡层：在玩家点选已有 NPC 时生成 1–2 句临场台词。开放冒险已接线（POST /api/adventures/:id/npc-dialog）；故事模式旁白已通、NPC 对话留待下一刀。运行时仅用当前地点已公开的 NPC 与世界书，写回对话气泡；不新增行动、不改事实/变量，失败 soft-fail。',
+    funTags: ['warmth'], requires: ['world.npcs', 'world.facts'],
+    composesWith: {dependsOn: [], conflictsWith: []},
+    params: [
+      {key: 'enabled_default', label: '默认开启', type: 'boolean', default: false},
+      {key: 'target_npc_hint', label: '默认对话对象提示', type: 'string', description: '作者提示，运行时仍以当前可见 NPC 为准。'},
+      {key: 'max_turns_hint', label: '连续对话轮数提示', type: 'integer', description: '软提示，不构成新对话状态机。', default: 3},
+      {key: 'max_calls_per_session', label: '每存档调用上限', type: 'integer', default: 12},
+      {key: 'max_chars', label: '台词字数上限', type: 'integer', default: 400},
+      {key: 'model_profile', label: '模型档位', type: 'string', default: 'play'},
+    ],
+    provides: ['ai-overlay'], acceptance: [], shelves: ['ai-live', 'world-content'],
+  },
+  {
+    id: 'ai-slot-template', version: 1,
+    label: '万能 AI 积木模板', blurb: '按品类配方展开的声明式 AI 槽位模板：选择触发时机、上下文包与写回表面（旁白/建议/对话），再由配方决定实际积木。本阶段只做 catalog + lint，不执行 codegen；不绑死某一本小说，也不新增平行引擎。',
+    funTags: [], requires: [],
+    composesWith: {dependsOn: [], conflictsWith: []},
+    params: [
+      {key: 'trigger', label: '触发时机', type: 'select', options: ['after-act', 'on-enter', 'on-demand'], default: 'on-demand'},
+      {key: 'context_pack', label: '上下文包', type: 'select', options: ['scene', 'worldbook', 'facts', 'npc', 'storylets'], default: 'scene'},
+      {key: 'writeback', label: '写回表面', type: 'select', options: ['narration', 'suggestion', 'dialog'], default: 'narration'},
+      {key: 'recipe_hint', label: '配方提示', type: 'string', description: '可选：指示该槽位随哪条品类配方展开。'},
+      {key: 'max_calls_per_session', label: '每存档调用上限', type: 'integer', default: 20},
+      {key: 'max_chars', label: '文案字数上限', type: 'integer', default: 600},
+      {key: 'model_profile', label: '模型档位', type: 'string', default: 'play'},
+    ],
+    provides: ['ai-overlay'], acceptance: [], shelves: ['ai-live'],
+  },
+  {
     id: 'preflight-sim', version: 1,
     label: '体检与模拟策略', blurb: '确定性 lint/sim 验收；pacingLine 与策略集合按画像解析，是「非退化」硬承诺的执行者。',
     funTags: [], requires: [],
@@ -306,7 +356,8 @@ export interface BlockLintIssue {
   blockId?: string;
   shelfId?: BlockShelfId;
   ruleId: 'blocks.duplicate-id' | 'blocks.unknown-require' | 'blocks.unknown-composes' | 'blocks.duplicate-provides'
-    | 'blocks.unknown-shelf' | 'blocks.empty-shelf' | 'blocks.duplicate-shelf';
+    | 'blocks.unknown-shelf' | 'blocks.empty-shelf' | 'blocks.duplicate-shelf'
+    | 'blocks.ai-overlay-without-shelf' | 'blocks.ai-shelf-writes-world';
   message: string;
 }
 
@@ -317,21 +368,23 @@ export interface BlockLintIssue {
  *  - every `composesWith.dependsOn` / `conflictsWith` id resolves to a registered block,
  *  - no duplicate `provides` within a single block,
  *  - every `shelves` entry resolves to a known shop shelf and is not repeated,
+ *  - AI blocks stay overlay-only: `ai-overlay` providers must sit on the `ai-live` shelf, and
+ *    `ai-live` blocks may not also claim world-content provides (AI only writes ephemeral text),
  *  - warn when a declared shelf has no blocks (an empty shelf is legal but suspicious).
  */
-export function lintBlocks(): BlockLintIssue[] {
+export function lintBlocks(blocks: readonly BlockSpec[] = BLOCKS): BlockLintIssue[] {
   const issues: BlockLintIssue[] = [];
   const byId = new Map<string, BlockSpec>();
   const shelfIds = new Set<BlockShelfId>(BLOCK_SHELVES.map(shelf => shelf.id));
   const usedShelves = new Set<BlockShelfId>();
-  for (const block of BLOCKS) {
+  for (const block of blocks) {
     if (byId.has(block.id)) {
       issues.push({severity: 'error', blockId: block.id, ruleId: 'blocks.duplicate-id',
         message: `duplicate block id: ${block.id}`});
     }
     byId.set(block.id, block);
   }
-  for (const block of BLOCKS) {
+  for (const block of blocks) {
     for (const require of block.requires) {
       if (!SUBSTRATE_CONTRACTS.includes(require)) {
         issues.push({severity: 'error', blockId: block.id, ruleId: 'blocks.unknown-require',
@@ -354,6 +407,15 @@ export function lintBlocks(): BlockLintIssue[] {
     if (provides.size !== block.provides.length) {
       issues.push({severity: 'warning', blockId: block.id, ruleId: 'blocks.duplicate-provides',
         message: `block ${block.id} lists duplicate provides`});
+    }
+    const isAiBlock = block.shelves.includes('ai-live');
+    if (provides.has('ai-overlay') && !isAiBlock) {
+      issues.push({severity: 'error', blockId: block.id, ruleId: 'blocks.ai-overlay-without-shelf',
+        message: `block ${block.id} provides ai-overlay but is not on the ai-live shelf`});
+    }
+    if (isAiBlock && [...provides].some(provide => provide !== 'ai-overlay')) {
+      issues.push({severity: 'error', blockId: block.id, ruleId: 'blocks.ai-shelf-writes-world',
+        message: `block ${block.id} is on ai-live but provides WorldContent; AI blocks may only emit ai-overlay`});
     }
     const shelves = new Set<BlockShelfId>();
     for (const shelf of block.shelves) {

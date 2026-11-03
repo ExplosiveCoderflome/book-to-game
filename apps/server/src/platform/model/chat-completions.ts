@@ -1,4 +1,4 @@
-import { analysisSchema, branchSkeletonSchema, fillSceneTextModelOutputSchema, gameContentSchema, narrateModelOutputSchema, proposeActModelOutputSchema, proposeAdventureModelOutputSchema, sceneExtensionSchema, worldContentSchema, type Analysis, type AnalysisResult, type BranchSkeleton, type FillSceneTextModelOutput, type GameContent, type NarrateModelOutput, type ProposeActModelOutput, type ProposeAdventureModelOutput, type ProposeCandidate, type ScanDepth, type SceneExtension, type WorldContent } from '@novel-game/contracts';
+import { analysisSchema, branchSkeletonSchema, fillSceneTextModelOutputSchema, gameContentSchema, narrateModelOutputSchema, npcDialogModelOutputSchema, proposeActModelOutputSchema, proposeAdventureModelOutputSchema, sceneExtensionSchema, worldContentSchema, type Analysis, type AnalysisResult, type BranchSkeleton, type FillSceneTextModelOutput, type GameContent, type NarrateModelOutput, type NpcDialogModelOutput, type ProposeActModelOutput, type ProposeAdventureModelOutput, type ProposeCandidate, type ScanDepth, type SceneExtension, type WorldContent } from '@novel-game/contracts';
 import { setTimeout as delay } from 'node:timers/promises';
 import { z, type ZodType } from 'zod';
 import { productionPlanSchema, productionNarrativeSchema, storyletSchema, type ProductionBrief, type ProductionPlan, type ProductionUnit, type ProductionNarrative } from '@novel-game/contracts';
@@ -10,7 +10,7 @@ import { AppError } from '../../shared/errors.js';
 import type { Logger } from '../../shared/logger.js';
 import { schemaIssueMessage, schemaIssues } from '../../shared/schema-issues.js';
 import { extractJsonValue, JsonContentError } from './extract-json.js';
-import { ANALYSIS_SYSTEM, EXPAND_SYSTEM, EXTEND_SCENE_SYSTEM, FILL_SCENE_TEXT_SYSTEM, GAME_SYSTEM, NARRATE_SYSTEM, PROPOSE_ACT_SYSTEM, PROPOSE_ADVENTURE_SYSTEM, SKELETON_SYSTEM, compactForGame, skeletonUserPayload, withTiandaoCorrect } from './prompts.js';
+import { ANALYSIS_SYSTEM, EXPAND_SYSTEM, EXTEND_SCENE_SYSTEM, FILL_SCENE_TEXT_SYSTEM, GAME_SYSTEM, NARRATE_SYSTEM, NPC_DIALOG_SYSTEM, PROPOSE_ACT_SYSTEM, PROPOSE_ADVENTURE_SYSTEM, SKELETON_SYSTEM, compactForGame, skeletonUserPayload, withTiandaoCorrect } from './prompts.js';
 import { classifyStatus, parseRetryAfter, retryDelayMs } from './retry.js';
 import { sanitizeWorldCandidate } from './sanitize-world.js';
 import { BUILDING_DRAFT_SYSTEM, ITEM_DRAFT_SYSTEM, LOOT_DRAFT_SYSTEM, MAP_DRAFT_SYSTEM, SHELF_DRAFT_SYSTEM, WORLD_SYSTEM, compactWorldDossier } from './world-prompts.js';
@@ -153,6 +153,30 @@ export class ChatCompletionsProvider implements GenerationProvider {
       rule: 'actionId 必须是 candidates 中的 id，或 none',
       tiandaoCorrect: !!input.tiandaoCorrect,
     }, signal, proposeAdventureModelOutputSchema, []);
+  }
+
+  /** Optional play-time NPC bubble (ai-npc-dialog). Same soft-fail discipline as narrate. */
+  async npcDialog(input: {
+    npcName: string;
+    npcHint?: string;
+    sceneTitle: string;
+    sceneText: string;
+    variables: Record<string, string | number | boolean>;
+    worldbookSnippets: { title: string; content: string; kind: string }[];
+    facts?: Record<string, string | number | boolean>;
+    maxTurnsHint?: number;
+    tiandaoCorrect?: boolean;
+  }, signal: AbortSignal): Promise<NpcDialogModelOutput> {
+    return this.complete('npc_dialog', withTiandaoCorrect(NPC_DIALOG_SYSTEM, input.tiandaoCorrect), {
+      npc: { name: input.npcName, hint: input.npcHint },
+      scene: { title: input.sceneTitle, text: input.sceneText.slice(0, 1200) },
+      variables: input.variables,
+      facts: input.facts,
+      maxTurnsHint: input.maxTurnsHint,
+      worldbookSnippets: input.worldbookSnippets,
+      rule: '只输出 NPC 的 dialog 台词；禁止新选项、新状态、新边',
+      tiandaoCorrect: !!input.tiandaoCorrect,
+    }, signal, npcDialogModelOutputSchema, []);
   }
 
   /** P5: novel → map draft proposal (validated by schema; placement happens in rules, review in the UI). */
