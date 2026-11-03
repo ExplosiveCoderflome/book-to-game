@@ -81,7 +81,7 @@ const RAW_PROFILES: z.input<typeof funProfileSchema>[] = [
     id: 'healing', version: 1, funTags: ['healing-routine', 'warmth', 'collection'],
     suggestedBlocks: [
       'clock', 'storylet-pool', 'stat-templates', 'endings-recap',
-      'shop-cycle', 'customer-flow', 'ledger',
+      'shop-cycle', 'customer-flow', 'ledger', 'item-catalog', 'building-library', 'preflight-sim',
     ],
     pacingLine: {decisions: 15, uniqueChars: 1000}, strategies: ALL_STRATEGIES,
     thresholds: {...DEFAULT_THRESHOLDS, minFailureFreeEndingRate: 0.8},
@@ -91,7 +91,7 @@ const RAW_PROFILES: z.input<typeof funProfileSchema>[] = [
     id: 'grinding', version: 1, funTags: ['growth', 'grinding', 'collection'],
     suggestedBlocks: [
       'stat-templates', 'encounters', 'item-catalog', 'storylet-pool',
-      'growth-curve', 'loot-table', 'combat-stake',
+      'growth-curve', 'loot-table', 'combat-stake', 'building-library', 'preflight-sim',
     ],
     pacingLine: {decisions: 30, uniqueChars: 3000},
     strategies: ['random', 'greedy-growth', 'greedy-money', 'modao', 'lazy'],

@@ -13,6 +13,7 @@ const automaticCommands = [
   'propose_fun_profile', 'recommend_blocks_for_profile',
   'agent_status', 'list_agent_decisions', 'list_agent_repairs', 'create_agent_repair', 'list_drafts', 'get_draft',
   'validate_draft', 'lint_draft', 'list_world_revisions', 'list_games', 'list_blocks', 'list_fun_profiles',
+  'list_genre_recipes',
 ];
 
 const confirmationCases: Array<{
@@ -141,7 +142,7 @@ const state = {
   games: {get: () => ({id: 'game-1', version: 4, content: {title: '游戏草稿'}})},
 } as unknown as AgentChatCommandState;
 
-test('agent chat tools: confirmation levels and metadata registry cover all 54 commands', () => {
+test('agent chat tools: confirmation levels and metadata registry cover all 55 commands', () => {
   const allNames = [
     ...automaticCommands, ...confirmationCases.map(item => item.name),
     ...fineGrainedConfirmationCases.map(item => item.name), ...mapFillConfirmationCases.map(item => item.name),
@@ -154,9 +155,9 @@ test('agent chat tools: confirmation levels and metadata registry cover all 54 c
     ...mapFillConfirmationCases.map(item => [item.name, true]),
   ]);
 
-  assert.equal(automaticCommands.length, 29);
+  assert.equal(automaticCommands.length, 30);
   assert.equal(confirmationCases.length, 12);
-  assert.equal(allNames.length, 54);
+  assert.equal(allNames.length, 55);
   assert.deepEqual(Object.keys(agentChatCommandMetadata).sort(), allNames.slice().sort());
   assert.deepEqual(Object.fromEntries(tools.map(tool => [tool.name, tool.requiresConfirmation])), expected);
   for (const name of automaticCommands) {

@@ -139,6 +139,7 @@ export const agentChatCommandMetadata = {
   read_source: {versionCheck: 'none', summarize: argsSummary('读取来源')},
   list_blocks: {versionCheck: 'none', summarize: argsSummary('查询积木目录')},
   list_fun_profiles: {versionCheck: 'none', summarize: argsSummary('查询爽感画像目录')},
+  list_genre_recipes: {versionCheck: 'none', summarize: argsSummary('查询品类配方目录')},
   list_jobs: {versionCheck: 'none', summarize: argsSummary('查询任务列表')},
   read_job: {versionCheck: 'none', summarize: argsSummary('读取任务')},
   check_job_plan: {versionCheck: 'none', summarize: argsSummary('检查制作规划')},

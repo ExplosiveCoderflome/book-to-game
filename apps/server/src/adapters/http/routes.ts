@@ -3,6 +3,7 @@ import type { Command } from '../../app/commands/index.js';
 
 const routes = [
   ['get', '/runtime', 'runtime_info'], ['get', '/blocks', 'list_blocks'], ['get', '/fun-profiles', 'list_fun_profiles'],
+  ['get', '/genre-recipes', 'list_genre_recipes'],
   ['get', '/fun-profiles/:profileId/blocks', 'recommend_blocks_for_profile'], ['post', '/sources', 'import_source'],
   ['get', '/settings/model', 'get_model_settings'], ['put', '/settings/model', 'save_model_settings'],
   ['post', '/settings/model/test', 'test_model_connection'], ['post', '/settings/model/models', 'list_model_names'],
