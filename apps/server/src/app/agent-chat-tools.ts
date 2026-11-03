@@ -154,6 +154,7 @@ export const agentChatCommandMetadata = {
   propose_map_fill: {versionCheck: 'none', summarize: argsSummary('生成 Mock 地图填充提案（只读）')},
   propose_clock_patch: {versionCheck: 'none', summarize: argsSummary('生成 Mock 时钟补丁提案（只读）')},
   propose_storylet_patch: {versionCheck: 'none', summarize: argsSummary('生成 Mock 剧情卡补丁提案（只读）')},
+  propose_end_conditions: {versionCheck: 'none', summarize: argsSummary('生成 Mock 终局条件提案（只读，含多套胜负包）')},
   agent_status: {versionCheck: 'none', summarize: argsSummary('查询 Agent 状态')},
   list_agent_decisions: {versionCheck: 'none', summarize: argsSummary('查询 Agent 决策列表')},
   list_agent_repairs: {versionCheck: 'none', summarize: argsSummary('查询修复候选列表')},
@@ -265,6 +266,19 @@ export const agentChatCommandMetadata = {
       const changes = args.changes as WorldPatchChange[];
       const details = changes.slice(0, 3).map(change => `${change.op} ${change.path}`).join('、');
       return `应用世界补丁：「${draft.content.title}」v${draft.version}；${changes.length} 项：${details}${changes.length > 3 ? '……' : ''}`;
+    },
+  },
+  apply_end_conditions: {
+    versionCheck: 'version',
+    readVersion: (args, state) => state.worlds.get(String(args.worldDraftId)).version,
+    summarize: (args, state) => {
+      const draft = state.worlds.get(String(args.worldDraftId));
+      const selection = args.selection as {kind: 'package' | 'custom'; packageId?: string; win?: unknown[]; lose?: unknown[]; text?: string};
+      const detail = selection.kind === 'custom'
+        ? `自定义文本 ${clipped(selection.text, 80) ?? ''}`
+        : `条件包 ${selection.packageId ?? '（未命名）'}：${selection.win?.length ?? 0} 胜 / ${selection.lose?.length ?? 0} 负`;
+      const reshape = draft.content.endConditions ? '；注意：将重塑整局（原终局条件被覆盖）' : '';
+      return `应用终局条件：「${draft.content.title}」v${draft.version}；${detail}${reshape}`;
     },
   },
   accept_map_fill: {versionCheck: 'version', readVersion: worldVersion,

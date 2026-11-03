@@ -161,6 +161,72 @@ export const endingPassageSchema = z.object({id, when: k15WhenSchema, text: z.st
 export const recapEntrySchema = z.object({id, when: k15WhenSchema, text: z.string().min(1).max(500), order: z.number().finite().optional()});
 export type EndingPassage = z.infer<typeof endingPassageSchema>;
 export type RecapEntry = z.infer<typeof recapEntrySchema>;
+/**
+ * 终局条件（阿拼 `end-conditions`）：胜负判定的结构化载荷。
+ *
+ * 积木只提供「判定槽位」与运行时判定路径；具体 when 谓词按每个游戏在生成/编辑时填入，
+ * 不绑死经营或打怪题材。条件仍使用既有 WorldCondition 语法，不新增平行引擎。
+ */
+export const END_CONDITION_KINDS = ['win', 'lose'] as const;
+export const endConditionKindSchema = z.enum(END_CONDITION_KINDS);
+export type EndConditionKind = z.infer<typeof endConditionKindSchema>;
+
+/** 作者/AI 提交的条件描述：id 可省略（应用时分配），when 必填。 */
+export const endConditionDraftSchema = z.object({
+  id: id.optional(),
+  label: z.string().min(1).max(200),
+  when: z.array(worldConditionSchema).min(1).max(10),
+  note: z.string().max(300).optional(),
+});
+export type EndConditionDraft = z.infer<typeof endConditionDraftSchema>;
+
+/** Agent 提议的一整套胜负条件包：用户从中挑一套，或改用自定义文本。 */
+export const endConditionSetDraftSchema = z.object({
+  id: id,
+  label: z.string().min(1).max(120),
+  summary: z.string().min(1).max(500),
+  /** 软提示：温和 / 标准 / 高压，帮助作者比较代价。 */
+  tone: z.enum(['gentle', 'standard', 'harsh']).optional(),
+  win: z.array(endConditionDraftSchema).min(1).max(6),
+  lose: z.array(endConditionDraftSchema).min(1).max(6),
+});
+export type EndConditionSetDraft = z.infer<typeof endConditionSetDraftSchema>;
+
+/** 写入世界后的条件（带稳定 id 与结局引用）。 */
+export const endConditionSchema = z.object({
+  id: id,
+  kind: endConditionKindSchema,
+  label: z.string().min(1).max(200),
+  when: z.array(worldConditionSchema).min(1).max(10),
+  /** 命中的结局 id；必须存在于 world.endings。 */
+  endingId: id,
+  note: z.string().max(300).optional(),
+});
+export type EndCondition = z.infer<typeof endConditionSchema>;
+
+const endConditionsShape = {
+  /** 来源：AI 提议包 / 作者自定义文本 / 作者事后编辑。 */
+  source: z.enum(['agent-proposed', 'author-custom', 'author-edited']),
+  packageId: id.optional(),
+  packageLabel: z.string().max(120).optional(),
+  /** 固定的严重度标记：改胜负条件会重塑整局游戏。 */
+  severity: z.literal('reshapes-game'),
+  win: z.array(endConditionSchema).min(1).max(6),
+  lose: z.array(endConditionSchema).min(1).max(6),
+};
+export const worldEndConditionsSchema = z.object(endConditionsShape).superRefine((value, ctx) => {
+  const ids = new Set<string>();
+  for (const [kind, items] of [['win', value.win], ['lose', value.lose]] as const) {
+    for (const [index, item] of items.entries()) {
+      if (item.kind !== kind) ctx.addIssue({code: 'custom', message: `${kind} 列表只能放 ${kind} 条件`, path: [kind, index, 'kind']});
+      const key = item.id;
+      if (ids.has(key)) ctx.addIssue({code: 'custom', message: `终点条件 id 重复：${key}`, path: [kind, index, 'id']});
+      ids.add(key);
+    }
+  }
+});
+export type WorldEndConditions = z.infer<typeof worldEndConditionsSchema>;
+
 /** K15: resolved ending snapshot (saved with the run; never recomputed on load). */
 export interface EndingSnapshot {id: string; title: string; text: string; kind?: 'ending' | 'failure' | 'timeout'; path?: string[];
   /** K15: passages that held when the ending fired (array order). */
@@ -173,6 +239,8 @@ export const worldContentSchema = z.object({
   worldRules: z.array(z.string().min(1).max(1000)).min(1).max(20), adaptationNotes: z.string().max(4000),
   sourceChapterIds: z.array(z.string().min(1).max(80)).min(1).max(1000),
   initialLocationId: id, timeLimit: z.number().int().min(3).max(100), timeoutEnding: z.string().min(1).max(3000),
+  /** 终局条件块：判胜/判负的结构化载荷（阿拼 end-conditions）。缺省 = 沿用结局 when 的旧判定。 */
+  endConditions: worldEndConditionsSchema.optional(),
   locations: z.array(z.object({id, title: z.string().min(1).max(200), text: z.string().min(1).max(4000),
     /** Location hierarchy (city → district → room). Enter/exit are ordinary move actions. */
     parentLocationId: id.optional(),
@@ -249,6 +317,18 @@ export const worldContentSchema = z.object({
     if (!s1 && e.when.length === 0) ctx.addIssue({code: 'custom', path: ['endings', i, 'when'], message: '结局至少需要一个条件'});
   });
   if (!s1 && world.endings.length > 12) ctx.addIssue({code: 'custom', path: ['endings'], message: '结局最多 12 个'});
+  if (world.endConditions) {
+    const endingIds = new Set(world.endings.map(ending => ending.id));
+    for (const kind of ['win', 'lose'] as const) {
+      world.endConditions[kind].forEach((item, i) => {
+        if (!endingIds.has(item.endingId)) ctx.addIssue({code: 'custom', path: ['endConditions', kind, i, 'endingId'], message: `终局条件引用了不存在的结局：${item.endingId}`});
+        // 胜负必须能改变游戏走向：win 命中的结局不能是失败/超时结局，lose 不能是普通结局。
+        const ending = world.endings.find(candidate => candidate.id === item.endingId);
+        if (ending && kind === 'win' && ending.kind === 'failure') ctx.addIssue({code: 'custom', path: ['endConditions', kind, i, 'endingId'], message: `胜利条件不能指向失败结局：${item.endingId}`});
+        if (ending && kind === 'lose' && (ending.kind === 'ending' || ending.kind === 'timeout')) ctx.addIssue({code: 'custom', path: ['endConditions', kind, i, 'endingId'], message: `失败条件不能指向普通或超时结局：${item.endingId}`});
+      });
+    }
+  }
 });
 /** True when the world opts into any S1 system (resourceDefs / clock / storylets). Old worlds return false. */
 export function usesS1Systems(world: {resourceDefs?: unknown; clock?: unknown; storylets?: unknown}): boolean {

@@ -1,12 +1,12 @@
 import { z } from 'zod';
 import {
-  acceptMapFillInputSchema, applyWorldPatchInputSchema, authorReadSchema, extractMapDraftInputSchema, mapFillPlacementSchema,
-  proposeClockPatchInputSchema, proposeMapFillInputSchema, proposeStoryletPatchInputSchema,
+  acceptMapFillInputSchema, applyEndConditionsInputSchema, applyWorldPatchInputSchema, authorReadSchema, extractMapDraftInputSchema, mapFillPlacementSchema,
+  proposeClockPatchInputSchema, proposeEndConditionsInputSchema, proposeMapFillInputSchema, proposeStoryletPatchInputSchema,
   resourceDefSchema, storyletSchema, worldConditionSchema, worldContentSchema, worldEffectSchema,
 } from '@novel-game/contracts';
 import {
-  acceptMapFill, applyWorldPatch, extractMapDraft, mockMapFillModel, mockWorldPatchModel, placeMapFill,
-  proposeClockPatch, proposeMapFill, proposeStoryletPatch, updateMapFillPlacement,
+  acceptMapFill, applyEndConditions, applyWorldPatch, extractMapDraft, mockEndConditionsModel, mockMapFillModel, mockWorldPatchModel, placeMapFill,
+  proposeClockPatch, proposeEndConditions, proposeMapFill, proposeStoryletPatch, updateMapFillPlacement,
 } from '../../modules/worlds/index.js';
 import { AppError } from '../../shared/errors.js';
 import type { Workbench } from '../workbench.js';
@@ -86,6 +86,11 @@ export function worldCommands(w: Workbench) {
         AbortSignal.timeout(30_000), 'mock-storylet-patch')),
     command('apply_world_patch', '应用已审阅的时钟或剧情卡块级补丁，按版本乐观锁一次性写入草稿并走世界规则校验；拒绝整稿替换与非法路径。',
       applyWorldPatchInputSchema, false, input => applyWorldPatch(w.worlds, input.worldDraftId, input)),
+    command('propose_end_conditions', 'Mock AI：从世界草稿的资源/事实/剧情卡提议 2–4 套「胜利 + 失败」终局条件包，只读；不写草稿。作者挑一套或改用自定义文本，确认后再写入。',
+      proposeEndConditionsInputSchema, true, input => proposeEndConditions(w.worlds, input.worldDraftId, input, mockEndConditionsModel,
+        AbortSignal.timeout(30_000), 'mock-end-conditions')),
+    command('apply_end_conditions', '应用已确认的终局条件包或作者自定义文本（解析成同一结构），按版本乐观锁写入 world.endConditions；已有终局条件时必须显式 acknowledgeReshape，因为改胜负会重塑整局。',
+      applyEndConditionsInputSchema, false, input => applyEndConditions(w.worlds, input)),
     command('get_world_schema', '获取v1开放世界JSON Schema；草稿需校验引用与来源后再发布。', emptySchema, true, () => z.toJSONSchema(worldContentSchema)),
     command('create_world_draft', '建立开放世界草稿；作者视图含隐藏事实和NPC私有目标，不可直接作为玩家上下文。',
       z.object({sourceId: z.string().min(1), content: worldContentSchema}), false, input => w.worlds.create(input)),

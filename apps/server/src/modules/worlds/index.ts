@@ -19,3 +19,8 @@ export {
   proposeFunProfile, recommendBlocksForProfile, resolveProfileBlocks, mockFunProfileModel,
   type FunProfileModel, type FunProfileModelInput,
 } from './application/propose-fun-profile.js';
+export {
+  applyEndConditions, proposeEndConditions, parseEndConditionsText, mockEndConditionsModel,
+  END_CONDITIONS_SEVERITY_NOTE,
+  type EndConditionsModel, type EndConditionsModelInput,
+} from './application/end-conditions.js';

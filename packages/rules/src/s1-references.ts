@@ -26,6 +26,12 @@ export function walkWorldLogic(world: WorldContent,
     for (const p of e.passages ?? []) conds(p.when, `结局 ${e.id} 附加段落 ${p.id}`);
   }
   for (const r of world.recap ?? []) conds(r.when, `回顾 ${r.id}`);
+  // 终局条件：胜负谓词参与引用校验、资源门控计数与来源/去处统计。
+  if (world.endConditions) {
+    for (const kind of ['win', 'lose'] as const) for (const item of world.endConditions[kind]) {
+      conds(item.when, `终局条件 ${item.label}`);
+    }
+  }
   for (const l of world.locations) for (const v of l.textVariants ?? []) conds(v.when, `地点 ${l.id}`);
   for (const sl of world.storylets ?? []) {
     const owner = `剧情卡 ${sl.id}`;

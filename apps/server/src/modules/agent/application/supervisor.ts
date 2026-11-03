@@ -32,11 +32,19 @@ function errorIssues(error: unknown): unknown {
   return undefined;
 }
 
+/** 终局条件摘要：审查待确认规划时让作者一眼看到这套胜负线是否已选定。 */
+function endConditionsSummary(plan: ProductionPlan): string {
+  const endConditions = plan.world.endConditions;
+  if (!endConditions) return '；尚未选定终局条件（胜负判定仍按结局 when）';
+  const packageLabel = endConditions.packageLabel ?? endConditions.packageId;
+  return `；终局条件已选定${packageLabel ? `「${packageLabel}」` : ''}：${endConditions.win.length} 条胜利 / ${endConditions.lose.length} 条失败（改动会重塑整局）`;
+}
+
 function checkPlan(plan: ProductionPlan, brief: ProductionBrief, source: SourceDocument): { passed: boolean; message: string; issues?: unknown } {
   try {
     assertProductionPlan(plan, brief, source);
     assertPlanMechanics(plan);
-    return {passed: true, message: '规划机制检查通过（角色/剧情卡/NPC/资源/结局/路线均达标），可人工确认'};
+    return {passed: true, message: `规划机制检查通过（角色/剧情卡/NPC/资源/结局/路线均达标）${endConditionsSummary(plan)}，可人工确认`};
   } catch (error) {
     return {passed: false, message: `规划机制检查未通过：${errorMessage(error)}，人工确认前请先处理`, issues: errorIssues(error)};
   }

@@ -48,7 +48,7 @@ export const BLOCK_SHELVES: readonly BlockShelf[] = [
 /** Closed set of Substrate contract fragments a block may `require`. */
 export const SUBSTRATE_CONTRACTS = [
   'game.variables',
-  'world.locations', 'world.map', 'world.clock', 'world.storylets', 'world.endings',
+  'world.locations', 'world.map', 'world.clock', 'world.storylets', 'world.endings', 'world.endConditions',
   'world.resourceDefs', 'world.facts', 'world.npcs', 'world.actions',
   'building.library', 'item.catalog',
 ] as const;
@@ -189,6 +189,23 @@ const RAW_BLOCKS = [
     composesWith: {dependsOn: ['storylet-pool'], conflictsWith: []},
     params: [],
     provides: ['endings', 'recap'], acceptance: ['G2', 'G6', 'G8'], shelves: ['world-content'],
+  },
+  {
+    id: 'end-conditions', version: 1,
+    label: '终局条件', blurb: '一整局的胜负判定骨架：赢/输条件各自绑定到一个结局，用现有 WorldCondition 谓词判定变量与事实，命中后触发对应终局。积木只给判定槽位与运行时路径，具体胜负谓词由 Agent 从内容提议、作者挑选或自定义后按局填入；改条件会重塑整局。',
+    funTags: ['pressure-release', 'growth', 'healing-routine'], requires: ['world.endConditions', 'world.endings'],
+    composesWith: {dependsOn: ['endings-recap', 'stat-templates'], conflictsWith: []},
+    params: [
+      {key: 'win_slots', label: '胜利条件槽位', type: 'array', description: '结构化胜利条件描述（label + WorldCondition 列表 + 目标结局）；默认至少 1 条，按局填写。', default: []},
+      {key: 'lose_slots', label: '失败条件槽位', type: 'array', description: '结构化失败条件描述（label + WorldCondition 列表 + 目标失败结局）；默认至少 1 条，按局填写。', default: []},
+      {key: 'condition_grammar', label: '条件语法', type: 'select', options: ['world-condition', 'free-text-parsed'], default: 'world-condition',
+        description: 'world-condition = 直接写 WorldCondition；free-text-parsed = 作者自然语言经 Agent 解析为同一结构。'},
+      {key: 'min_win', label: '最少胜利条件', type: 'integer', default: 1},
+      {key: 'min_lose', label: '最少失败条件', type: 'integer', default: 1},
+      {key: 'severity_on_edit', label: '编辑严重度提示', type: 'select', options: ['strong-warning'], default: 'strong-warning',
+        description: '固定为强提示：改动胜负条件会重塑整局体验。'},
+    ],
+    provides: ['endings'], acceptance: ['G2', 'G8', 'pressure-bidirectional'], shelves: ['foundation', 'world-content'],
   },
   {
     id: 'clock', version: 1,

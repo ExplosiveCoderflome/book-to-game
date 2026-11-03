@@ -10,6 +10,7 @@ const labels: Record<string, string> = {
   runtime_info: '检查工作空间', agent_status: '查看 Agent 状态', list_agent_decisions: '查看监督记录',
   list_blocks: '查看积木目录', list_fun_profiles: '查看爽感画像目录', list_genre_recipes: '查看品类配方目录',
   propose_fun_profile: '提议爽感画像', recommend_blocks_for_profile: '推荐画像积木', propose_map_fill: '生成地图填充提案', propose_clock_patch: '生成时钟补丁提案', propose_storylet_patch: '生成剧情卡补丁提案', apply_world_patch: '应用世界补丁',
+  propose_end_conditions: '提议终局条件', apply_end_conditions: '应用终局条件',
 };
 export const toolLabel = (name: string) => labels[name] ?? name;
 export function conversationLabel(title: string) {

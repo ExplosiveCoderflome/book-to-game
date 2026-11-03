@@ -153,6 +153,12 @@ footer{color:#6f7f92;font-size:12px;border-top:1px solid #2b3a4f;padding-top:12p
 ${recipeSection()}
 ${sections}
 <footer>货架是浏览分区，不是玩法绑定；同一块可出现在多条货架。品类配方是积木组合菜单，不替代货架，也不新增运行时。拼装约束仍以 dependsOn / conflictsWith 为准。本页由 <code>scripts/gen-block-shop.ts</code> 从 <code>getBlockCatalog()</code> / <code>getGenreRecipes()</code> 生成。</footer>
+<section class="shelf" id="end-conditions-gate">
+ <header class="shelf-head">
+  <h2>终局条件 · Agent 确认门 <code>end-conditions</code></h2>
+  <p>胜负条件决定整局成败。生成时 Agent 会基于游戏内容提出多套「胜利 + 失败」条件包（<code>propose_end_conditions</code>，只读）；作者挑一套或提交自定义文本，确认后才写入 <code>world.endConditions</code>（<code>apply_end_conditions</code>）。之后修改胜负条件属于重塑整局，必须显式确认严重度。详见 <code>docs/end-conditions-agent-gate.md</code>。</p>
+ </header>
+</section>
 </body></html>`;
 }
 

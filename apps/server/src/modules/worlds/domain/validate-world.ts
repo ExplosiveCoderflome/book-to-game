@@ -89,6 +89,14 @@ export function validateWorld(world: WorldContent, source: SourceDocument, opts?
   }
   for (const event of world.events) {conditions(event.when, `事件 ${event.id}`); effects(event.effects, `事件 ${event.id}`);}
   for (const ending of world.endings) conditions(ending.when, `结局 ${ending.id}`);
+  if (world.endConditions) {
+    const endingIds = new Set(world.endings.map(ending => ending.id));
+    for (const kind of ['win', 'lose'] as const) for (const item of world.endConditions[kind]) {
+      const owner = `终局条件 ${item.label}`;
+      conditions(item.when, owner);
+      if (!endingIds.has(item.endingId)) errors.push(`${owner} 的结局不存在：${item.endingId}`);
+    }
+  }
   if (world.resourceDefs || world.clock || world.storylets) {
     // S1: fact / NPC / location refs inside storylets, anyOf members, roll branches, thresholds and clock rules.
     walkWorldLogic(world, (c, owner) => { if (c.kind !== 'anyOf') conditions([c], owner); }, (e, owner) => { if (e.kind !== 'roll' && e.kind !== 'resource' && e.kind !== 'resource_max') effects([e], owner); });

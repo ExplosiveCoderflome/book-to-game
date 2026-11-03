@@ -65,6 +65,17 @@ export function lintWorld(world: WorldContent, opts: LintOptions = {}): LintRepo
     const category: LintCategory = issue.ruleId === 's1.gate-out-of-range' || issue.ruleId === 's1.unknown-resource' || issue.ruleId === 's1.resource-bounds' ? 'resource' : 'structure';
     c.add(issue.level, category, issue.ruleId, issue.message, issue.target ? {kind: targetKind(world, issue.target), id: issue.target} : undefined);
   }
+  // ── 终局条件（end-conditions）：至少要有一条胜利和一条失败判定，且结局引用必须存在
+  if (world.endConditions) {
+    const target = {kind: 'world' as const, id: 'endConditions', label: '终局条件'};
+    if (!world.endConditions.win.length) c.add('error', 'structure', 'end-conditions.no-win', '终局条件缺少胜利判定（至少需要 1 条）', target);
+    if (!world.endConditions.lose.length) c.add('error', 'structure', 'end-conditions.no-lose', '终局条件缺少失败判定（至少需要 1 条）', target);
+    for (const kind of ['win', 'lose'] as const) for (const item of world.endConditions[kind]) {
+      if (!world.endings.some(ending => ending.id === item.endingId)) {
+        c.add('error', 'structure', 'end-conditions.missing-ending', `终局条件「${item.label}」引用了不存在的结局：${item.endingId}`, target);
+      }
+    }
+  }
   // ── resources: sources / sinks / gates
   const sources = new Map<string, number>(); const sinks = new Map<string, number>(); const gates = new Map<string, number>();
   const bump = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) ?? 0) + 1);

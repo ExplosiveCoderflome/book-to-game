@@ -211,3 +211,26 @@ test('sqlite decision repository round-trips decisions and heartbeat', () => {
     assert.equal(repo.list(1).length, 1);
   } finally { db.close(); }
 });
+
+test('supervisor review summary names the chosen end conditions but never approves', () => {
+  const p = plan();
+  const winEnding = p.world.endings.find(ending => (ending.kind ?? 'ending') === 'ending')!;
+  const loseEnding = p.world.endings.find(ending => ending.kind === 'failure')!;
+  const condition = (kind: 'win' | 'lose', endingId: string, id: string) => ({
+    id, kind, label: kind === 'win' ? '主线达成' : '劫数失控', when: [{kind: 'fact' as const, factId: p.world.facts[0]!.id, value: true}], endingId,
+  });
+  p.world = {...p.world, endConditions: {
+    source: 'agent-proposed', packageId: 'standard', packageLabel: '标准胜负', severity: 'reshapes-game',
+    win: [condition('win', winEnding.id, 'win')], lose: [condition('lose', loseEnding.id, 'lose')],
+  }};
+  const job = baseJob({status: 'awaiting_review', mode: 'open', productionBrief: brief,
+    productionState: {plan: p, approved: false, texts: {}}});
+  const supervisor = new AgentSupervisor({jobs: {list: () => [job], retry: () => { throw new Error('must not retry'); }},
+    sources: {get: () => source}, decisions: new MemoryDecisions()});
+  const report = supervisor.runOnce();
+  assert.equal(report.decisions[0]?.action, 'review_summary');
+  assert.match(report.decisions[0]?.summary ?? '', /终局条件已选定「标准胜负」：1 条胜利 \/ 1 条失败/);
+  assert.match(report.decisions[0]?.summary ?? '', /重塑整局/);
+  assert.equal(job.status, 'awaiting_review');
+  assert.equal(job.productionState?.approved, false);
+});

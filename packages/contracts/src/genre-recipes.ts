@@ -61,14 +61,14 @@ export type GenreRecipe = z.infer<typeof genreRecipeSchema>;
 
 const RAW_RECIPES: z.input<typeof genreRecipeSchema>[] = [
   {
-    id: 'sim-commerce', version: 1,
+    id: 'sim-commerce', version: 2,
     label: '模拟经营',
-    blurb: '一间小店 / 一座客栈的营业骨架：数值模板 + 时钟 + 物品库 + 营业日循环 + 客流 + 账本，再用剧情卡池与结局回顾收束。营业日、排队、翻台与日结仍由作者通过行动/剧情卡补全，本配方不自建营业引擎。',
+    blurb: '一间小店 / 一座客栈的营业骨架：数值模板 + 时钟 + 物品库 + 营业日循环 + 客流 + 账本，再用剧情卡池、结局回顾与终局条件收束。营业日、排队、翻台与日结仍由作者通过行动/剧情卡补全，本配方不自建营业引擎；终局条件只提供胜负判定能力，具体谓词按局填写。',
     primaryShelves: ['commerce'],
     requiredBlocks: [
       'stat-templates', 'world-map', 'building-library', 'item-catalog',
       'clock', 'shop-cycle', 'customer-flow', 'ledger',
-      'storylet-pool', 'endings-recap',
+      'storylet-pool', 'endings-recap', 'end-conditions',
     ],
     recommendedBlocks: ['preflight-sim'],
     optionalBlocks: ['ai-narration', 'ai-npc-dialog'],
@@ -77,13 +77,14 @@ const RAW_RECIPES: z.input<typeof genreRecipeSchema>[] = [
     conflictsWithRecipes: [],
   },
   {
-    id: 'combat-growth', version: 1,
+    id: 'combat-growth', version: 2,
     label: '打怪成长',
-    blurb: '一条以遭遇驱动成长的骨架：数值模板 + 遭遇 + 成长曲线 + 掉落表 + 遭遇代价 + 物品库 + 剧情卡池。战斗结算与升级仍由现有行动/事实/变量表达，本配方只是把积木拼成一条可验收的成长线，不新增战斗引擎。',
+    blurb: '一条以遭遇驱动成长的骨架：数值模板 + 遭遇 + 成长曲线 + 掉落表 + 遭遇代价 + 物品库 + 剧情卡池 + 终局条件。战斗结算与升级仍由现有行动/事实/变量表达，本配方只是把积木拼成一条可验收的成长线，不新增战斗引擎；终局条件只提供胜负判定能力，具体谓词按局填写。',
     primaryShelves: ['combat-growth'],
     requiredBlocks: [
       'stat-templates', 'world-map', 'building-library', 'item-catalog',
       'encounters', 'growth-curve', 'loot-table', 'combat-stake', 'storylet-pool',
+      'end-conditions',
     ],
     recommendedBlocks: ['endings-recap', 'preflight-sim'],
     optionalBlocks: ['clock', 'ai-narration', 'ai-npc-dialog'],
@@ -121,7 +122,8 @@ export interface GenreRecipeLintIssue {
     | 'recipes.conflict'
     | 'recipes.missing-dependency'
     | 'recipes.duplicate-across-lists'
-    | 'recipes.empty-required';
+    | 'recipes.empty-required'
+    | 'recipes.missing-end-conditions';
   message: string;
 }
 
@@ -228,6 +230,12 @@ export function lintGenreRecipes(recipes: readonly GenreRecipe[] = GENRE_RECIPES
             message: `recipe ${recipe.id} requires ${id} but omits its dependency ${dep}`});
         }
       }
+    }
+
+    // 终局条件能力：任何收束到结局的配方都必须包含 end-conditions（具体胜负谓词仍按局填写）。
+    if (members.has('endings-recap') && !members.has('end-conditions')) {
+      issues.push({severity: 'error', recipeId: recipe.id, blockId: 'end-conditions', ruleId: 'recipes.missing-end-conditions',
+        message: `recipe ${recipe.id} 收束到结局，但缺少终局条件积木 end-conditions`});
     }
   }
 

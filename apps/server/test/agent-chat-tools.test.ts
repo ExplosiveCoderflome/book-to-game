@@ -10,7 +10,7 @@ const automaticCommands = [
   'runtime_info', 'list_sources', 'read_source', 'list_jobs', 'read_job', 'check_job_plan',
   'list_world_drafts', 'read_world_draft', 'get_world_preflight', 'validate_world_draft',
   'lint_world_draft', 'playtest_world_draft', 'propose_map_fill', 'propose_clock_patch', 'propose_storylet_patch',
-  'propose_fun_profile', 'recommend_blocks_for_profile',
+  'propose_end_conditions', 'propose_fun_profile', 'recommend_blocks_for_profile',
   'agent_status', 'list_agent_decisions', 'list_agent_repairs', 'create_agent_repair', 'list_drafts', 'get_draft',
   'validate_draft', 'lint_draft', 'list_world_revisions', 'list_games', 'list_blocks', 'list_fun_profiles',
   'list_genre_recipes',
@@ -56,6 +56,10 @@ const confirmationCases: Array<{
     {path: 'clock.limitMonths', op: 'replace', after: 30},
   ]}, versionCheck: 'version', guard: '3',
     summary: '应用世界补丁：「旧标题」v3；4 项：replace clock.unit、replace storylets.card.title、replace storylets.card.text……'},
+  {name: 'apply_end_conditions', args: {worldDraftId: 'world-1', version: 3, acknowledgeReshape: true,
+    selection: {kind: 'package', packageId: 'standard', win: [{id: 'win_progress', label: '进度推满', when: [{kind: 'resource', resourceId: 'qi', atLeast: 10}]}],
+      lose: [{id: 'lose_pressure', label: '压力见底', when: [{kind: 'resource', resourceId: 'qi', atMost: 0}]}]}}, versionCheck: 'version', guard: '3',
+    summary: '应用终局条件：「旧标题」v3；条件包 standard：1 胜 / 1 负'},
 ];
 
 const mapFillConfirmationCases: typeof confirmationCases = [
@@ -142,7 +146,7 @@ const state = {
   games: {get: () => ({id: 'game-1', version: 4, content: {title: '游戏草稿'}})},
 } as unknown as AgentChatCommandState;
 
-test('agent chat tools: confirmation levels and metadata registry cover all 55 commands', () => {
+test('agent chat tools: confirmation levels and metadata registry cover all 57 commands', () => {
   const allNames = [
     ...automaticCommands, ...confirmationCases.map(item => item.name),
     ...fineGrainedConfirmationCases.map(item => item.name), ...mapFillConfirmationCases.map(item => item.name),
@@ -155,9 +159,9 @@ test('agent chat tools: confirmation levels and metadata registry cover all 55 c
     ...mapFillConfirmationCases.map(item => [item.name, true]),
   ]);
 
-  assert.equal(automaticCommands.length, 30);
-  assert.equal(confirmationCases.length, 12);
-  assert.equal(allNames.length, 55);
+  assert.equal(automaticCommands.length, 31);
+  assert.equal(confirmationCases.length, 13);
+  assert.equal(allNames.length, 57);
   assert.deepEqual(Object.keys(agentChatCommandMetadata).sort(), allNames.slice().sort());
   assert.deepEqual(Object.fromEntries(tools.map(tool => [tool.name, tool.requiresConfirmation])), expected);
   for (const name of automaticCommands) {

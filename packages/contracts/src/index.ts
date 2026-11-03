@@ -16,6 +16,7 @@ export * from './map-draft.js';
 export * from './map-fill-draft.js';
 export * from './world-patches.js';
 export * from './fun-profile-proposals.js';
+export * from './end-conditions.js';
 export type * from './preflight.js';
 export {
   worldbookSchema, worldbookEntrySchema, worldbookConstraintSchema, worldbookEntryKindSchema,

@@ -52,6 +52,10 @@ export function endingSources(world: WorldContent, endingId: string, suppliers =
     if (def.onMin?.ending === endingId) sources.push({reqs: [{kind: 'resource', resourceId: id, atMost: def.min}]});
   }
   if (world.clock?.timeoutEndingId === endingId || ending?.kind === 'timeout') sources.push({reqs: [], survive: true});
+  // 终局条件积木：胜负谓词就是该结局的判定来源，进规划检查/路线覆盖时不能算「无触发」。
+  for (const item of [...(world.endConditions?.win ?? []), ...(world.endConditions?.lose ?? [])]) {
+    if (item.endingId === endingId && item.when.length) sources.push({reqs: item.when});
+  }
   return sources;
 }
 

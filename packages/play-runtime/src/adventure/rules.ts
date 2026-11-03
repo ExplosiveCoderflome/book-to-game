@@ -191,6 +191,24 @@ export function recordActionTags(
   state.takenTags = mergeTakenTags(state.takenTags, action.tags);
 }
 
+/**
+ * 终局条件判定（硬拼 end-conditions）：按 win → lose 顺序取第一条命中的条件。
+ *
+ * 只做判定，不改状态；命中后由 `settle` 走既有 `resolveEnding` 触发结局。
+ * 无 `world.endConditions` 时返回 undefined，旧世界继续按结局 `when` 判定。
+ */
+export function evaluateEndConditions(world: WorldContent, state: AdventureState): {kind: 'win' | 'lose'; conditionId: string; endingId: string} | undefined {
+  const conditions = world.endConditions;
+  if (!conditions) return undefined;
+  for (const item of conditions.win) {
+    if (item.when.length && matches(item.when, state, world)) return {kind: 'win', conditionId: item.id, endingId: item.endingId};
+  }
+  for (const item of conditions.lose) {
+    if (item.when.length && matches(item.when, state, world)) return {kind: 'lose', conditionId: item.id, endingId: item.endingId};
+  }
+  return undefined;
+}
+
 export function settle(world: WorldContent, state: AdventureState, ctx?: EffectContext): string[] {
   const narration: string[] = [];
   // Events may make an earlier event eligible. Every event can fire only once, so this terminates.
@@ -210,7 +228,18 @@ export function settle(world: WorldContent, state: AdventureState, ctx?: EffectC
     if (state.ending) return narration;
   }
   const s1 = isS1World(world);
+  // 终局条件块：先判胜负，命中即触发对应结局（不引入平行引擎，仍走 resolveEnding）。
+  const endCondition = evaluateEndConditions(world, state);
+  if (endCondition) {
+    state.ending = s1
+      ? resolveEnding(world, state, endCondition.endingId, endCondition.kind === 'lose' ? 'failure' : 'ending')
+      : {id: endCondition.endingId, title: world.endings.find(item => item.id === endCondition.endingId)?.title ?? endCondition.endingId,
+        text: world.endings.find(item => item.id === endCondition.endingId)?.text ?? '', kind: endCondition.kind === 'lose' ? 'failure' : 'ending',
+        ...endingExtras(world, state, world.endings.find(item => item.id === endCondition.endingId))};
+    return narration;
+  }
   // Endings with an empty `when` (S1 only) are reached by effects/triggers, never matched here.
+  // 终局条件块先判胜负；未命中时旧结局 when 仍可作为普通结局触发路径（向后兼容）。
   const ending = world.endings.find(candidate => candidate.when.length > 0 && matches(candidate.when, state, world));
   if (ending) state.ending = s1 ? resolveEnding(world, state, ending.id) : {id: ending.id, title: ending.title, text: ending.text, ...endingExtras(world, state, ending)};
   else if (state.elapsed >= timeLimitOf(world)) state.ending = s1

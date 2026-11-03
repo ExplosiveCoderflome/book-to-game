@@ -22,7 +22,7 @@ export { projectAdventure, type ProjectAdventureOptions } from './adventure/proj
 export { advanceAdventure, type AdvanceAdventureOptions } from './adventure/advance-adventure.js';
 export { createAdventureState } from './adventure/start-adventure.js';
 export type { AdventureHandCard, AdventureLastResult } from './adventure/adventure-state.js';
-export { describeCondition, requiresBlock, resolveEnding, fireThresholds, type BlockedReasonKind } from './adventure/rules.js';
+export { describeCondition, requiresBlock, resolveEnding, fireThresholds, evaluateEndConditions, type BlockedReasonKind } from './adventure/rules.js';
 export { isS1World, rngNext, seedFromString, timeLimitOf, computeChance, formatCalendar, formatMonths, type ChanceBreakdown } from './adventure/s1-core.js';
 export { STORYLET_CHOICE_PREFIX, storyletChoiceId, refreshHand, runClock, locationText, storyletText } from './adventure/storylets.js';
 

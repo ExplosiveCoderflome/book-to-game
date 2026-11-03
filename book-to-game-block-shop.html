@@ -42,8 +42,8 @@ nav a span{color:#7dd3fc}
 footer{color:#6f7f92;font-size:12px;border-top:1px solid #2b3a4f;padding-top:12px}
 </style></head><body>
 <h1>积木商店</h1>
-<p class="sub">共 18 块 · 2 条配方 · 按货架浏览</p>
-<nav><a href="#recipes">品类配方 <span>2</span></a><a href="#shelf-foundation">基础底座 <span>4</span></a><a href="#shelf-world-content">世界内容 <span>7</span></a><a href="#shelf-commerce">经营向 <span>4</span></a><a href="#shelf-combat-growth">打怪成长向 <span>5</span></a><a href="#shelf-ops">验收/运维 <span>1</span></a><a href="#shelf-ai-live">临场 AI <span>3</span></a></nav>
+<p class="sub">共 19 块 · 2 条配方 · 按货架浏览</p>
+<nav><a href="#recipes">品类配方 <span>2</span></a><a href="#shelf-foundation">基础底座 <span>5</span></a><a href="#shelf-world-content">世界内容 <span>8</span></a><a href="#shelf-commerce">经营向 <span>4</span></a><a href="#shelf-combat-growth">打怪成长向 <span>5</span></a><a href="#shelf-ops">验收/运维 <span>1</span></a><a href="#shelf-ai-live">临场 AI <span>3</span></a></nav>
 <section class="recipes" id="recipes">
  <header class="shelf-head">
   <h2>品类配方 <code>genre-recipes</code></h2>
@@ -52,19 +52,19 @@ footer{color:#6f7f92;font-size:12px;border-top:1px solid #2b3a4f;padding-top:12p
  </header>
  <div class="recipe-grid">
 <article class="recipe" id="recipe-sim-commerce">
- <div class="id">sim-commerce · v1 · 货架：经营向</div>
+ <div class="id">sim-commerce · v2 · 货架：经营向</div>
  <h3>模拟经营</h3>
- <p class="blurb">一间小店 / 一座客栈的营业骨架：数值模板 + 时钟 + 物品库 + 营业日循环 + 客流 + 账本，再用剧情卡池与结局回顾收束。营业日、排队、翻台与日结仍由作者通过行动/剧情卡补全，本配方不自建营业引擎。</p>
- <div class="recipe-list"><span class="recipe-label required">必选</span><div class="chips"><a class="chip" href="#block-stat-templates" title="stat-templates">数值体系模板<span>stat-templates</span></a><a class="chip" href="#block-world-map" title="world-map">世界与地图<span>world-map</span></a><a class="chip" href="#block-building-library" title="building-library">建筑库<span>building-library</span></a><a class="chip" href="#block-item-catalog" title="item-catalog">物品库<span>item-catalog</span></a><a class="chip" href="#block-clock" title="clock">时钟<span>clock</span></a><a class="chip" href="#block-shop-cycle" title="shop-cycle">营业日循环<span>shop-cycle</span></a><a class="chip" href="#block-customer-flow" title="customer-flow">客人需求流<span>customer-flow</span></a><a class="chip" href="#block-ledger" title="ledger">账本流水<span>ledger</span></a><a class="chip" href="#block-storylet-pool" title="storylet-pool">剧情卡池<span>storylet-pool</span></a><a class="chip" href="#block-endings-recap" title="endings-recap">结局与回顾<span>endings-recap</span></a></div></div>
+ <p class="blurb">一间小店 / 一座客栈的营业骨架：数值模板 + 时钟 + 物品库 + 营业日循环 + 客流 + 账本，再用剧情卡池、结局回顾与终局条件收束。营业日、排队、翻台与日结仍由作者通过行动/剧情卡补全，本配方不自建营业引擎；终局条件只提供胜负判定能力，具体谓词按局填写。</p>
+ <div class="recipe-list"><span class="recipe-label required">必选</span><div class="chips"><a class="chip" href="#block-stat-templates" title="stat-templates">数值体系模板<span>stat-templates</span></a><a class="chip" href="#block-world-map" title="world-map">世界与地图<span>world-map</span></a><a class="chip" href="#block-building-library" title="building-library">建筑库<span>building-library</span></a><a class="chip" href="#block-item-catalog" title="item-catalog">物品库<span>item-catalog</span></a><a class="chip" href="#block-clock" title="clock">时钟<span>clock</span></a><a class="chip" href="#block-shop-cycle" title="shop-cycle">营业日循环<span>shop-cycle</span></a><a class="chip" href="#block-customer-flow" title="customer-flow">客人需求流<span>customer-flow</span></a><a class="chip" href="#block-ledger" title="ledger">账本流水<span>ledger</span></a><a class="chip" href="#block-storylet-pool" title="storylet-pool">剧情卡池<span>storylet-pool</span></a><a class="chip" href="#block-endings-recap" title="endings-recap">结局与回顾<span>endings-recap</span></a><a class="chip" href="#block-end-conditions" title="end-conditions">终局条件<span>end-conditions</span></a></div></div>
  <div class="recipe-list"><span class="recipe-label recommended">推荐</span><div class="chips"><a class="chip" href="#block-preflight-sim" title="preflight-sim">体检与模拟策略<span>preflight-sim</span></a></div></div>
  <div class="recipe-list"><span class="recipe-label optional">可选</span><div class="chips"><a class="chip" href="#block-ai-narration" title="ai-narration">AI 临场旁白<span>ai-narration</span></a><a class="chip" href="#block-ai-npc-dialog" title="ai-npc-dialog">AI NPC 临场对话<span>ai-npc-dialog</span></a></div></div>
  <div class="meta">爽感标签：healing-routine · warmth · collection · 关联画像：healing、collection</div>
 </article>
 <article class="recipe" id="recipe-combat-growth">
- <div class="id">combat-growth · v1 · 货架：打怪成长向</div>
+ <div class="id">combat-growth · v2 · 货架：打怪成长向</div>
  <h3>打怪成长</h3>
- <p class="blurb">一条以遭遇驱动成长的骨架：数值模板 + 遭遇 + 成长曲线 + 掉落表 + 遭遇代价 + 物品库 + 剧情卡池。战斗结算与升级仍由现有行动/事实/变量表达，本配方只是把积木拼成一条可验收的成长线，不新增战斗引擎。</p>
- <div class="recipe-list"><span class="recipe-label required">必选</span><div class="chips"><a class="chip" href="#block-stat-templates" title="stat-templates">数值体系模板<span>stat-templates</span></a><a class="chip" href="#block-world-map" title="world-map">世界与地图<span>world-map</span></a><a class="chip" href="#block-building-library" title="building-library">建筑库<span>building-library</span></a><a class="chip" href="#block-item-catalog" title="item-catalog">物品库<span>item-catalog</span></a><a class="chip" href="#block-encounters" title="encounters">遭遇<span>encounters</span></a><a class="chip" href="#block-growth-curve" title="growth-curve">成长曲线<span>growth-curve</span></a><a class="chip" href="#block-loot-table" title="loot-table">掉落表<span>loot-table</span></a><a class="chip" href="#block-combat-stake" title="combat-stake">遭遇代价<span>combat-stake</span></a><a class="chip" href="#block-storylet-pool" title="storylet-pool">剧情卡池<span>storylet-pool</span></a></div></div>
+ <p class="blurb">一条以遭遇驱动成长的骨架：数值模板 + 遭遇 + 成长曲线 + 掉落表 + 遭遇代价 + 物品库 + 剧情卡池 + 终局条件。战斗结算与升级仍由现有行动/事实/变量表达，本配方只是把积木拼成一条可验收的成长线，不新增战斗引擎；终局条件只提供胜负判定能力，具体谓词按局填写。</p>
+ <div class="recipe-list"><span class="recipe-label required">必选</span><div class="chips"><a class="chip" href="#block-stat-templates" title="stat-templates">数值体系模板<span>stat-templates</span></a><a class="chip" href="#block-world-map" title="world-map">世界与地图<span>world-map</span></a><a class="chip" href="#block-building-library" title="building-library">建筑库<span>building-library</span></a><a class="chip" href="#block-item-catalog" title="item-catalog">物品库<span>item-catalog</span></a><a class="chip" href="#block-encounters" title="encounters">遭遇<span>encounters</span></a><a class="chip" href="#block-growth-curve" title="growth-curve">成长曲线<span>growth-curve</span></a><a class="chip" href="#block-loot-table" title="loot-table">掉落表<span>loot-table</span></a><a class="chip" href="#block-combat-stake" title="combat-stake">遭遇代价<span>combat-stake</span></a><a class="chip" href="#block-storylet-pool" title="storylet-pool">剧情卡池<span>storylet-pool</span></a><a class="chip" href="#block-end-conditions" title="end-conditions">终局条件<span>end-conditions</span></a></div></div>
  <div class="recipe-list"><span class="recipe-label recommended">推荐</span><div class="chips"><a class="chip" href="#block-endings-recap" title="endings-recap">结局与回顾<span>endings-recap</span></a><a class="chip" href="#block-preflight-sim" title="preflight-sim">体检与模拟策略<span>preflight-sim</span></a></div></div>
  <div class="recipe-list"><span class="recipe-label optional">可选</span><div class="chips"><a class="chip" href="#block-clock" title="clock">时钟<span>clock</span></a><a class="chip" href="#block-ai-narration" title="ai-narration">AI 临场旁白<span>ai-narration</span></a><a class="chip" href="#block-ai-npc-dialog" title="ai-npc-dialog">AI NPC 临场对话<span>ai-npc-dialog</span></a></div></div>
  <div class="meta">爽感标签：growth · grinding · collection · 关联画像：grinding、collection</div>
@@ -75,7 +75,7 @@ footer{color:#6f7f92;font-size:12px;border-top:1px solid #2b3a4f;padding-top:12p
 <section class="shelf" id="shelf-foundation">
  <header class="shelf-head">
   <h2>基础底座 <code>foundation</code></h2>
-  <span class="count">4 块</span>
+  <span class="count">5 块</span>
   <p>数值、地图、时钟与验收等可复用的底座积木。</p>
   
  </header>
@@ -99,6 +99,16 @@ footer{color:#6f7f92;font-size:12px;border-top:1px solid #2b3a4f;padding-top:12p
  
  <div class="meta">提供：locations, map.fill</div>
  <div class="meta">参数：geometry<span class="muted">(几何)</span> · size_preset<span class="muted">(尺寸档)</span></div>
+</article>
+<article class="card" id="block-end-conditions">
+ <div class="id">end-conditions · v1</div>
+ <h2>终局条件</h2>
+ <p class="blurb">一整局的胜负判定骨架：赢/输条件各自绑定到一个结局，用现有 WorldCondition 谓词判定变量与事实，命中后触发对应终局。积木只给判定槽位与运行时路径，具体胜负谓词由 Agent 从内容提议、作者挑选或自定义后按局填入；改条件会重塑整局。</p>
+ <div class="tags"><span>pressure-release</span><span>growth</span><span>healing-routine</span></div>
+ <div class="meta">依赖：endings-recap, stat-templates</div>
+ 
+ <div class="meta">提供：endings</div>
+ <div class="meta">参数：win_slots<span class="muted">(胜利条件槽位)</span> · lose_slots<span class="muted">(失败条件槽位)</span> · condition_grammar<span class="muted">(条件语法)</span> · min_win<span class="muted">(最少胜利条件)</span> · min_lose<span class="muted">(最少失败条件)</span> · severity_on_edit<span class="muted">(编辑严重度提示)</span></div>
 </article>
 <article class="card" id="block-clock">
  <div class="id">clock · v1</div>
@@ -125,7 +135,7 @@ footer{color:#6f7f92;font-size:12px;border-top:1px solid #2b3a4f;padding-top:12p
 <section class="shelf" id="shelf-world-content">
  <header class="shelf-head">
   <h2>世界内容 <code>world-content</code></h2>
-  <span class="count">7 块</span>
+  <span class="count">8 块</span>
   <p>建筑、物品、剧情卡池与结局回顾等世界内容资产。</p>
   
  </header>
@@ -179,6 +189,16 @@ footer{color:#6f7f92;font-size:12px;border-top:1px solid #2b3a4f;padding-top:12p
  
  <div class="meta">提供：endings, recap</div>
  <div class="meta">参数：—</div>
+</article>
+<article class="card secondary" id="block-end-conditions">
+ <div class="id">end-conditions · v1<span class="minor">次要货架</span></div>
+ <h2>终局条件</h2>
+ <p class="blurb">一整局的胜负判定骨架：赢/输条件各自绑定到一个结局，用现有 WorldCondition 谓词判定变量与事实，命中后触发对应终局。积木只给判定槽位与运行时路径，具体胜负谓词由 Agent 从内容提议、作者挑选或自定义后按局填入；改条件会重塑整局。</p>
+ <div class="tags"><span>pressure-release</span><span>growth</span><span>healing-routine</span></div>
+ <div class="meta">依赖：endings-recap, stat-templates</div>
+ 
+ <div class="meta">提供：endings</div>
+ <div class="meta">参数：win_slots<span class="muted">(胜利条件槽位)</span> · lose_slots<span class="muted">(失败条件槽位)</span> · condition_grammar<span class="muted">(条件语法)</span> · min_win<span class="muted">(最少胜利条件)</span> · min_lose<span class="muted">(最少失败条件)</span> · severity_on_edit<span class="muted">(编辑严重度提示)</span></div>
 </article>
 <article class="card secondary" id="block-ai-narration">
  <div class="id">ai-narration · v1<span class="minor">次要货架</span></div>
@@ -373,4 +393,10 @@ footer{color:#6f7f92;font-size:12px;border-top:1px solid #2b3a4f;padding-top:12p
  </div>
 </section>
 <footer>货架是浏览分区，不是玩法绑定；同一块可出现在多条货架。品类配方是积木组合菜单，不替代货架，也不新增运行时。拼装约束仍以 dependsOn / conflictsWith 为准。本页由 <code>scripts/gen-block-shop.ts</code> 从 <code>getBlockCatalog()</code> / <code>getGenreRecipes()</code> 生成。</footer>
+<section class="shelf" id="end-conditions-gate">
+ <header class="shelf-head">
+  <h2>终局条件 · Agent 确认门 <code>end-conditions</code></h2>
+  <p>胜负条件决定整局成败。生成时 Agent 会基于游戏内容提出多套「胜利 + 失败」条件包（<code>propose_end_conditions</code>，只读）；作者挑一套或提交自定义文本，确认后才写入 <code>world.endConditions</code>（<code>apply_end_conditions</code>）。之后修改胜负条件属于重塑整局，必须显式确认严重度。详见 <code>docs/end-conditions-agent-gate.md</code>。</p>
+ </header>
+</section>
 </body></html>
