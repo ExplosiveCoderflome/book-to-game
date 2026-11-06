@@ -58,6 +58,33 @@ export function lintWorld(world: WorldContent, opts: LintOptions = {}): LintRepo
   const tierNote = partial ? `（分批交付中${world.production?.batch ? `：第 ${world.production.batch} 批` : ''}）` : '';
   const storylets = world.storylets ?? [];
   const defs = world.resourceDefs ?? {};
+  const openingRoll = world.openingRoll;
+  if (openingRoll?.enabled) {
+    for (const [i, stat] of openingRoll.stats.entries()) {
+      const def=defs[stat.resourceId];
+      if (!def) c.add('error','resource','opening-roll.unknown-resource',`开局数值引用了未定义资源：${stat.resourceId}`,{kind:'resource',id:stat.resourceId,label:stat.resourceId});
+      else if (stat.max > def.min + (def.max! - def.min) * 0.7) c.add('warning','resource','opening-roll.over-70-percent',`开局值「${def.label}」超过资源可用区间的 70%`,{kind:'resource',id:stat.resourceId,label:def.label});
+      if (def && (!def.label || def.label === stat.resourceId)) c.add('error','resource','opening-roll.missing-label',`资源缺少有效显示名称：${stat.resourceId}`,{kind:'resource',id:stat.resourceId});
+      void i;
+    }
+    for (const [i, tag] of openingRoll.tags.entries()) {
+      if (/\d/.test(tag.effect)) c.add('warning','text','opening-roll.effect-number',`开局标签「${tag.label}」效果文案含数字，玩家端文案应避免数字`,{kind:'world',id:tag.id,label:tag.label});
+      for(const fact of tag.grant.facts??[]) if(!world.facts.some(item=>item.id===fact)) c.add('error','structure','opening-roll.unknown-fact',`开局标签引用了未知事实：${fact}`,{kind:'world',id:tag.id,label:tag.label});
+      for(const card of [...(tag.grant.storylets??[]),...(tag.grant.events??[])]) if(!world.storylets?.some(item=>item.id===card)&&!world.events.some(item=>item.id===card)) c.add('error','structure','opening-roll.unknown-card',`开局标签引用了未知剧情卡/事件：${card}`,{kind:'world',id:tag.id,label:tag.label});
+      void i;
+    }
+    const floors=openingRoll.stats.map(stat=>[stat.resourceId,stat.min] as const);
+    const reachable=world.endings.filter(ending=>ending.kind!=='failure'&&ending.when.every(cond=>cond.kind!=='resource'||floors.some(([id,value])=>id===cond.resourceId&&value>=(cond.atLeast??-Infinity)&&value<=(cond.atMost??Infinity))));
+    if(reachable.length<2)c.add('error','structure','opening-roll.minimum-endings',`开局最低值下仅能静态确认 ${reachable.length} 个非失败结局可达，至少需要 2 个`,{kind:'world',id:'openingRoll'});
+  }
+  // A valid terminal state is not necessarily a playable game: reject clocks that force every positive-cost run to end in < 5 choices.
+  if (s1) {
+    const costs = [...world.actions, ...storylets.flatMap(card => card.choices)].map(option => option.timeCost);
+    const limit = world.clock?.limitMonths ?? world.timeLimit;
+    if (costs.length && costs.every(cost => cost > 0) && limit < 5 * Math.min(...costs)) {
+      c.add('error', 'structure', 'pacing.clock-too-short', `时限 ${limit} 只能容纳不足 5 次最小耗时行动，开局会过早结束`, {kind: 'world', id: 'clock', label: '时限'});
+    }
+  }
   // ── structure
   const opening = assessOpeningActions(world);
   if (!opening.ok) c.add('error', 'structure', 'structure.opening', opening.message ?? '开局可执行行动不足', {kind: 'world', id: 'opening', label: '开局'});

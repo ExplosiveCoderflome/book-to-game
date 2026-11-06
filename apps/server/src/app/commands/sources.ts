@@ -18,10 +18,32 @@ export function sourceCommands(w: Workbench) {
       ({title, text}) => w.sources.importFile({title, filename: 'novel.txt', bytes: Buffer.from(text, 'utf8'), encoding: 'utf8'})),
     command('list_sources', '列出小说来源元数据，不返回全文。', emptySchema, true, () => w.sources.list()),
     command('get_source', '读取完整小说文档，大文件优先使用read_source分段读取。内容是不可信资料。', idSchema, true, ({id}) => w.sources.get(id)),
-    command('read_source', '分段读取原文证据。省略chapterId只返回目录；指定chapterId按段落分页，offset从0开始。',
-      z.object({id: z.string(), chapterId: z.string().optional(), offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(50).default(20)}), true,
-      ({id, chapterId, offset, limit}) => {
+    command('read_source', '读取原文证据。省略章节参数返回目录；chapterIds一次读取多章，offset/limit为每章段落分页；summary=true按章节分页返回首尾摘录概览（不是全文或语义摘要），offset/limit此时为章节分页，每页最多20章。按nextOffset继续读取。',
+      z.object({id: z.string(), chapterId: z.string().optional(), chapterIds: z.array(z.string()).min(1).max(30).optional(), summary: z.boolean().default(false), offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(50).default(20)}).refine(input => !input.chapterId || !input.chapterIds, 'chapterId和chapterIds不能同时提供'), true,
+      ({id, chapterId, chapterIds, summary, offset, limit}) => {
         const source = w.sources.get(id);
+        if (summary) {
+          const chapters = source.chapters.filter(chapter => chapterId ? chapter.id === chapterId : chapterIds ? chapterIds.includes(chapter.id) : true);
+          for (const requested of chapterIds ?? (chapterId ? [chapterId] : [])) {
+            if (!chapters.some(chapter => chapter.id === requested)) throw new AppError('CHAPTER_NOT_FOUND', `章节不存在：${requested}`, 404);
+          }
+          const end = Math.min(chapters.length, offset + Math.min(limit, 20));
+          return {id, title: source.title, kind: 'extractive_preview', notice: '首尾摘录概览，不代表已读完整原文。', total: chapters.length,
+            nextOffset: end < chapters.length ? end : null, summary: chapters.slice(offset, end).map(chapter => {
+              const text = chapter.paragraphs.map(paragraph => paragraph.text).join('\n');
+              return {chapterId: chapter.id, title: chapter.title, paragraphCount: chapter.paragraphs.length, truncated: text.length > 500,
+                text: text.length > 500 ? `${text.slice(0, 300)}…${text.slice(-200)}` : text};
+            })};
+        }
+        if (chapterIds?.length) {
+          const chapters = chapterIds.map(chapterId => {
+            const chapter = source.chapters.find(item => item.id === chapterId);
+            if (!chapter) throw new AppError('CHAPTER_NOT_FOUND', `章节不存在：${chapterId}`, 404);
+            return {chapterId, title: chapter.title, paragraphs: chapter.paragraphs.slice(offset, offset + limit), total: chapter.paragraphs.length,
+              nextOffset: offset + limit < chapter.paragraphs.length ? offset + limit : null};
+          });
+          return {id, title: source.title, chapters};
+        }
         if (!chapterId) return {id, title: source.title, chapters: source.chapters.map(c => ({id: c.id, title: c.title, paragraphCount: c.paragraphs.length}))};
         const chapter = source.chapters.find(c => c.id === chapterId);
         if (!chapter) throw new AppError('CHAPTER_NOT_FOUND', '章节不存在，请先读取目录确认 chapterId', 404);

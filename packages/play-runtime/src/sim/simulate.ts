@@ -14,6 +14,9 @@ import type { SimOption } from './types.js';
 import { endingSources, goalStrategy, suppliersOf } from './goal-strategy.js';
 import { routeGuidance } from './guidance.js';
 import { diagnosePacing } from './pacing.js';
+import { applyOpeningRollCommand, applyOpeningSet } from '../adventure/opening-roll.js';
+import { causalDependencyGraph } from '@novel-game/rules';
+import { assertExtensionWorldReferences, checkExtensionDeclaration, checkExtensionInvocation, extensionTests, initializeExtensionSandbox, extensionRewriteRound, type ExtensionIssue } from '../adventure/extensions.js';
 export type { SimOption } from './types.js';
 /** `state` is the full engine state (author tool); generic strategies only use the projected view, goal strategies need conditions. */
 export interface Strategy {id: string; label: string; pick(options: SimOption[], view: AdventureView, rand: () => number, state?: AdventureState): SimOption}
@@ -27,6 +30,7 @@ export type SimProfile = Omit<Partial<FunProfile>, 'thresholds'> & {
   strategyLabels?: Partial<Record<string, string>>;
 };
 export interface SimulateOptions {seeds?: number; maxSteps?: number; strategies?: string[]; now?: string; draftId?: string; draftVersion?: number;
+  evidence?: {runs: number; seed: number; maxSteps: number};
   profile?: SimProfile;
   /** Cooperative yield between runs (server passes setImmediate); keeps the event loop responsive. */
   yieldEvery?: () => Promise<void>;
@@ -40,7 +44,111 @@ export interface SimulateOptions {seeds?: number; maxSteps?: number; strategies?
   /** S2: route guidance for goal-only endings (extra random-strategy trials per candidate edit). Off by default. */
   guidance?: boolean | {seeds?: number; maxHints?: number};
   /** S3 pacing diagnosis + static minimum-step estimate (cheap; on by default). */
-  pacing?: boolean}
+   pacing?: boolean;
+   /** Author-only validation hook, including initial/final/hidden state (not quantile samples). */
+   inspectState?: (state: AdventureState, world: WorldContent) => void;
+   /** Gate's no-extension baseline: neutralize calls while retaining all native rules. */
+   extensionBaseline?: boolean}
+export interface ExtensionSimulationCheck {status: 'pass' | 'rewrite' | 'human'; rewriteRound: number; passed: boolean; issues: ExtensionIssue[]; report?: PlaytestReport; baseline?: PlaytestReport;
+  comparison?: Record<string, {baseline: number; extended: number; delta: number}>}
+export type ExtensionGateOptions = Omit<SimulateOptions, 'inspectState' | 'extensionBaseline'> & {maxEndingRate?: number; baselineRevision?: WorldRevision};
+
+/** Explicit comparison semantics: conditions are neutral true; effect references are removed. */
+function withoutExtensions(revision: WorldRevision): WorldRevision {
+  const neutral = {kind: 'clock', atLeastMonth: 0};
+  const strip = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(strip).filter(v => v !== undefined);
+    if (!value || typeof value !== 'object') return value;
+    const obj = value as Record<string, unknown>;
+    if (obj.kind === 'extension') {
+      const d = revision.content.extensions?.find(d => d.id === obj.extensionId);
+      return d?.point === 'condition' ? neutral : undefined;
+    }
+    return Object.fromEntries(Object.entries(obj).filter(([k]) => k !== 'extensions' && k !== 'extensionAudit').map(([k, v]) => [k, strip(v)]));
+  };
+  return strip(revision) as WorldRevision;
+}
+
+/** The author/model port gets structured errors; at most THREE actual rewrite calls per review. */
+export async function reviewWorldExtensions(initial: WorldRevision,
+  rewrite: (candidate: WorldRevision, failure: ExtensionSimulationCheck) => Promise<WorldRevision>, options: ExtensionGateOptions = {}): Promise<{revision: WorldRevision; check: ExtensionSimulationCheck}> {
+  let revision = structuredClone(initial);
+  for (let round = 0; ; round++) {
+    const check = await checkWorldExtensions(revision, round, options);
+    if (check.status !== 'rewrite') return {revision, check};
+    revision = await rewrite(structuredClone(revision), check);
+  }
+}
+
+export async function checkWorldExtensions(revision: WorldRevision, rewriteRound = 0, options: ExtensionGateOptions = {}): Promise<ExtensionSimulationCheck> {
+  const issues: ExtensionIssue[] = [];
+  const add = (code: string, message: string) => issues.push({severity: 'error', code, message});
+  const ids = new Set<string>();
+  for (const declaration of revision.content.extensions ?? []) {
+    if (ids.has(declaration.id)) add('extension.duplicate-id', `duplicate extension: ${declaration.id}`);
+    ids.add(declaration.id);
+    const staticCheck = checkExtensionDeclaration(declaration, rewriteRound);
+    issues.push(...staticCheck.issues);
+    if (staticCheck.ok) {
+      try { assertExtensionWorldReferences(declaration, revision.content); }
+      catch (error) { add('extension.state-reference', error instanceof Error ? error.message : String(error)); }
+      const tests = await extensionTests(declaration);
+      issues.push(...tests.issues);
+      if (tests.passed < 3) add('extension.test-count', `${declaration.id}: fewer than 3 passing tests`);
+    }
+  }
+  const scan = (value: unknown, point?: 'condition' | 'effect'): void => {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) { for (const item of value) scan(item, point); return; }
+    const obj = value as Record<string, unknown>;
+    if (obj.kind === 'extension') {
+      const d = revision.content.extensions?.find(d => d.id === obj.extensionId && d.point === point);
+      if (!d) add('extension.reference', `unknown ${point ?? 'unscoped'} extension: ${String(obj.extensionId)}`);
+      else try { checkExtensionInvocation(d, (obj.params ?? {}) as Record<string, unknown>); }
+      catch (error) { add('extension.params', error instanceof Error ? error.message : String(error)); }
+    }
+    for (const [key, child] of Object.entries(obj)) {
+      if (key === 'extensions' || key === 'extensionAudit') continue;
+      scan(child, ['when', 'requires', 'availableWhen', 'conditions'].includes(key) ? 'condition'
+        : ['effects', 'success', 'failure'].includes(key) ? 'effect' : point);
+    }
+  };
+  scan(revision.content);
+  const seeds = options.seeds ?? 2000; const maxEndingRate = options.maxEndingRate ?? options.profile?.thresholds?.maxRandomEndingRate ?? 0.4;
+  if (!Number.isInteger(seeds) || seeds < 2 || seeds > 10000) add('extension.seeds', 'gate needs 2..10000 seeds');
+  if (!Number.isFinite(maxEndingRate) || maxEndingRate < 0 || maxEndingRate > 1) add('extension.ending-threshold', 'ending threshold must be within 0..1');
+  let report: PlaytestReport | undefined; let baseline: PlaytestReport | undefined;
+  let comparison: ExtensionSimulationCheck['comparison'];
+  if (!issues.length) {
+    try {
+      const inspectState = (state: AdventureState, world: WorldContent) => {
+        if (state.extensionAudit?.length) throw new Error(`${state.extensionAudit[0]!.code}: ${state.extensionAudit[0]!.message}`);
+        for (const [id, value] of Object.entries(state.resources)) {
+          const d = world.resourceDefs?.[id]; const max = state.resourceMax?.[id] ?? d?.max;
+          if (!Number.isFinite(value) || (d && value < d.min) || (max !== undefined && value > max)) throw new Error(`resource out of bounds: ${id}`);
+        }
+      };
+      const simOptions = {...options, seeds, routes: false as const, pacing: false, inspectState,
+        strategies: [...new Set(['random', ...(options.strategies ?? defaultStrategies(revision.content, options.profile).map(s => s.id))])],
+        profile: {...options.profile, strategyIds: [...new Set(['random', ...(options.profile?.strategyIds ?? options.profile?.strategies ?? STRATEGY_IDS)])]}};
+      // Clone both inputs: neither audit nor baseline removal touches the immutable revision.
+      report = await simulateWorld(structuredClone(revision), simOptions);
+      baseline = await simulateWorld(structuredClone(options.baselineRevision ?? revision), {...simOptions, extensionBaseline: !options.baselineRevision});
+      if (report.deadEnds > 0) add('extension.sim-dead-end', `${report.deadEnds} dead-end runs`);
+      for (const [strategy, rates] of Object.entries(report.endingRates)) if ((rates['(none)'] ?? 0) > 0) add('extension.sim-stuck', `${strategy}: reached step limit without ending`);
+      if (baseline.deadEnds || Object.values(baseline.endingRates).some(r => (r['(none)'] ?? 0) > 0)) add('extension.baseline-stuck', 'baseline has dead ends or unfinished runs');
+      comparison = Object.fromEntries([...new Set([...Object.keys(report.endingRates.random ?? {}), ...Object.keys(baseline.endingRates.random ?? {})])].map(id => {
+        const extended = report!.endingRates.random?.[id] ?? 0; const base = baseline!.endingRates.random?.[id] ?? 0;
+        if (id !== '(none)' && extended > maxEndingRate) add('extension.sim-ending-concentration', `${id}: ${extended} exceeds ${maxEndingRate}; baseline ${base}`);
+        return [id, {baseline: base, extended, delta: extended - base}];
+      }));
+    } catch (error) { add('extension.sim-crash', error instanceof Error ? error.message : String(error)); }
+  }
+  const round = extensionRewriteRound(rewriteRound);
+  const passed = issues.length === 0;
+  return {status: passed ? 'pass' : round < 3 ? 'rewrite' : 'human', rewriteRound: round, passed, issues,
+    ...(report ? {report} : {}), ...(baseline ? {baseline} : {}), ...(comparison ? {comparison} : {})};
+}
 
 // ── option extraction (from the projected view + authored effects, i.e. what a player could see)
 function optionsOf(view: AdventureView, world: WorldContent): SimOption[] {
@@ -201,10 +309,19 @@ export function defaultStrategies(world: WorldContent, profile: SimProfile = {})
       if (growing.length) return greedy(growth)(growing, _v, () => 0.5 + r() * 0.5);
       return pool.find(o => o.id === '__wait__') ?? pickRandom(pool, r);
     }},
+    ...(world.openingRoll?.enabled ? [
+      {id: 'rollRandom', label: '随机开局', pick: (o: SimOption[], _v: AdventureView, r: () => number) => pickRandom(o, r)},
+      {id: 'rollWorst', label: '最低开局', pick: (o: SimOption[], _v: AdventureView, r: () => number) => pickRandom(o, r)},
+      {id: 'rollBest', label: '最高开局', pick: (o: SimOption[], _v: AdventureView, r: () => number) => pickRandom(o, r)},
+    ] : []),
   ];
   const selected: readonly string[] = profile.strategyIds ?? profile.strategies ?? STRATEGY_IDS;
-  return strategies.flatMap((strategy, index) => selected.includes(STRATEGY_IDS[index]!)
-    ? [{...strategy, label: profile.strategyLabels?.[strategy.id] ?? strategy.label}] : []);
+  return strategies.flatMap((strategy, index) => (index < 6
+    ? selected.includes(STRATEGY_IDS[index]!) || selected.includes(strategy.id)
+    : selected.includes(strategy.id) || selected.includes(strategy.id === 'rollRandom' ? 'roll-random' : strategy.id === 'rollWorst' ? 'roll-worst' : 'roll-best'))
+    ? [{...strategy, label: profile.strategyLabels?.[strategy.id]
+      ?? profile.strategyLabels?.[STRATEGY_IDS[index]!]
+      ?? strategy.label}] : []);
 }
 
 function mulberry(seed: number): () => number {
@@ -220,21 +337,38 @@ interface RunResult {ending: string; decisions: number; uniqueChars: number; mon
   /** K15: ending passages / recap lines shown at the end of this run. */
   passageIds: string[]; recapIds: string[];
   /** S3: storylet plays this run. */
-  playCounts: Record<string, number>}
+  playCounts: Record<string, number>; actionIds: string[]; effectiveSteps: number; noProgress: boolean; repeatedStates: number; proseBodies: string[]; observedText: string[]}
 
-function runOne(revision: WorldRevision, strategy: Strategy, seed: number, maxSteps: number, now: string): RunResult {
+function runOne(revision: WorldRevision, strategy: Strategy, seed: number, maxSteps: number, now: string, inspectState?: SimulateOptions['inspectState']): RunResult {
   const world = revision.content;
   const rand = mulberry(seed ^ 0x9E3779B9);
   let state: AdventureState = createAdventureState(revision, `sim-${strategy.id}-${seed}`, now, {}, seed);
+  inspectState?.(state, world);
+  if (state.openingRoll && world.openingRoll?.enabled) {
+    const mode = strategy.id === 'rollWorst' ? 'min' : strategy.id === 'rollBest' ? 'max' : 'random';
+    const rolled = applyOpeningRollCommand(world, state.openingRoll, 'roll');
+    if (mode === 'min' || mode === 'max') {
+      const score = (set: {values: Record<string, number>}) => Object.entries(set.values).reduce((sum, [id, value]) => sum + value * (world.openingRoll!.score?.[id] ?? 1), 0);
+      const order = rolled.history.map((set, index) => ({index, value: score(set)})).sort((a, b) => mode === 'min' ? a.value - b.value : b.value - a.value);
+      state.openingRoll = applyOpeningRollCommand(world, rolled, 'select', order[0]?.index);
+    } else state.openingRoll = rolled;
+    state.openingRoll = applyOpeningRollCommand(world, state.openingRoll, 'confirm');
+    applyOpeningSet(world, state, state.openingRoll);
+  }
   const seen = new Set<string>(); let chars = 0;
+  const seenStates = new Set<string>(); const actionIds: string[] = []; const proseBodies: string[] = [];
+  const observedText: string[] = [];
   const read = (text: string | undefined) => { if (text && !seen.has(text)) { seen.add(text); chars += [...text.replace(/\s+/g, '')].length; } };
   const defs = world.resourceDefs ?? {};
   const samples: Record<string, number[]> = {}; const pinned: Record<string, number> = {};
   const res: RunResult = {ending: '(none)', decisions: 0, uniqueChars: 0, months: 0, deadEnd: false, samples, drawn: new Set(), plays: 0, repeats: 0,
-    visible: 0, locked: 0, pinned, steps: 0, costSteps: 0, enabledIds: new Set(), visibleLockedIds: new Set(), passageIds: [], recapIds: [], playCounts: {}};
+    visible: 0, locked: 0, pinned, steps: 0, costSteps: 0, enabledIds: new Set(), visibleLockedIds: new Set(), passageIds: [], recapIds: [], playCounts: {}, actionIds, effectiveSteps: 0, noProgress: false, repeatedStates: 0, proseBodies, observedText};
   let lastPlayed = '';
   let view = projectAdventure(state, revision);
+  inspectState?.(state, world);
   read(view.location.text);
+  if (view.location.text?.trim()) res.observedText.push(view.location.text);
+  seenStates.add(semanticDependencyState(state, view, world));
   for (let step = 0; step < maxSteps && !view.ended; step++) {
     for (const card of view.hand ?? []) res.drawn.add(card.storyletId);
     for (const [id, def] of Object.entries(defs)) {
@@ -251,34 +385,137 @@ function runOne(revision: WorldRevision, strategy: Strategy, seed: number, maxSt
     if (enabled.some(hasCost)) res.costSteps++;
     if (!enabled.length) { res.deadEnd = true; break; }
     const pick = strategy.pick(enabled, view, rand, state);
+    const beforeState = semanticDependencyState(state, view, world);
     if (pick.storyletId) {
       res.plays++; res.playCounts[pick.storyletId] = (res.playCounts[pick.storyletId] ?? 0) + 1; if (pick.storyletId === lastPlayed) res.repeats++; lastPlayed = pick.storyletId;
       const card = view.hand?.find(h => h.storyletId === pick.storyletId); read(card?.text);
     } else lastPlayed = '';
     state = {...state, history: []}; // the simulator does not need the transcript; keeps steps O(1)
     state = advanceAdventure(state, {actionId: pick.id, expectedTurn: state.turn, requestId: '00000000-0000-4000-8000-000000000000'}, world, now);
+    actionIds.push(pick.id);
     res.decisions++;
     for (const h of state.history) for (const line of h.text.split('\n')) read(line);
+    for (const h of state.history) if (h.text.trim()) res.observedText.push(h.text);
     view = projectAdventure(state, revision);
+    if (view.location.text?.trim()) res.observedText.push(view.location.text);
+    const afterState = semanticDependencyState(state, view, world);
+    if (seenStates.has(afterState)) res.repeatedStates++;
+    else if (afterState !== beforeState) res.effectiveSteps++;
+    seenStates.add(afterState);
+    inspectState?.(state, world);
   }
   if (view.ending) {
     res.ending = view.ending.id; read(view.ending.text);
+    if (view.ending.text.trim()) res.observedText.push(view.ending.text);
     for (const p of view.ending.passages ?? []) { read(p.text); res.passageIds.push(p.id); }
     for (const r of view.ending.recap ?? []) { read(r.text); res.recapIds.push(r.id); }
   }
   res.uniqueChars = chars; res.months = state.elapsed;
+  res.noProgress = res.decisions > 0 && res.effectiveSteps === 0;
   return res;
 }
 
+export function semanticDependencyState(state: AdventureState, view: AdventureView, world: WorldContent): string {
+  const available = [...view.actions.map(action => [action.id, action.enabled] as const), ...(view.hand ?? []).flatMap(card => card.choices.map(choice => [choice.id, choice.enabled] as const))]
+    .sort(([a], [b]) => a.localeCompare(b));
+  const thresholds = new Map<string, number[]>();
+  const collect = (conditions: readonly import('@novel-game/contracts').WorldCondition[] | undefined): void => {
+    for (const condition of conditions ?? []) {
+      if (condition.kind === 'resource') {
+        const values = thresholds.get(condition.resourceId) ?? [];
+        if (condition.atLeast !== undefined) values.push(condition.atLeast);
+        if (condition.atMost !== undefined) values.push(condition.atMost);
+        thresholds.set(condition.resourceId, values);
+      } else if (condition.kind === 'anyOf') collect(condition.conditions);
+    }
+  };
+  for (const action of world.actions) collect(action.requires);
+  for (const event of world.events) collect(event.when);
+  for (const condition of [...(world.endConditions?.win ?? []), ...(world.endConditions?.lose ?? [])]) collect(condition.when);
+  for (const ending of world.endings) collect(ending.when);
+  for (const card of world.storylets ?? []) {
+    collect(card.when);
+    for (const mod of card.weight?.mods ?? []) {
+      collect(mod.when);
+      if (mod.resourceId) { const values = thresholds.get(mod.resourceId) ?? [];
+        if (mod.atLeast !== undefined) values.push(mod.atLeast); if (mod.atMost !== undefined) values.push(mod.atMost);
+        thresholds.set(mod.resourceId, values); }
+    }
+    for (const choice of card.choices) { collect(choice.availableWhen); collect(choice.requires); }
+    for (const body of card.textCases ?? []) collect(body.when);
+  }
+  for (const location of world.locations) for (const variant of location.textVariants ?? []) collect(variant.when);
+  for (const ending of world.endings) {
+    for (const variant of ending.textVariants ?? []) collect(variant.when);
+    for (const passage of ending.passages ?? []) collect(passage.when);
+  }
+  for (const recap of world.recap ?? []) collect(recap.when);
+  const resourceBands = [...thresholds].sort(([a], [b]) => a.localeCompare(b)).map(([id, points]) =>
+    [id, [...new Set(points)].sort((a, b) => a - b).filter(point => (state.resources?.[id] ?? 0) >= point).length]);
+  const dependencies = collectWorldDependencies(world);
+  return JSON.stringify({location: state.locationId,
+    facts: Object.entries(state.facts).filter(([id]) => dependencies.facts.has(id)).sort(),
+    known: [...state.knownFactIds].filter(id => dependencies.known.has(id)).sort(),
+    ledger: state.ledger ? {held: state.ledger.heldFactIds.filter(id => dependencies.ledger.has(id)).sort(),
+      consumed: state.ledger.consumedFactIds.filter(id => dependencies.ledger.has(id)).sort(),
+      committed: state.ledger.committedFactIds.filter(id => dependencies.ledger.has(id)).sort()} : undefined,
+    resourceBands, available, hand: (view.hand ?? []).map(card => ({id: card.storyletId,
+      choices: card.choices.map(choice => [choice.label, choice.enabled])})), ending: view.ending?.id ?? null});
+}
+function collectWorldDependencies(world: WorldContent): {facts: Set<string>; known: Set<string>; ledger: Set<string>} {
+  const graph = causalDependencyGraph(world);
+  const facts = new Set<string>(); const known = new Set<string>(); const ledger = new Set<string>();
+  const conditions = (items: readonly import('@novel-game/contracts').WorldCondition[] | undefined): void => {
+    for (const condition of items ?? []) {
+      if (condition.kind === 'fact') facts.add(condition.factId);
+      if (condition.kind === 'known') { facts.add(condition.factId); known.add(condition.factId); }
+      if (condition.kind === 'npc_knows') facts.add(condition.factId);
+      if (condition.kind === 'anyOf') conditions(condition.conditions);
+    }
+  };
+  for (const action of world.actions) conditions([...action.requires, ...action.availableWhen]);
+  for (const event of world.events) conditions(event.when);
+  for (const item of [...(world.endConditions?.win ?? []), ...(world.endConditions?.lose ?? [])]) conditions(item.when);
+  for (const ending of world.endings) conditions(ending.when);
+  for (const card of world.storylets ?? []) {
+    conditions(card.when);
+    for (const mod of card.weight?.mods ?? []) conditions(mod.when);
+    for (const choice of card.choices) conditions([...(choice.availableWhen ?? []), ...(choice.requires ?? [])]);
+    for (const body of card.textCases ?? []) conditions(body.when);
+  }
+  for (const location of world.locations) for (const variant of location.textVariants ?? []) conditions(variant.when);
+  for (const ending of world.endings) {
+    for (const variant of ending.textVariants ?? []) conditions(variant.when);
+    for (const passage of ending.passages ?? []) conditions(passage.when);
+  }
+  for (const recap of world.recap ?? []) conditions(recap.when);
+  for (const fact of graph.factIds) facts.add(fact);
+  for (const id of graph.ledgerFactIds) { facts.add(id); ledger.add(id); }
+  for (const entity of [...world.actions, ...world.events, ...world.endings]) {
+    for (const assertion of entity.ledgerAssertions ?? []) { facts.add(assertion.factId); ledger.add(assertion.factId); }
+    for (const effect of 'effects' in entity ? entity.effects : []) if (effect.kind === 'ledger') { facts.add(effect.factId); ledger.add(effect.factId); }
+  }
+  for (const card of world.storylets ?? []) for (const choice of card.choices) {
+    for (const assertion of choice.ledgerAssertions ?? []) { facts.add(assertion.factId); ledger.add(assertion.factId); }
+    for (const effect of choice.effects) if (effect.kind === 'ledger') { facts.add(effect.factId); ledger.add(effect.factId); }
+  }
+  return {facts, known, ledger};
+}
 /** G1 pacing line (also applied per route by the coverage report). */
+export const MIN_RUN_DECISIONS = 5;
+export const MIN_RUN_LENGTH_CHECK = 'minimum-run-length';
 export const PACING_LINE = {decisions: 60, uniqueChars: 10000} as const;
-export const STRATEGY_IDS = ['random', 'greedy-growth', 'greedy-money', 'modao', 'merchant', 'lazy'] as const;
+export const STRATEGY_IDS = ['random', 'greedy-growth', 'greedy-money', 'modao', 'merchant', 'lazy', 'rollRandom', 'rollWorst', 'rollBest'] as const;
 const LEGACY_METRICS: readonly FunMetricId[] = ['G1', 'G2', 'G4', 'G6', 'G8'];
 const DEFAULT_THRESHOLDS = {minEndingRate: 0.05, maxRandomEndingRate: 0.6, minFailureFreeEndingRate: 0, minCollectionCompletionRate: 1};
 
 export async function simulateWorld(revision: WorldRevision, opts: SimulateOptions = {}): Promise<PlaytestReport> {
+  if (opts.extensionBaseline) revision = withoutExtensions(revision);
+  if (revision.content.extensions?.length) await initializeExtensionSandbox();
   const started = Date.now();
   const world = revision.content;
+  const evidenceRuns = opts.evidence?.runs ?? 0;
+  if (opts.evidence && (!Number.isInteger(evidenceRuns) || evidenceRuns < 1 || evidenceRuns > 20 || !Number.isInteger(opts.evidence.seed) || opts.evidence.seed < 0 || opts.evidence.seed > 0xffffffff || !Number.isInteger(opts.evidence.maxSteps) || opts.evidence.maxSteps < 1 || opts.evidence.maxSteps > 300)) throw new Error('Invalid evidence simulation bounds');
   const seeds = opts.seeds ?? 200; const maxSteps = opts.maxSteps ?? 1500; const now = opts.now ?? new Date().toISOString();
   const pacingLine = opts.profile?.pacingLine ?? PACING_LINE;
   const thresholds = {...DEFAULT_THRESHOLDS, ...opts.profile?.thresholds};
@@ -296,18 +533,22 @@ export async function simulateWorld(revision: WorldRevision, opts: SimulateOptio
   const CHECKPOINTS = [0, 0.25, 0.5, 0.75, 1];
   // K15 coverage: per ending, runs that reached it / runs with ≥ 1 recap line; passage and recap hit counts.
   const k15Runs: Record<string, {runs: number; withRecap: number; passages: number}> = {}; const passageHits: Record<string, number> = {}; const recapHits: Record<string, number> = {};
+  let completedRuns = 0; let totalDecisions = 0; let minimumDecisions = Infinity;
   // S3 pacing inputs.
   const randomByEnding: Record<string, number[]> = {}; const minByEnding: Record<string, number> = {}; const randomPlays: Record<string, number> = {};
   for (const strategy of strategies) {
     const counts: Record<string, number> = {}; const decisions: number[] = []; const unique: number[] = []; const months: number[] = [];
     for (let i = 0; i < seeds; i++) {
-      const r = runOne(revision, strategy, i + 1, maxSteps, now);
+      const r = runOne(revision, strategy, i + 1, maxSteps, now, opts.inspectState);
       counts[r.ending] = (counts[r.ending] ?? 0) + 1;
       const k = (k15Runs[r.ending] ??= {runs: 0, withRecap: 0, passages: 0}); k.runs++; if (r.recapIds.length) k.withRecap++; k.passages += r.passageIds.length;
       for (const id of r.passageIds) passageHits[`${r.ending}/${id}`] = (passageHits[`${r.ending}/${id}`] ?? 0) + 1;
       for (const id of r.recapIds) recapHits[id] = (recapHits[id] ?? 0) + 1;
       decisions.push(r.decisions); unique.push(r.uniqueChars); months.push(r.months);
-      if (r.ending !== '(none)') minByEnding[r.ending] = Math.min(minByEnding[r.ending] ?? Infinity, r.decisions);
+      if (r.ending !== '(none)') {
+        minByEnding[r.ending] = Math.min(minByEnding[r.ending] ?? Infinity, r.decisions);
+        completedRuns++; totalDecisions += r.decisions; minimumDecisions = Math.min(minimumDecisions, r.decisions);
+      }
       if (strategy.id === 'random') { (randomByEnding[r.ending] ??= []).push(r.decisions); for (const [id, n] of Object.entries(r.playCounts)) randomPlays[id] = (randomPlays[id] ?? 0) + n; }
       for (const id of r.drawn) drawnRuns.set(id, (drawnRuns.get(id) ?? 0) + 1);
       runs++; if (r.deadEnd) deadEnds++; plays += r.plays; repeats += r.repeats; visible += r.visible; locked += r.locked;
@@ -360,10 +601,19 @@ export async function simulateWorld(revision: WorldRevision, opts: SimulateOptio
     {id: 'G4', label: '卡池', line: '连续两回合同一张 = 0 次；没有从未抽到的卡', measured: `连续重复 ${repeats} 次（${pct(consecutiveRepeatRate)}）· 从未抽到 ${neverDrawn.length} 张`, pass: repeats === 0 && neverDrawn.length === 0},
     {id: 'G6', label: '时钟', line: '时限结局在原地策略下可达', measured: endingRates.lazy ? `「${lazyLabel}」时限结局 ${pct(lazyTimeout)}` : `未运行「${lazyLabel}」`, pass: lazyTimeout > 0},
     {id: 'G8', label: '取舍', line: '每回合可见选项里 ≥ 1 个有代价；0 死路', measured: `有代价回合 ${pct(steps ? costSteps / steps : 0)} · 死路 ${deadEnds} · 锁定选项 ${pct(visible ? locked / visible : 0)}`, pass: steps > 0 && costSteps === steps && deadEnds === 0},
+    ...(world.openingRoll?.enabled ? [
+      {id:'opening-roll-worst',label:'最低开局',line:'最低开局的失败结局率 ≤ 60%',measured:`失败结局 ${pct(Math.max(0,...endings.filter(e=>e.kind==='failure').map(e=>endingRates.rollWorst?.[e.id]??0)))}`,pass:Math.max(0,...endings.filter(e=>e.kind==='failure').map(e=>endingRates.rollWorst?.[e.id]??0))<=0.6},
+      {id:'opening-roll-best',label:'最高开局',line:'最高开局最常见结局 ≤ 50%',measured:`最高结局 ${pct(Math.max(0,...Object.values(endingRates.rollBest??{})))}`,pass:Math.max(0,...Object.values(endingRates.rollBest??{}))<=0.5},
+    ] : []),
     {id: 'pressure-bidirectional', label: '压力节拍', line: '至少 1 个压力资源的中位曲线同时出现上升与下降', measured: pressureIds.length ? `双向 ${bidirectional.length}/${pressureIds.length} 个压力资源` : '没有带边界结局的压力资源', pass: bidirectional.length > 0},
     {id: 'growth-monotonic', label: '成长曲线', line: `主成长资源「${defs[growth]?.label ?? growth}」中位数逐段单调上升`, measured: growthValues.length ? growthValues.join(' → ') : '未采样主成长资源', pass: growthMonotonic},
     {id: 'failure-free-ending-rate', label: '治愈结局', line: `「随机」零失败结局率 ≥ ${pct(thresholds.minFailureFreeEndingRate)}`, measured: randomRates ? `零失败结局率 ${pct(failureFreeRate)} · 失败结局 ${pct(failureRate)}` : '未运行「随机」', pass: !!randomRates && failureFreeRate >= thresholds.minFailureFreeEndingRate},
   ].filter(check => metricEnabled(check.id as FunMetricId));
+  // Never filter this safety check through a genre's optional metric matrix (nor confuse a timeout with a dead end).
+  const runLength = {completedRuns, ...(completedRuns ? {minimum: minimumDecisions, average: totalDecisions / completedRuns} : {})};
+  checks.push({id: MIN_RUN_LENGTH_CHECK, label: '最低局长', line: `已完成局的最短与平均局长均 ≥ ${MIN_RUN_DECISIONS} 次决策`,
+    measured: completedRuns ? `${completedRuns} 局 · 最短 ${runLength.minimum} 步 · 平均 ${runLength.average!.toFixed(1)} 步` : '没有已完成局（未结束的截断局不计入）',
+    pass: !completedRuns || (runLength.minimum! >= MIN_RUN_DECISIONS && runLength.average! >= MIN_RUN_DECISIONS)});
   const routeCoverage = opts.routes === false ? undefined
     : await coverRoutes(revision, endingRates, strategies.map(s => s.id), opts.routes === undefined || opts.routes === 'auto' ? [] : opts.routes,
       opts.routeSeeds ?? Math.min(seeds, 20), maxSteps, now, opts.yieldEvery, opts.routeEndings ?? 'all', minByEnding, pacingLine, thresholds.minEndingRate);
@@ -387,18 +637,50 @@ export async function simulateWorld(revision: WorldRevision, opts: SimulateOptio
   }
   const pacing = opts.pacing === false ? undefined : diagnosePacing(world, {line: {...pacingLine}, ...(rnd ? {random: rnd} : {}), randomRuns: endingRates.random ? seeds : 0,
     randomByEnding, minByEnding, randomPlays});
+  const evidence = opts.evidence ? collectEvidence(revision, strategies, opts.evidence, now) : undefined;
   return {...(opts.draftId ? {draftId: opts.draftId} : {}), draftVersion: opts.draftVersion ?? 0, createdAt: now,
     ...(opts.profile?.id ? {profileId: opts.profile.id} : {}), seeds, maxSteps, timeUnit: world.clock ? world.clock.unit : 'turn',
     strategies: strategies.map(s => ({id: s.id, label: s.label, runs: seeds})), checks, endingRates, endings, medians, resourceBands,
-    cards: {neverDrawn, drawRate, consecutiveRepeatRate}, deadEnds, lockedRatio: visible ? locked / visible : 0, pinnedRatio, gatesNeverMet,
+    cards: {neverDrawn, drawRate, consecutiveRepeatRate}, runLength, deadEnds, lockedRatio: visible ? locked / visible : 0, pinnedRatio, gatesNeverMet,
     ...(world.recap?.length || world.endings.some(e => e.passages?.length) ? {endingExtras: {
       byEnding: k15Runs, passageHits, recapHits,
       passagesNeverShown: world.endings.flatMap(e => (e.passages ?? []).map(p => `${e.id}/${p.id}`)).filter(key => !passageHits[key]),
       recapNeverShown: (world.recap ?? []).map(r => r.id).filter(id => !recapHits[id]),
       endingsWithoutRecap: world.recap?.length ? Object.entries(k15Runs).filter(([id, v]) => id !== '(none)' && v.runs > 0 && v.withRecap === 0).map(([id]) => id) : []}} : {}),
     ...(routeCoverage ? {routeCoverage} : {}),
-    ...(pacing ? {pacing} : {}),
+    ...(pacing ? {pacing} : {}), ...(evidence ? {evidence} : {}),
     durationMs: Date.now() - started};
+}
+
+function collectEvidence(revision: WorldRevision, strategies: Strategy[], request: {runs: number; seed: number; maxSteps: number}, now: string) {
+  const selected = strategies.slice(0, 8); const witnesses: NonNullable<PlaytestReport['evidence']>['witnesses'] = [];
+  const deadEnds: NonNullable<PlaytestReport['evidence']>['deadEnds'] = []; const hits = new Map<string, NonNullable<PlaytestReport['evidence']>['endingReachability'][number]['witness']>();
+  let cappedRuns = 0; let repeatedStates = 0; let noProgressRuns = 0; const cappedWitnesses: NonNullable<PlaytestReport['evidence']>['cappedWitnesses'] = [];
+  const samples: NonNullable<PlaytestReport['evidence']>['samples'] = [];
+  for (const strategy of selected) for (let run = 0; run < request.runs; run++) {
+    const seed = (request.seed + run) >>> 0;
+    const result = runOne(revision, strategy, seed, request.maxSteps, now);
+    repeatedStates += result.repeatedStates;
+    if (result.ending === '(none)' && !result.deadEnd) {
+      cappedRuns++; cappedWitnesses.push({strategy: strategy.id, seed, rawSteps: result.decisions, effectiveSteps: result.effectiveSteps, actionIds: result.actionIds});
+    }
+    samples.push({strategy: strategy.id, seed, ...(result.ending !== '(none)' ? {endingId: result.ending} : {}),
+      outcome: result.ending !== '(none)' ? 'ending' : result.deadEnd ? 'dead-end' : 'capped', rawSteps: result.decisions,
+      effectiveSteps: result.effectiveSteps, actionIds: result.actionIds});
+    if (result.deadEnd) deadEnds.push({strategy: strategy.id, seed, rawSteps: result.decisions, actionIds: result.actionIds});
+    if (result.noProgress && result.decisions > 0) noProgressRuns++;
+    if (result.ending !== '(none)' && !hits.has(result.ending)) {
+      const witness = {strategy: strategy.id, seed, actionIds: result.actionIds}; hits.set(result.ending, witness);
+      witnesses.push({strategy: strategy.id, seed, endingId: result.ending, rawSteps: result.decisions, effectiveSteps: result.effectiveSteps, actionIds: result.actionIds});
+    }
+  }
+  const stats = (values: number[]) => ({minimum: Math.min(...values), average: values.reduce((sum, value) => sum + value, 0) / values.length, maximum: Math.max(...values)});
+  return {schemaVersion: 1 as const, checkVersion: 'playtest-evidence-1', reportId: `sim-${request.seed}-${request.runs}-${request.maxSteps}`,
+    contentHash: '', runs: request.runs, seed: request.seed, maxSteps: request.maxSteps, strategies: selected.map(strategy => strategy.id),
+    status: 'observed' as const, endingReachability: revision.content.endings.map(ending => ({endingId: ending.id,
+      status: hits.has(ending.id) ? 'observed' as const : 'sampled-not-hit' as const, ...(hits.has(ending.id) ? {witness: hits.get(ending.id)} : {})})),
+     witnesses, samples, distribution: {runs: samples.length, rawSteps: stats(samples.map(sample => sample.rawSteps)), effectiveSteps: stats(samples.map(sample => sample.effectiveSteps))},
+     deadEnds, cappedRuns, cappedWitnesses, repeatedStates, noProgressRuns, prose: {observed: samples.some(sample => sample.rawSteps > 0 && !!revision.content.actions.length), repeatedBodies: []}};
 }
 
 const ROUTE_HIT_LINE = 0.2;

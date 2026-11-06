@@ -1,0 +1,4 @@
+{
+  "openingRoll":{"enabled":true,"mode":"preset","stats":[{"resourceId":"strength","min":1,"max":10,"dist":"bell","step":1},{"resourceId":"agility","min":1,"max":10,"dist":"bell","step":1},{"resourceId":"stamina","min":1,"max":10,"dist":"bell","step":1},{"resourceId":"intellect","min":1,"max":10,"dist":"bell","step":1}],"presets":[{"id":"knifeman","weight":1,"values":{"strength":8,"agility":6,"stamina":7,"intellect":4}},{"id":"scholar","weight":1,"values":{"strength":3,"agility":5,"stamina":5,"intellect":9}}],"rerolls":1,"keepBest":true,"lockAfterStart":true,"tags":[]},
+  "resourceDefs":{"strength":{"label":"力量","min":1,"max":10},"agility":{"label":"敏捷","min":1,"max":10},"stamina":{"label":"体力","min":1,"max":10},"intellect":{"label":"智识","min":1,"max":10}}
+}

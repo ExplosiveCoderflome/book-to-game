@@ -6,4 +6,6 @@ export { AgentRepairService } from './application/repair-service.js';
 export { SqliteRepairRepository } from './infrastructure/sqlite-repair-repository.js';
 export { AgentChatService } from './application/chat-service.js';
 export { SqliteChatRepository } from './infrastructure/sqlite-chat-repository.js';
-export type { ChatDeps, ChatModel, ChatTool } from './application/chat-ports.js';
+export type { ChatDeps, ChatModel, ChatTool, ChatRunHooks } from './application/chat-ports.js';
+export { GAME_DEV_SKILLS, gameDevSkillPromptIndex, listGameDevSkills, loadGameDevSkill,
+  type GameDevSkill } from './skills/index.js';

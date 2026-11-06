@@ -1,5 +1,5 @@
 import type { SqliteDatabase } from '../../../platform/database.js';
-import type { AdventureActInput, AdventureView } from '@novel-game/contracts';
+import type { AdventureActInput, AdventureView, OpeningRollCommand } from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
 import type { AdventureRepository } from '../application/ports.js';
 import type { AdventureState } from '@novel-game/play-runtime';
@@ -42,6 +42,14 @@ export class SqliteAdventureRepository implements AdventureRepository {
       const saved = this.db.prepare('UPDATE adventure_sessions SET turn=?,data=?,updated_at=? WHERE id=? AND turn=?')
         .run(state.turn, JSON.stringify(state), state.updatedAt, id, input.expectedTurn);
       if (!saved.changes) throw new AppError('SESSION_TURN_CONFLICT', '存档已推进，请刷新后再行动', 409);
+      return response;
+    }).immediate();
+  }
+  updateOpening(id: string, _command: OpeningRollCommand, transition: (state: AdventureState) => {state: AdventureState; response: AdventureView}): AdventureView {
+    return this.db.transaction(() => {
+      const current = this.get(id); if (!current) throw new AppError('SESSION_NOT_FOUND', '冒险存档不存在', 404);
+      const {state,response}=transition(current);
+      this.db.prepare('UPDATE adventure_sessions SET data=?,updated_at=? WHERE id=?').run(JSON.stringify(state),state.updatedAt,id);
       return response;
     }).immediate();
   }

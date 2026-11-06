@@ -9,6 +9,8 @@
   },
   "dependencies": {
     "@novel-game/contracts": "*",
-    "@novel-game/rules": "*"
+    "@novel-game/rules": "*",
+    "acorn": "8.15.0",
+    "quickjs-emscripten": "0.32.0"
   }
 }

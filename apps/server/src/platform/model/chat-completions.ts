@@ -14,6 +14,7 @@ import { ANALYSIS_SYSTEM, EXPAND_SYSTEM, EXTEND_SCENE_SYSTEM, FILL_SCENE_TEXT_SY
 import { classifyStatus, parseRetryAfter, retryDelayMs } from './retry.js';
 import { sanitizeWorldCandidate } from './sanitize-world.js';
 import { BUILDING_DRAFT_SYSTEM, ITEM_DRAFT_SYSTEM, LOOT_DRAFT_SYSTEM, MAP_DRAFT_SYSTEM, SHELF_DRAFT_SYSTEM, WORLD_SYSTEM, compactWorldDossier } from './world-prompts.js';
+import { type PlanPart } from '../../modules/generation/index.js';
 import { buildingDraftModelOutputSchema, itemDraftModelOutputSchema, lootDraftModelOutputSchema, mapDraftModelOutputSchema, shelfDraftModelOutputSchema, type BuildingDraftModelOutput, type ItemDraftModelOutput, type LootDraftModelOutput, type MapDraftModelOutput, type ShelfDraftModelOutput } from '@novel-game/contracts';
 
 export const DEFAULT_MAX_ATTEMPTS = 3;
@@ -23,6 +24,7 @@ export const DEFAULT_REPAIR_ATTEMPTS = 3;
 
 export interface ModelConfig {
   baseUrl: string; model: string; apiKey: string; timeoutMs: number;
+  streamIdleTimeoutMs?: number; streamTotalTimeoutMs?: number;
   maxAttempts?: number; retryBaseMs?: number; retryMaxMs?: number; repairAttempts?: number;
 }
 export interface ModelClientHooks {
@@ -43,6 +45,46 @@ export class ChatCompletionsProvider implements GenerationProvider {
       brief, chapterIds, dossier: compactWorldDossier(analysis),
       schema: z.toJSONSchema(sizedPlan, {unrepresentable: 'any', reused: 'ref'}),
     }, signal, productionPlanSchema, feedback?.errors ?? []);
+  }
+  async planProductionPart(analysis: AnalysisResult, brief: ProductionBrief, chapterIds: string[], part: PlanPart, signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}): Promise<unknown> {
+    const planSchema = productionPlanSchema.extend({world: worldContentSchema.safeExtend({storylets: z.array(storyletSchema).min(VOLUME_TIERS[brief.tier].cards)})});
+    const worldItemSchemas: Record<string, ZodType> = {
+      locations: (worldContentSchema.shape.locations as any).element, actions: (worldContentSchema.shape.actions as any).element,
+      facts: (worldContentSchema.shape.facts as any).element, npcs: (worldContentSchema.shape.npcs as any).element,
+      events: (worldContentSchema.shape.events as any).element, endings: (worldContentSchema.shape.endings as any).element,
+      storylets: storyletSchema,
+    };
+    const idRows = z.array(z.object({id: z.string().min(1)}));
+    const endingRows = z.array(z.object({id: z.string().min(1), kind: z.enum(['ending', 'failure', 'timeout'])}));
+    const skeletonSchema = z.object({skeleton: z.object({
+      bible: planSchema.shape.bible,
+      routes: idRows,
+      world: z.object({
+        schemaVersion: z.literal(1), mode: z.literal('open'), title: z.string().min(1), premise: z.string().min(1),
+        playerRole: z.string().min(1), goal: z.string().min(1), worldRules: z.array(z.string().min(1)).min(1),
+        adaptationNotes: z.string(), sourceChapterIds: z.array(z.string().min(1)).min(1), initialLocationId: z.string().min(1),
+        timeLimit: z.number().int().min(3).max(100), timeoutEnding: z.string().min(1),
+        resourceDefs: worldContentSchema.shape.resourceDefs, resources: worldContentSchema.shape.resources,
+        clock: worldContentSchema.shape.clock, production: worldContentSchema.shape.production,
+          locations: idRows, actions: idRows, facts: idRows, npcs: idRows, events: idRows, endings: endingRows, storylets: idRows,
+      }),
+    })});
+    const groupSchema: ZodType<unknown> = part.kind === 'skeleton' ? skeletonSchema
+      : z.object({items: z.array((part.kind === 'routes' ? planSchema.shape.routes.element : worldItemSchemas[part.kind]) as ZodType).length(part.ids.length)});
+    const compactSkeleton = part.kind === 'skeleton' ? undefined : part.skeleton;
+    const system = part.kind === 'skeleton'
+      ? '你是互动游戏系统设计师。只为后续分段规划输出简短骨架JSON。返回{skeleton:{bible,routes,world}}。bible完整；world包含最终schema所需非数组字段及完整ID清单。resourceDefs至少4种且每种都有min/max/initial，必须包含人物关系与压力。endings每项明确id/kind，S档至少3普通+1失败、M档至少4普通+2失败，timeout不能顶替failure。其他数组对象只给id，不写choices、条件、效果或正文。玩家身份按brief原样，章节ID完全匹配。严格按用户提供的schema输出JSON。'
+      : '你是互动游戏系统设计师。只完整填充给定ID分段，返回{items:[...]}。逐项保留骨架ID；每个factId必须已存在于骨架world.facts，不得新增或拼错事实ID。骨架未声明world.clock时禁止使用clock条件，行动进度一律用time条件；endings的kind必须与骨架一致，timeout不算failure。对象必须符合给定schema及WorldContent规则，不得省略required字段。只返回JSON，不解释。';
+    const response = await this.complete<unknown>(`plan_production_${part.key}`, system, {
+      phase: part.kind === 'skeleton' ? 'skeleton' : 'detail', part: {key: part.key, kind: part.kind, ids: part.ids},
+      brief, chapterIds, dossier: compactWorldDossier(analysis), skeleton: compactSkeleton,
+      completedIds: Object.fromEntries(Object.entries(part.completed).map(([key, value]) => [key, Array.isArray(value) ? value.map(item => (item as {id?: string}).id) : []])),
+      instruction: part.kind === 'skeleton'
+        ? '返回 {skeleton:{...}}。严格使用schema要求的完整bible与world非数组字段。routes、locations、actions、facts、npcs、events、storylets都只给完整ID清单，每个对象只含id；endings每项只含id/kind且满足普通与失败结局数量。resourceDefs先写齐至少4种有界资源并包含人物关系、压力。storylet数量达到档位，其他集合至少满足最终契约的最小数量。不要输出规则细节。'
+        : `只补全 part.ids 中的${part.kind}对象，按骨架保持所有ID不变。返回 {items:[...]}，items 顺序与ID清单一致；不得改动其他集合。`,
+      schema: z.toJSONSchema(groupSchema, {unrepresentable: 'any', reused: 'ref'}),
+    }, signal, groupSchema, feedback?.errors ?? []);
+    return part.kind === 'skeleton' ? (response as {skeleton: unknown}).skeleton : response;
   }
   async writeProductionUnit(plan: ProductionPlan, unit: ProductionUnit, _previousTexts: ProductionNarrative[], signal: AbortSignal, feedback?: {errors: ModelRepairIssue[]}): Promise<ProductionNarrative> {
     const minChars = unit.kind === 'storylet' ? 120 : unit.kind === 'location' ? 150 : ['ending', 'timeout'].includes(unit.kind) ? 180 : unit.kind === 'action' ? 20 : 60;
@@ -244,23 +286,50 @@ export class ChatCompletionsProvider implements GenerationProvider {
     const maxMs = Math.max(baseMs, bound(this.config.retryMaxMs, DEFAULT_RETRY_MAX_MS, 0, 120_000));
     const messages = [{role: 'system', content: system}, {role: 'user', content: JSON.stringify(data)}];
     if (feedback.length) messages.push({role: 'user', content: repairPrompt(feedback)});
-    const body = JSON.stringify({model: this.config.model, response_format: {type: 'json_object'}, messages,
+    const streaming = operation.startsWith('plan_production') || operation === 'write_production_unit';
+    const makeBody = (stream: boolean) => JSON.stringify({model: this.config.model, response_format: {type: 'json_object'}, messages,
       // Keep planning reasoning modest, and reserve prose budgets for the answer itself.
       ...(new URL(this.config.baseUrl).hostname === 'api.deepseek.com' ? (operation === 'plan_production'
         ? {thinking: {type: 'enabled'}, reasoning_effort: 'low'} : {thinking: {type: 'disabled'}}) : {}),
-      ...(operation === 'plan_production' ? {max_tokens: 32768} : operation === 'write_production_unit' ? {max_tokens: (data as {variants: number}).variants === 2 ? 8000 : 4000} : {})});
+      ...(operation === 'plan_production' ? {max_tokens: 32768} : operation === 'plan_production_skeleton' ? {max_tokens: 6000} : operation.startsWith('plan_production_') ? {max_tokens: 12000} : operation === 'write_production_unit' ? {max_tokens: (data as {variants: number}).variants === 2 ? 8000 : 4000} : {}),
+      ...(stream ? {stream: true} : {})});
+    const body = makeBody(streaming);
+    const nonStreamingBody = streaming ? makeBody(false) : body;
     const requestBytes = Buffer.byteLength(body, 'utf8');
     let last: AppError | undefined;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       signal.throwIfAborted();
       const startedAt = performance.now();
-      this.logger?.info('model.request.started', {operation, model: this.config.model, attempt, requestBytes, timeoutMs: this.config.timeoutMs});
+      const totalMs = streaming ? this.config.streamTotalTimeoutMs ?? 600_000 : this.config.timeoutMs;
+      const controller = new AbortController();
+      const requestSignal = AbortSignal.any([signal, controller.signal]);
+      const totalTimer = setTimeout(() => controller.abort(new DOMException('Model total timeout', 'TimeoutError')), totalMs);
+      let idleTimer: ReturnType<typeof setTimeout> | undefined;
+      const clearIdle = () => {if (idleTimer) clearTimeout(idleTimer);};
+      const touch = () => {
+        clearIdle();
+        idleTimer = setTimeout(() => controller.abort(new DOMException('Model idle timeout', 'TimeoutError')), this.config.streamIdleTimeoutMs ?? 120_000);
+      };
+      if (streaming) touch();
+      this.logger?.info('model.request.started', {operation, model: this.config.model, attempt, requestBytes, timeoutMs: totalMs, streaming});
       try {
-        const response = await fetch(`${this.config.baseUrl.replace(/\/$/, '')}/chat/completions`, {
-          method: 'POST', signal: AbortSignal.any([signal, AbortSignal.timeout(this.config.timeoutMs)]),
-          headers: {'Content-Type': 'application/json', ...(this.config.apiKey ? {Authorization: `Bearer ${this.config.apiKey}`} : {})},
-          body,
+        let response = await fetch(`${this.config.baseUrl.replace(/\/$/, '')}/chat/completions`, {
+          method: 'POST', signal: requestSignal,
+          headers: {'Content-Type': 'application/json', ...(this.config.apiKey ? {Authorization: `Bearer ${this.config.apiKey}`} : {})}, body,
         });
+        if (streaming && [400, 404, 405, 422, 501].includes(response.status)) {
+          await response.body?.cancel().catch(() => undefined);
+          clearIdle();
+          this.logger?.warn('model.stream.unavailable', {operation, model: this.config.model, status: response.status});
+          response = await fetch(`${this.config.baseUrl.replace(/\/$/, '')}/chat/completions`, {
+            method: 'POST', signal: requestSignal,
+            headers: {'Content-Type': 'application/json', ...(this.config.apiKey ? {Authorization: `Bearer ${this.config.apiKey}`} : {})}, body: nonStreamingBody,
+          });
+        }
+        if (streaming && response.ok && !response.headers.get('content-type')?.includes('text/event-stream')) {
+          this.logger?.warn('model.stream.unavailable', {operation, model: this.config.model, contentType: response.headers.get('content-type') ?? 'unknown'});
+          clearIdle();
+        }
         if (!response.ok) {
           const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'));
           const retryable = classifyStatus(response.status) === 'retryable';
@@ -269,10 +338,14 @@ export class ChatCompletionsProvider implements GenerationProvider {
             layer: 'transport', status: response.status, retryable, retryAfterMs, attempt,
           });
         }
-        return await readEnvelope(response, attempt, startedAt);
+        return await (streaming && response.headers.get('content-type')?.includes('text/event-stream')
+          ? readStreamEnvelope(response, attempt, startedAt, touch)
+          : readEnvelope(response, attempt, startedAt));
       } catch (error) {
+        clearTimeout(totalTimer);
+        clearIdle();
         if (signal.aborted) throw error;
-        last = asTransportError(error, attempt, startedAt);
+        last = asTransportError(controller.signal.aborted ? controller.signal.reason : error, attempt, startedAt);
         const details = record(last.details);
         const retryable = details.retryable === true && attempt < maxAttempts;
         this.logger?.error('model.request.failed', {
@@ -280,6 +353,7 @@ export class ChatCompletionsProvider implements GenerationProvider {
           status: typeof details.status === 'number' ? details.status : undefined,
           code: last.code, durationMs: Math.round(performance.now() - startedAt),
           errorName: error instanceof Error ? error.name : 'UNKNOWN',
+          causeName: details.causeName, causeCode: details.causeCode,
         });
         if (!retryable) throw last;
         const delayMs = retryDelayMs({
@@ -288,6 +362,10 @@ export class ChatCompletionsProvider implements GenerationProvider {
         });
         this.logger?.warn('model.retry', {operation, model: this.config.model, attempt, status: details.status, code: last.code, delayMs, retryAfterMs: details.retryAfterMs});
         await this.sleep(delayMs, signal);
+      } finally {
+        clearTimeout(totalTimer);
+        clearIdle();
+        controller.abort();
       }
     }
     throw last ?? new AppError('MODEL_CONNECTION_FAILED', '模型连接失败或超时，请检查服务地址与网络。已保存完成的步骤。', 502);
@@ -299,6 +377,7 @@ export class ChatCompletionsProvider implements GenerationProvider {
     if (ms <= 0) return;
     await delay(ms, undefined, {signal});
   }
+
 }
 
 function acceptOutput<T>(text: string, finishReason: string | undefined, schema: ZodType<T>, attempt: number, preprocess?: (value: unknown) => unknown): {ok: true; value: T} | {ok: false; error: AppError} {
@@ -341,7 +420,7 @@ async function readEnvelope(response: Response, attempt: number, startedAt: numb
       const {value, done} = await reader.read();
       if (done) break;
       bytes += value.length;
-      if (bytes > 2 * 1024 * 1024) {
+      if (bytes > 16 * 1024 * 1024) {
         await reader.cancel().catch(() => undefined);
         throw new JsonContentError('模型响应超过大小限制', 'too_large');
       }
@@ -358,6 +437,55 @@ async function readEnvelope(response: Response, attempt: number, startedAt: numb
   const content = envelope.choices?.[0]?.message?.content;
   if (typeof content !== 'string') throw new AppError('MODEL_INVALID_RESPONSE', '模型响应缺少文本内容。', 502, {layer: 'transport', retryable: true, attempt, reason: 'content'});
   return {text: content, finishReason: envelope.choices?.[0]?.finish_reason, durationMs: Math.round(performance.now() - startedAt), responseBytes: bytes};
+}
+
+async function readStreamEnvelope(response: Response, attempt: number, startedAt: number, touch: () => void): Promise<{text: string; finishReason?: string; durationMs: number; responseBytes: number}> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new AppError('MODEL_INVALID_RESPONSE', '模型服务未返回响应正文。', 502, {layer: 'transport', retryable: true, attempt, reason: 'empty'});
+  let pending = '';
+  let text = '';
+  let finishReason: string | undefined;
+  let bytes = 0;
+  const decoder = new TextDecoder();
+  let completed = false;
+  const consume = (line: string) => {
+    if (!line.startsWith('data:')) return;
+    const raw = line.slice(5).trim();
+    if (!raw) return;
+    if (raw === '[DONE]') {completed = true; return;}
+    let event: {choices?: {delta?: {content?: unknown; reasoning_content?: unknown; reasoning?: unknown}; finish_reason?: string}[]};
+    try {event = JSON.parse(raw);} catch {return;}
+    if (!event || typeof event !== 'object') return;
+    const choice = event.choices?.[0];
+    const delta = choice?.delta;
+    if ([delta?.content, delta?.reasoning_content, delta?.reasoning].some(value => typeof value === 'string' && value.length > 0)) touch();
+    if (typeof delta?.content === 'string') text += delta.content;
+    if (typeof choice?.finish_reason === 'string') {finishReason = choice.finish_reason; completed = true;}
+  };
+  try {
+    while (!completed) {
+      const next = await reader.read();
+      if (next.done) break;
+      bytes += next.value.length;
+      if (bytes > 16 * 1024 * 1024) throw new JsonContentError('模型响应超过大小限制', 'too_large');
+      pending += decoder.decode(next.value, {stream: true});
+      const lines = pending.split(/\r?\n/);
+      pending = lines.pop() ?? '';
+      for (const line of lines) consume(line);
+    }
+    pending += decoder.decode();
+    if (pending) consume(pending);
+    if (!completed) throw new AppError('MODEL_CONNECTION_FAILED', '模型流式响应提前中断。已保存完成的步骤。', 502, {layer: 'transport', retryable: true, reason: 'read', attempt});
+  } catch (error) {
+    if (error instanceof JsonContentError || error instanceof AppError) throw error;
+    throw new AppError('MODEL_CONNECTION_FAILED', '模型连接失败或流式响应超时。已保存完成的步骤。', 502, {
+      layer: 'transport', retryable: true, reason: error instanceof Error && error.name === 'TimeoutError' ? 'timeout' : 'read', attempt,
+      causeName: error instanceof Error ? error.name : 'UNKNOWN',
+      causeCode: typeof record(record(error).cause).code === 'string' ? record(record(error).cause).code : undefined,
+    });
+  } finally {await reader.cancel().catch(() => undefined); reader.releaseLock();}
+  if (!text) throw new AppError('MODEL_INVALID_RESPONSE', '模型响应缺少文本内容。', 502, {layer: 'transport', retryable: true, attempt, reason: 'content'});
+  return {text, finishReason, durationMs: Math.round(performance.now() - startedAt), responseBytes: bytes};
 }
 
 function asTransportError(error: unknown, attempt: number, startedAt: number): AppError {

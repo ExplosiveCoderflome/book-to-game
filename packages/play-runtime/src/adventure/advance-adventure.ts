@@ -10,7 +10,19 @@ import { systemWait } from './system-actions.js';
 export type AdvanceAdventureOptions = {
   buildingLibrary?: BuildingLibrary;
   itemCatalog?: ItemCatalog;
+  observer?: (observation: {kind: 'action' | 'event' | 'ending'; id: string; state: AdventureState}) => void;
 };
+
+function observe(observer: AdvanceAdventureOptions['observer'], kind: 'action' | 'event' | 'ending', id: string, state: AdventureState): void {
+  observer?.({kind, id, state: structuredClone(state)});
+}
+
+export function migrateAdventureState(current: AdventureState, world: WorldContent): AdventureState {
+  const state = structuredClone(current);
+  if (world.ledgerVersion === 1 && state.ledger === undefined) state.ledger = {version: 1, heldFactIds: [], consumedFactIds: [], committedFactIds: [], sources: []};
+  if (state.ledger?.version === 1) state.ledger.sources ??= [];
+  return state;
+}
 
 export function advanceAdventure(
   current: AdventureState,
@@ -19,6 +31,8 @@ export function advanceAdventure(
   now: string,
   opts: AdvanceAdventureOptions = {},
 ): AdventureState {
+  if ((current.openingRoll as {phase?: string} | undefined)?.phase === 'opening') throw new AppError('OPENING_ROLL_REQUIRED', '请先完成开局选择', 409);
+  if (current.openingRoll?.phase === 'opening') throw new AppError('OPENING_ROLL_REQUIRED', '请先完成开局选择', 409);
   if (current.turn !== input.expectedTurn) throw new AppError('SESSION_TURN_CONFLICT', '存档已推进，请刷新后再行动', 409);
   if (current.ending) throw new AppError('SESSION_ENDED', '冒险已结束', 409);
   if (isS1World(world)) return advanceS1(current, input, world, now, opts);
@@ -36,15 +50,16 @@ export function advanceAdventure(
     : undefined;
   const reason = specific ?? blockedReason(action, world, current);
   if (reason !== undefined) throw new AppError('ACTION_BLOCKED', reason, 400);
-  const state = structuredClone(current);
+  const state = migrateAdventureState(current, world);
   if (!state.resources) state.resources = { ...(world.resources ?? {}) };
   if (!state.takenTags) state.takenTags = [];
   state.turn++; state.elapsed += action.timeCost; state.updatedAt = now;
   if (action.once) state.performedActionIds.push(action.id);
-  applyEffects(action.effects, state, world);
+  applyEffects(action.effects, state, world, undefined, action.id);
+  observe(opts.observer, 'action', action.id, state);
   applyWorldbookSpends(action, world, state);
   recordActionTags(action, state);
-  const text = [action.text, ...settle(world, state)].filter(Boolean).join('\n');
+  const text = [action.text, ...settle(world, state, undefined, (kind, id, snapshot) => observe(opts.observer, kind, id, snapshot))].filter(Boolean).join('\n');
   state.history.push({ turn: state.turn, elapsed: state.elapsed, actionLabel: action.label, text });
   return state;
 }
@@ -70,19 +85,22 @@ function advanceS1(current: AdventureState, input: AdventureActInput, world: Wor
   }
   const timeCost = hand ? hand.choice.timeCost : fixed!.timeCost;
   const label = hand ? hand.choice.label : fixed!.label;
-  const state = structuredClone(current);
+  const state = migrateAdventureState(current, world);
   if (!state.resources) state.resources = {...(world.resources ?? {})};
   if (!state.takenTags) state.takenTags = [];
+  const eventsBefore = new Set(state.triggeredEventIds);
+  const endingBefore = state.ending?.id;
   const fromMonth = state.elapsed; const fromLocation = state.locationId;
   const before = {...state.resources};
   state.turn++; state.elapsed += timeCost; state.updatedAt = now;
   const ctx = newEffectContext();
   if (hand) {
     markPlayed(state, hand.storylet);
-    applyEffects(hand.choice.effects, state, world, ctx);
+    applyEffects(hand.choice.effects, state, world, ctx, hand.storylet.id);
   } else {
     if (fixed!.once) state.performedActionIds.push(fixed!.id);
-    applyEffects(fixed!.effects, state, world, ctx);
+    applyEffects(fixed!.effects, state, world, ctx, fixed!.id);
+    observe(opts.observer, 'action', fixed!.id, state);
     applyWorldbookSpends(fixed!, world, state);
     // Worldbook spends bypass applyEffects: record their deltas too.
     for (const [id, value] of Object.entries(state.resources)) {
@@ -93,7 +111,7 @@ function advanceS1(current: AdventureState, input: AdventureActInput, world: Wor
     recordActionTags(fixed!, state);
   }
   const windows = runClock(world, state, fromMonth, state.elapsed, ctx);
-  const narration = settle(world, state, ctx);
+  const narration = settle(world, state, ctx, (kind, id, snapshot) => observe(opts.observer, kind, id, snapshot));
   if (!state.ending) refreshHand(world, state, moveRefreshDue(world, fromLocation, state.locationId) || clockRefreshDue(world, fromMonth, state.elapsed));
   state.lastResult = buildLastResult(world, label, timeCost, ctx, windows);
   const actionText = hand ? hand.choice.text : fixed!.text;

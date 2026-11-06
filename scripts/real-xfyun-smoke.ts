@@ -164,17 +164,17 @@ try {
       worldbookSnippets: [{title: '当前目标', content: world.goal, kind: 'rule'}]},
     AbortSignal.timeout(timeoutMs)).then(output => output.narration));
     narrative.push(result);
-    console.error(`[xfyun] 旁白 ${run}/${runs}: ${result.ok ? '成功' : '失败'} ${result.durationMs}ms`);
+    console.error(`[xfyun] 旁白 ${run}/${runs}: ${result.ok ? '成功' : `失败：${result.error}`} ${result.durationMs}ms`);
   }
   for (let run = 1; run <= runs; run++) {
     const result = await measured(run, () => npcDialogue(playerQuestions[(run - 1) % playerQuestions.length]!));
     npc.push(result);
-    console.error(`[xfyun] NPC ${run}/${runs}: ${result.ok ? '成功' : '失败'} ${result.durationMs}ms`);
+    console.error(`[xfyun] NPC ${run}/${runs}: ${result.ok ? '成功' : `失败：${result.error}`} ${result.durationMs}ms`);
   }
   for (let run = 1; run <= runs; run++) {
     const result = await measured(run, () => agentEditRun(workbench, source.id, source, run, run === 1));
     agent.push(result);
-    console.error(`[xfyun] Agent ${run}/${runs}: ${result.ok ? '成功' : '失败'} ${result.durationMs}ms`);
+    console.error(`[xfyun] Agent ${run}/${runs}: ${result.ok ? '成功' : `失败：${result.error}`} ${result.durationMs}ms`);
   }
 } finally {
   db.close();

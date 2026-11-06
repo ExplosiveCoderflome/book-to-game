@@ -6,6 +6,7 @@ import type { AdvanceAdventureOptions } from './advance-adventure.js';
 import { settle } from './rules.js';
 import { isS1World, newEffectContext, seedFromString } from './s1-core.js';
 import { initS1State, locationText, refreshHand } from './storylets.js';
+import { createOpeningRollSession } from './opening-roll.js';
 
 /** Fresh open-world save pinned to a revision (pure; caller supplies id + clock + catalog snapshot). */
 export function createAdventureState(
@@ -36,21 +37,36 @@ export function createAdventureState(
     turn: 0, elapsed: 0, locationId: world.initialLocationId,
     facts,
     knownFactIds,
+    ...(world.ledgerVersion === 1 ? {ledger: {version: 1 as const, heldFactIds: [], consumedFactIds: [], committedFactIds: [], sources: []}} : {}),
     resources,
     takenTags: [],
     npcs: Object.fromEntries(world.npcs.map(npc => [npc.id, { locationId: npc.initialLocationId, knownFactIds: [...npc.knownFactIds] }])),
     performedActionIds: [], triggeredEventIds: [], history: [], createdAt: now, updatedAt: now,
   };
+  if (world.extensions?.length) state.rng = {seed: seed ?? seedFromString(id), cursor: 0};
   if (isS1World(world)) {
     initS1State(world, state, seed ?? seedFromString(id));
+    if (world.openingRoll?.enabled) {
+      state.openingRoll = createOpeningRollSession(world, state.rng!.seed, state.resources);
+      state.history.push({turn: 0, elapsed: 0, text: locationText(world, state, state.locationId)});
+      return state;
+    }
     const ctx = newEffectContext();
-    const publicEvents = settle(world, state, ctx);
+    const publicEvents = settle(world, state, ctx, (kind, id, snapshot) => catalogs.observer?.({kind, id, state: snapshot}));
     if (!world.locations.some(item => item.id === state.locationId)) throw new AppError('INVALID_WORLD_STATE', '世界开局地点不存在', 500);
     refreshHand(world, state, false);
     state.history.push({ turn: 0, elapsed: 0, text: [locationText(world, state, state.locationId), ...publicEvents].join('\n') });
     return state;
   }
-  const publicEvents = settle(world, state);
+  if (world.openingRoll?.enabled) {
+    state.rng ??= {seed: seed ?? seedFromString(id), cursor: 0};
+    state.openingRoll = createOpeningRollSession(world, state.rng.seed, state.resources);
+    const location = world.locations.find(item => item.id === state.locationId);
+    if (!location) throw new AppError('INVALID_WORLD_STATE', '世界开局地点不存在', 500);
+    state.history.push({turn: 0, elapsed: 0, text: location.text});
+    return state;
+  }
+  const publicEvents = settle(world, state, undefined, (kind, id, snapshot) => catalogs.observer?.({kind, id, state: snapshot}));
   const location = world.locations.find(item => item.id === state.locationId);
   if (!location) throw new AppError('INVALID_WORLD_STATE', '世界开局地点不存在', 500);
   state.history.push({ turn: 0, elapsed: 0, text: [location.text, ...publicEvents].join('\n') });

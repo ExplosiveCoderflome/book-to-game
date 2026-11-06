@@ -16,6 +16,7 @@ import { createModelSettings } from '../src/platform/create-model-settings.js';
 import { createApp } from '../src/adapters/http/app.js';
 import { SqliteJobRepository } from '../src/modules/generation/index.js';
 import { testProductionBrief as brief, testProductionPlan } from './helpers/production-plan.js';
+import { streamChatReply } from './helpers/agent-pi.js';
 
 test('agent production: native tools inspect a saved plan, author confirms via HTTP/MCP, worker resumes its first writing checkpoint', async () => {
   const requests: any[] = [];
@@ -25,7 +26,7 @@ test('agent production: native tools inspect a saved plan, author confirms via H
     let raw = ''; for await (const chunk of req) raw += chunk;
     const input = JSON.parse(raw); requests.push(input);
     const last = input.messages.at(-1);
-    let reply: unknown;
+    let reply: Parameters<typeof streamChatReply>[1];
     if (last.role === 'user' && last.content === '审阅已有制作规划，然后开始写作') {
       reply = {content: '先读取当前任务。', tool_calls: [fn('read_job', {id: jobId})]};
     } else if (last.role === 'tool' && last.tool_call_id.endsWith('-read_job')) {
@@ -38,7 +39,7 @@ test('agent production: native tools inspect a saved plan, author confirms via H
       const checked = JSON.parse(last.content); assert.equal(checked.report.blocking, false);
       reply = {content: '规则无阻断问题；请确认使用模型生成正文。', tool_calls: [fn('approve_saved_production_plan', {id: jobId, expectedUpdatedAt: checked.updatedAt})]};
     } else reply = {content: '确认回执已保存，正文已排队，完成后再进行体检。'};
-    res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({choices: [{message: reply}]}));
+    assert.equal(input.stream, true); streamChatReply(res, reply);
   }).listen(0, '127.0.0.1'); await once(provider, 'listening');
   // Route simulation is synchronous and can exceed Node's default 5s idle socket timeout.
   // Keep this local provider connection alive while the real checker runs in the same process.

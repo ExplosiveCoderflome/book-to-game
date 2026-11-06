@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { adventureActSchema, type AdventureActInput, type AdventureView, type BuildingLibrary, type ItemCatalog } from '@novel-game/contracts';
-import { advanceAdventure, createAdventureState, projectAdventure } from '@novel-game/play-runtime';
+import { adventureActSchema, openingRollCommandSchema, type AdventureActInput, type AdventureView, type BuildingLibrary, type ItemCatalog, type OpeningRollCommand } from '@novel-game/contracts';
+import { advanceAdventure, applyOpeningRollCommand, completeOpening, createAdventureState, projectAdventure } from '@novel-game/play-runtime';
 import { AppError } from '../../../shared/errors.js';
 import type { AdventureRepository, RevisionReader } from './ports.js';
 
@@ -60,6 +60,17 @@ export class AdventureService {
       const revision = this.revisionReader.getRevision(current.worldRevisionId);
       const state = advanceAdventure(current, action, revision.content, this.now(), opts);
       return { state, response: projectAdventure(state, revision, opts) };
+    });
+  }
+  opening(id: string, raw: OpeningRollCommand): AdventureView {
+    const command = openingRollCommandSchema.parse(raw); const opts=this.catalogOpts();
+    return this.repository.updateOpening(id,command,current=>{
+      const revision=this.revisionReader.getRevision(current.worldRevisionId);
+      if (!revision.content.openingRoll?.enabled || !current.openingRoll) throw new AppError('OPENING_ROLL_DISABLED','此世界未启用开局投掷',409);
+      const next=applyOpeningRollCommand(revision.content,current.openingRoll,command.command,command.command==='select'?command.index:undefined);
+      const state={...current,openingRoll:next,updatedAt:this.now()};
+      if (command.command==='confirm') completeOpening(revision.content,state);
+      return {state,response:projectAdventure(state,revision,opts)};
     });
   }
 }

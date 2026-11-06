@@ -11,7 +11,7 @@ type Props = {
   mode: 'story' | 'open';
   title?: string | null;
   body: string;
-  /** 2–4 final-state chips; caller picks from variables/resources/time. */
+  /** Final state values; time is deliberately omitted from the recap line. */
   summary?: EndingSummaryItem[];
   tag?: string | null;
   onReplay: () => void;
@@ -76,8 +76,8 @@ export function PlayEndingPanel({
       {summary.length > 0 && (
         <p className="play-ending-summary" data-testid="play-ending-summary">
           <span className="play-ending-summary-label">{t('本局收束')}</span>
-          {summary.map((s, i) => (
-            <span key={`${s.label}-${i}`} className="play-ending-stat">{i > 0 ? ' · ' : ''}{s.label} {s.value}</span>
+          {summary.filter(s => !/^(时间|时限|time)$/i.test(s.label.trim())).map((s, i, values) => (
+            <span key={`${s.label}-${i}`} className="play-ending-stat">{s.label} {s.value}{i < values.length - 1 ? ' ·' : ''}</span>
           ))}
         </p>
       )}
@@ -90,7 +90,7 @@ export function PlayEndingPanel({
   );
 }
 
-/** Build 2–4 summary chips from final variables (prefer stamped display labels). */
+/** Build final-state summary values from variables (prefer stamped display labels). */
 export function endingSummaryFromVariables(
   variables: Record<string, VariableValue> | undefined,
   opts?: { statTemplateId?: string | null; statTemplateVersion?: number | null; limit?: number },

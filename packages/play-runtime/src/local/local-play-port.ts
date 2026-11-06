@@ -1,6 +1,6 @@
 import {
-  actSchema, adventureActSchema,
-  type ActInput, type AdventureActInput, type AdventureView, type GameRevision, type SessionView, type WorldRevision,
+  actSchema, adventureActSchema, openingRollCommandSchema,
+  type ActInput, type AdventureActInput, type AdventureView, type GameRevision, type OpeningRollCommand, type SessionView, type WorldRevision,
 } from '@novel-game/contracts';
 import { AppError } from '../errors.js';
 import { RUNTIME_VERSION } from '../version.js';
@@ -12,6 +12,7 @@ import type { AdventureState } from '../adventure/adventure-state.js';
 import { advanceAdventure, type AdvanceAdventureOptions } from '../adventure/advance-adventure.js';
 import { projectAdventure } from '../adventure/project-adventure.js';
 import { createAdventureState } from '../adventure/start-adventure.js';
+import { applyOpeningRollCommand, completeOpening } from '../adventure/opening-roll.js';
 import type { PackageCatalogSnapshot } from '../package/format.js';
 import type { SaveStore } from './save-store.js';
 import {
@@ -26,6 +27,7 @@ export interface PlayPort<R, V, A> {
   list(): V[];
   get(id: string): V;
   act(id: string, input: A): V;
+  opening?(id:string, command: import('@novel-game/contracts').OpeningRollCommand): V;
 }
 
 export interface LocalPlayPort<R, V, A> extends PlayPort<R, V, A> {
@@ -120,6 +122,7 @@ class LocalRepository<S extends EngineState, V> {
     this.deps.store.write(id, JSON.stringify({ ...record, state, events }));
     return response;
   }
+  replace(id:string,state:S):void { const record=this.record(id); this.deps.store.write(id,JSON.stringify({...record,state})); }
 }
 
 const isoNow = () => new Date().toISOString();
@@ -173,6 +176,15 @@ export function createLocalAdventurePort(
     itemCatalog: catalogSnapshot?.itemCatalog,
   };
   const project = (state: AdventureState) => projectAdventure(state, revision, opts);
+  const opening = (id:string, raw:OpeningRollCommand) => {
+    const command=openingRollCommandSchema.parse(raw); const current=repo.get(id);
+    if (!current) throw new AppError('SESSION_NOT_FOUND','冒险存档不存在',404);
+    if (!revision.content.openingRoll?.enabled || !current.openingRoll) throw new AppError('OPENING_ROLL_DISABLED','此世界未启用开局投掷',409);
+    const next=applyOpeningRollCommand(revision.content,current.openingRoll,command.command,command.command==='select'?command.index:undefined);
+    const state={...current,openingRoll:next,updatedAt:now()};
+    if (command.command==='confirm') completeOpening(revision.content,state);
+    repo.replace(id,state); return project(state);
+  };
   return {
     listRevisions: () => [revision],
     start(revisionId) {
@@ -197,5 +209,6 @@ export function createLocalAdventurePort(
         return { state, response: project(state) };
       });
     },
+    opening,
   };
 }

@@ -7,6 +7,8 @@ import type { ChatTool } from '../modules/agent/index.js';
 import { jobSummary, type JobService } from '../modules/generation/index.js';
 import type { WorldService } from '../modules/worlds/index.js';
 import type { GameService } from '../modules/games/index.js';
+import type { BlockLibraryService } from '../modules/block-library/index.js';
+import type { CatalogKind } from '@novel-game/contracts';
 import { AppError } from '../shared/errors.js';
 import type { Command } from './commands/definition.js';
 
@@ -15,6 +17,8 @@ export interface AgentChatCommandState {
   jobs: Pick<JobService, 'get'>;
   worlds: Pick<WorldService, 'get'>;
   games: Pick<GameService, 'get'>;
+  blockLibrary?: Pick<BlockLibraryService, 'getVersion'>;
+  createWorldFromIdea?: (input: import('@novel-game/contracts').CreateWorldFromIdeaInput) => unknown;
 }
 type Summarize = (args: Args, state: AgentChatCommandState) => string;
 type AgentChatCommandMetadata = {
@@ -74,6 +78,14 @@ const productionJobSummary: Summarize = args => {
   return `创建角色扮演制作任务：「${clipped(brief.title, 80) ?? '未命名'}」${details.length ? `；${details.join('；')}` : ''}`;
 };
 const repairSummary = (label: string): Summarize => args => `${label}：${String(args.id)}`;
+const catalogVersion = (kind: CatalogKind) => (args: Args, state: AgentChatCommandState) =>
+  state.blockLibrary?.getVersion(kind, String(args.id)) ?? Number(args.expectedVersion ?? 0);
+const catalogSaveSummary = (action: string): Summarize => args => {
+  const data = args.data as {id: string; version: number; label?: string};
+  return `${action}：「${data.label ?? data.id}」（${data.id}）；目标 v${data.version}，基于 v${String(args.expectedVersion)}。只保存自定义目录，不修改世界或存档。`;
+};
+const catalogDeleteSummary = (label: string): Summarize => args =>
+  `删除自定义${label}：${String(args.id)}（基于 v${String(args.expectedVersion)}）；不影响内置条目，仍被引用时会拒绝。`;
 const worldEditSummary = (label: string, args: Args, state: AgentChatCommandState, detail: string) => {
   const draft = state.worlds.get(String(args.id));
   return `${label}：世界「${draft.content.title}」v${draft.version}；${detail}`;
@@ -134,10 +146,25 @@ const mapFillFields = {label: '名称', localOverrides: '本地覆盖'};
 
 /** Adding a chat command requires a complete entry here; missing metadata is a TypeScript error. */
 export const agentChatCommandMetadata = {
+  create_world_from_idea: {versionCheck: 'none', summarize: args => `按想法「${clipped(args.title, 80) ?? '未命名'}」创建世界；${String(args.idea ?? '').length}字想法；确认后写入来源与草稿。`},
+  validate_world_composition: {versionCheck: 'none', summarize: argsSummary('只读预演世界积木组合')},
+  apply_world_composition: {versionCheck: 'version', readVersion: (args, state) => {
+    const version = state.worlds.get(String(args.worldId)).version;
+    if (version !== args.expectedVersion) throw new AppError('CHAT_ACTION_STALE', '组合预演版本已陈旧，请重新预演', 409);
+    return version;
+  },
+     summarize: (args, state) => `确认应用「${state.worlds.get(String(args.worldId)).content.title}」v${String(args.expectedVersion)} 的 ${Array.isArray(args.operations) ? args.operations.length : 0} 项实体组合。`},
+  check_world_ledger: {versionCheck: 'none', summarize: argsSummary('只读检查世界事实/证据/承诺账本')},
+  check_world_causality: {versionCheck: 'none', summarize: argsSummary('只读检查声明式因果及合法重放见证')},
+  check_world_preservation: {versionCheck: 'none', summarize: argsSummary('只读检查世界编辑保留基线与差异')},
+  list_game_dev_skills: {versionCheck: 'none', summarize: argsSummary('查询内置游戏开发技能')},
+  load_game_dev_skill: {versionCheck: 'none', summarize: argsSummary('读取内置游戏开发技能')},
   runtime_info: {versionCheck: 'none', summarize: argsSummary('查询运行信息')},
   list_sources: {versionCheck: 'none', summarize: argsSummary('查询来源列表')},
   read_source: {versionCheck: 'none', summarize: argsSummary('读取来源')},
   list_blocks: {versionCheck: 'none', summarize: argsSummary('查询积木目录')},
+  get_block: {versionCheck: 'none', summarize: argsSummary('读取单个积木')},
+  get_block_library: {versionCheck: 'none', summarize: argsSummary('读取可维护积木库')},
   list_fun_profiles: {versionCheck: 'none', summarize: argsSummary('查询爽感画像目录')},
   list_genre_recipes: {versionCheck: 'none', summarize: argsSummary('查询品类配方目录')},
   list_jobs: {versionCheck: 'none', summarize: argsSummary('查询任务列表')},
@@ -288,6 +315,14 @@ export const agentChatCommandMetadata = {
       return worldEditSummary('接受地图填充提案', args, state,
         `${args.mapId ? `地图 ${String(args.mapId)}；` : ''}${items.length} 项：${details}${items.length > 3 ? '……' : ''}；仅接受已审核项，新资产须先入库`);
     }},
+  upsert_block_override: {versionCheck: 'version', readVersion: catalogVersion('block'), summarize: catalogSaveSummary('保存自定义积木')},
+  delete_block_override: {versionCheck: 'version', readVersion: catalogVersion('block'), summarize: catalogDeleteSummary('积木')},
+  upsert_fun_profile_override: {versionCheck: 'version', readVersion: catalogVersion('fun-profile'), summarize: catalogSaveSummary('保存自定义爽感画像')},
+  delete_fun_profile_override: {versionCheck: 'version', readVersion: catalogVersion('fun-profile'), summarize: catalogDeleteSummary('爽感画像')},
+  upsert_stat_template_override: {versionCheck: 'version', readVersion: catalogVersion('stat-template'), summarize: catalogSaveSummary('保存自定义数值模板')},
+  delete_stat_template_override: {versionCheck: 'version', readVersion: catalogVersion('stat-template'), summarize: catalogDeleteSummary('数值模板')},
+  upsert_simulation_strategy_override: {versionCheck: 'version', readVersion: catalogVersion('simulation-strategy'), summarize: catalogSaveSummary('保存自定义模拟策略')},
+  delete_simulation_strategy_override: {versionCheck: 'version', readVersion: catalogVersion('simulation-strategy'), summarize: catalogDeleteSummary('模拟策略')},
 } satisfies Record<string, AgentChatCommandMetadata>;
 
 const jobResults = new Set(['create_generation_job', 'create_production_job', 'retry_job', 'cancel_job', 'rewrite_production_unit', 'approve_saved_production_plan']);
@@ -305,6 +340,13 @@ export function createAgentChatTools(commands: Command[], state: AgentChatComman
       validate: input => {
         const value = input && typeof input === 'object' ? {...input} as Record<string, unknown> : {};
         if ('requestId' in c.inputSchema.shape && !value.requestId) value.requestId = randomUUID();
+        if (c.name === 'create_production_job') {
+          const brief = value.brief && typeof value.brief === 'object' ? {...value.brief as Record<string, unknown>} : {};
+          const tier = typeof brief.tier === 'string' ? brief.tier.trim().toLowerCase() : '';
+          if (tier) brief.tier = ['s', 'small', 'standard'].includes(tier) ? 'S'
+            : ['m', 'medium', 'large', 'big', 'l'].includes(tier) ? 'M' : brief.tier;
+          value.brief = brief;
+        }
         if (c.name === 'playtest_world_draft') value.seeds = Math.min(typeof value.seeds === 'number' ? value.seeds : 40, 40);
         return c.inputSchema.parse(value) as Record<string, unknown>;
       },

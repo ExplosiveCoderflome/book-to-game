@@ -1,7 +1,7 @@
 import {
   BLOCKS, FUN_PROFILES, funProfileModelOutputSchema, getBlock, getFunProfile,
   proposeFunProfileProposalSchema, proposeFunProfileInputSchema,
-  recommendBlocksForProfileResultSchema, type FunBlockRecommendation,
+  recommendBlocksForProfileResultSchema, type BlockSpec, type FunBlockRecommendation, type FunProfile,
   type ProposeFunProfileInput, type ProposeFunProfileProposal,
   type RecommendBlocksForProfileResult,
 } from '@novel-game/contracts';
@@ -64,15 +64,19 @@ export const mockFunProfileModel: FunProfileModel = {
   },
 };
 
-/** Cross-check catalog ids against the real BlockSpec registry; unknown ids are reported, never invented. */
-export function resolveProfileBlocks(profileId: string): RecommendBlocksForProfileResult {
-  const profile = getFunProfile(profileId);
+export interface FunProfileCatalogSnapshot {profiles?: readonly FunProfile[]; blocks?: readonly BlockSpec[]}
+
+/** Cross-check catalog ids against the effective registry; unknown ids are reported, never invented. */
+export function resolveProfileBlocks(profileId: string, catalog: FunProfileCatalogSnapshot = {}): RecommendBlocksForProfileResult {
+  const profiles = catalog.profiles ?? FUN_PROFILES;
+  const availableBlocks = catalog.blocks ?? BLOCKS;
+  const profile = profiles.find(candidate => candidate.id === profileId);
   if (!profile) throw new AppError('INVALID_PROFILE', `未知画像：${profileId}`, 400);
-  const known = new Set(BLOCKS.map(block => block.id));
+  const known = new Set(availableBlocks.map(block => block.id));
   const warnings: string[] = [];
   const blocks: FunBlockRecommendation[] = [];
   for (const id of profile.suggestedBlocks) {
-    const block = getBlock(id);
+    const block = availableBlocks.find(candidate => candidate.id === id);
     if (!block || !known.has(id)) {
       warnings.push(`已过滤画像引用但未注册的积木：${id}`);
       continue;
@@ -82,8 +86,8 @@ export function resolveProfileBlocks(profileId: string): RecommendBlocksForProfi
   return recommendBlocksForProfileResultSchema.parse({profileId: profile.id, blocks, warnings});
 }
 
-export function recommendBlocksForProfile(profileId: string): RecommendBlocksForProfileResult {
-  return resolveProfileBlocks(profileId);
+export function recommendBlocksForProfile(profileId: string, catalog?: FunProfileCatalogSnapshot): RecommendBlocksForProfileResult {
+  return resolveProfileBlocks(profileId, catalog);
 }
 
 const summarize = (content: {storylets?: {id: string; title: string; text?: string; kind?: string}[]}) =>
@@ -96,7 +100,7 @@ const summarize = (content: {storylets?: {id: string; title: string; text?: stri
 /** Read-only proposal: picks one built-in profile and its registered blocks. Writes nothing. */
 export async function proposeFunProfile(
   worlds: WorldService, id: string, input: ProposeFunProfileInput, model: FunProfileModel = mockFunProfileModel,
-  signal: AbortSignal = AbortSignal.timeout(30_000), modelName?: string,
+  signal: AbortSignal = AbortSignal.timeout(30_000), modelName?: string, catalog: FunProfileCatalogSnapshot = {},
 ): Promise<ProposeFunProfileProposal> {
   const parsed = proposeFunProfileInputSchema.parse(input);
   const draft = worlds.get(id);
@@ -119,13 +123,14 @@ export async function proposeFunProfile(
       issues: output.error.issues.slice(0, 6).map(issue => ({path: issue.path.join('.'), message: issue.message})),
     });
   }
-  const profile = getFunProfile(output.data.profileId);
+  const profiles = catalog.profiles ?? FUN_PROFILES;
+  const profile = profiles.find(candidate => candidate.id === output.data.profileId);
   if (!profile) {
     throw new AppError('MODEL_INVALID_RESPONSE', '模型返回的爽感画像不存在', 502, {
-      profiles: FUN_PROFILES.map(item => item.id),
+      profiles: profiles.map(item => item.id),
     });
   }
-  const recommendations = resolveProfileBlocks(profile.id);
+  const recommendations = resolveProfileBlocks(profile.id, catalog);
   return proposeFunProfileProposalSchema.parse({
     worldDraftId: id, baseVersion: draft.version,
     suggestedProfileId: profile.id,

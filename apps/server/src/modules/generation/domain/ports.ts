@@ -1,4 +1,4 @@
-import type { Analysis, AnalysisResult, BranchSkeleton, GameContent, GenerationInput, GenerationJob, JobFailure, ScanDepth, SceneExtension, SourceDocument, WorldContent, ProductionBrief, ProductionPlan, ProductionNarrative, ProductionUnit, LintReport, PlaytestReport } from '@novel-game/contracts';
+import type { Analysis, AnalysisResult, BranchSkeleton, GameContent, GenerationInput, GenerationJob, JobFailure, ScanDepth, SceneExtension, SourceDocument, WorldContent, ProductionBrief, ProductionPlan, ProductionNarrative, ProductionUnit, ProductionPlanningState, LintReport, PlaytestReport } from '@novel-game/contracts';
 
 export interface SourceReader { get(id: string): SourceDocument }
 export interface SourceChunk {
@@ -23,6 +23,7 @@ export interface JobRepository {
   saveAnalysis(id: string, owner: string, analysis: AnalysisResult): boolean;
   saveSkeleton(id: string, owner: string, skeleton: BranchSkeleton): boolean;
   saveProductionPlan(id: string, owner: string, plan: ProductionPlan): boolean;
+  saveProductionPlanning(id: string, owner: string, state: ProductionPlanningState): boolean;
   approveProduction(id: string, plan: ProductionPlan, expectedUpdatedAt?: string): StoredJob;
   rewriteProduction(id: string, unitKey: string, direction: string): StoredJob;
   saveProductionText(id: string, owner: string, unit: ProductionUnit, text: ProductionNarrative, total: number): boolean;
@@ -43,6 +44,7 @@ export interface GenerationProvider {
   extendScenes?(content: GameContent, sceneId: string, direction: string, signal: AbortSignal, feedback?: ModelRepairFeedback, options?: {neighborCount?: 1 | 2}): Promise<SceneExtension>;
   generateWorld?(analysis: AnalysisResult, options: WorldGenerationOptions, signal: AbortSignal, feedback?: ModelRepairFeedback): Promise<WorldContent>;
   planProduction?(analysis: AnalysisResult, brief: ProductionBrief, chapterIds: string[], signal: AbortSignal, feedback?: ModelRepairFeedback): Promise<ProductionPlan>;
+  planProductionPart?(analysis: AnalysisResult, brief: ProductionBrief, chapterIds: string[], part: {key: string; kind: string; ids: string[]; skeleton?: unknown; completed: Record<string, unknown>}, signal: AbortSignal, feedback?: ModelRepairFeedback): Promise<unknown>;
   writeProductionUnit?(plan: ProductionPlan, unit: ProductionUnit, previousTexts: ProductionNarrative[], signal: AbortSignal, feedback?: ModelRepairFeedback): Promise<ProductionNarrative>;
 }
 export type DraftWriter = (input: {sourceId: string; content: GameContent; provenance?: {generator: string; model?: string; source?: 'runner'}}) => {id: string};

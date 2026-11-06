@@ -1,7 +1,7 @@
 import type { AdventureView, SessionView } from '@novel-game/contracts';
 import {
   GuardedSaveStore, createLocalAdventurePort, createLocalStoryPort,
-  type LocalAdventurePort, type LocalStoryPort, type OpenPackageContent, type PackageManifest, type SaveSlot as RuntimeSlot,
+  type LocalAdventurePort, type LocalStoryPort, type OpenPackageContent, type PackageManifest, type OpeningRollCommand, type SaveSlot as RuntimeSlot,
   type StoryPackageContent,
 } from '@novel-game/play-runtime';
 import type { SaveSlot } from '../components/player/SaveSlotList';
@@ -64,7 +64,7 @@ export function packageWorldPort(manifest: PackageManifest, content: OpenPackage
     packageId: manifest.packageId, store, newId: newRequestId, newSeed: newSeed, runtimeVersion: manifest.runtimeVersion, isUnsaved: id => store.isUnsaved(id),
   });
   const summarize = (v: AdventureView, t: Translate) => ({ summary: t('{location} · 行动 {turn}', { location: v.location.title, turn: v.turn }), ended: v.ended });
-  return { local, port: { ...common(local, v => v.worldRevisionId, store), rows: t => rowsOf(local, store, manifest.title, summarize, (turn, tr) => tr('行动 {turn}', { turn }), t) } };
+  return { local, port: { ...common(local, v => v.worldRevisionId, store), opening: async (id, command) => local.opening!(id, command), rows: t => rowsOf(local, store, manifest.title, summarize, (turn, tr) => tr('行动 {turn}', { turn }), t) } };
 }
 
 /** S1 save RNG seed from the browser CSPRNG (falls back to Math.random only when crypto is unavailable). */

@@ -15,6 +15,11 @@ export {
   type WorldPatchModel, type WorldPatchModelInput,
 } from './application/propose-world-patch.js';
 export {applyWorldPatch} from './application/apply-world-patch.js';
+export {validateWorldComposition, applyWorldComposition, validateSelectedBlocks} from './application/world-composition.js';
+export {checkWorldLedger} from './application/check-world-ledger.js';
+export {checkWorldCausality} from './application/check-world-causality.js';
+export {checkWorldPreservation} from './application/check-world-preservation.js';
+export {assertWorldPublishQuality} from './application/publish-quality-gate.js';
 export {
   proposeFunProfile, recommendBlocksForProfile, resolveProfileBlocks, mockFunProfileModel,
   type FunProfileModel, type FunProfileModelInput,

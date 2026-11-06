@@ -19,11 +19,16 @@ export { matches, effectiveLocationMap, applyEffects, visible, blockedReason, ap
 export { systemWait } from './adventure/system-actions.js';
 export { projectAdventureMap } from './adventure/map-view.js';
 export { projectAdventure, type ProjectAdventureOptions } from './adventure/project-adventure.js';
-export { advanceAdventure, type AdvanceAdventureOptions } from './adventure/advance-adventure.js';
+export { advanceAdventure, migrateAdventureState, type AdvanceAdventureOptions } from './adventure/advance-adventure.js';
+export { checkLedgerAssertion, type LedgerIssue, type LedgerState } from '@novel-game/rules';
 export { createAdventureState } from './adventure/start-adventure.js';
+export { createOpeningRollSession, applyOpeningRollCommand, applyOpeningSet, completeOpening } from './adventure/opening-roll.js';
+export type { OpeningRollCommand } from '@novel-game/contracts';
 export type { AdventureHandCard, AdventureLastResult } from './adventure/adventure-state.js';
 export { describeCondition, requiresBlock, resolveEnding, fireThresholds, evaluateEndConditions, type BlockedReasonKind } from './adventure/rules.js';
 export { isS1World, rngNext, seedFromString, timeLimitOf, computeChance, formatCalendar, formatMonths, type ChanceBreakdown } from './adventure/s1-core.js';
+export { initializeExtensionSandbox, EXTENSION_LIMITS, checkExtensionDeclaration, runExtension, evaluateExtensionCondition, executeExtensionEffect, extensionTests, type ExtensionCheck, type ExtensionIssue, type ExtensionRuntimeOptions } from './adventure/extensions.js';
+export { exampleSteadyCondition, boundedFocusEffect } from './adventure/example-extension.js';
 export { STORYLET_CHOICE_PREFIX, storyletChoiceId, refreshHand, runClock, locationText, storyletText } from './adventure/storylets.js';
 
 // Offline package: format, saves, local port (slice §5.3–5.6)

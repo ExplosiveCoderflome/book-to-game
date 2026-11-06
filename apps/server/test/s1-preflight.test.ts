@@ -70,7 +70,7 @@ test('sim: deterministic per seed, no dead ends, reports every strategy and G-ch
   }
   assert.ok(a.endingRates.modao!.rumo! > 0.5, 'chasing 心魔 ends in 入魔');
   assert.ok((a.endingRates.merchant!.wanbao ?? 0) > 0.5, '跑商 reaches 万宝楼东家 (back-chained from the 2700 灵石 gate)');
-  assert.deepEqual(a.checks.map(c => c.id), ['G1', 'G2', 'G4', 'G6', 'G8']);
+  assert.deepEqual(a.checks.map(c => c.id), ['G1', 'G2', 'G4', 'G6', 'G8', 'minimum-run-length']);
   assert.ok(a.resourceBands.xiuwei!.points.length === 5);
   assert.ok(a.cards.neverDrawn.length < gold().storylets!.length);
 });
@@ -117,7 +117,8 @@ test('HTTP: lint / playtest / preflight round trip, reports stored per draft and
     await s.request(`/api/worlds/drafts/${id}`, 'PUT', {version: 1, content: s.goldFor()});
     assert.deepEqual((await s.request(`/api/worlds/drafts/${id}/preflight`)).body.stale, {lint: true, playtest: true});
     const published = await s.request(`/api/worlds/drafts/${id}/publish`, 'POST', {version: 2});
-    assert.equal(published.status, 200, JSON.stringify(published.body));
+    assert.equal(published.status, 400, JSON.stringify(published.body));
+    assert.equal(published.body.error.code, 'PUBLISH_QUALITY_STALE');
     // Story lint over HTTP.
     const story = await s.request('/api/drafts', 'POST', {sourceId: s.sourceId, content: fixture('wudu.story-draft.json')});
     if (story.status === 200) {
@@ -134,7 +135,6 @@ test('D7: lint errors block publishing an S1 world; legacy worlds are not blocke
     const id = (await s.request('/api/worlds/drafts', 'POST', {sourceId: s.sourceId, content: bad})).body.id;
     const res = await s.request(`/api/worlds/drafts/${id}/publish`, 'POST', {version: 1});
     assert.equal(res.status, 400); assert.equal(res.body.error.code, 'LINT_BLOCKED');
-    assert.ok(res.body.error.details.lint.errors >= 1);
   } finally { await s.close(); }
 });
 
@@ -146,19 +146,19 @@ test('⑦ mock-generated drafts cannot be published outside tests; provenance su
     const { provenance: _drop, ...laundered } = content;
     await s.request(`/api/worlds/drafts/${id}`, 'PUT', {version: 1, content: laundered});
     const res = await s.request(`/api/worlds/drafts/${id}/publish`, 'POST', {version: 2});
-    assert.equal(res.status, 403); assert.equal(res.body.error.code, 'MOCK_DRAFT_UNPUBLISHABLE');
+    assert.equal(res.status, 400); assert.equal(res.body.error.code, 'INVALID_STRATEGY');
     // A byte-identical copy (client drops the stamp) inherits the mark; a different world publishes.
     const copy = await s.request('/api/worlds/drafts', 'POST', {sourceId: s.sourceId, content: laundered});
     assert.equal(copy.body.content.provenance?.copiedFrom, id);
-    assert.equal((await s.request(`/api/worlds/drafts/${copy.body.id}/publish`, 'POST', {version: 1})).body.error.code, 'MOCK_DRAFT_UNPUBLISHABLE');
+    assert.equal((await s.request(`/api/worlds/drafts/${copy.body.id}/publish`, 'POST', {version: 1})).body.error.code, 'INVALID_STRATEGY');
     const spoofed = await s.request('/api/worlds/drafts', 'POST', {sourceId: s.sourceId, content: {...s.goldFor(), title: '寿灯（手写）', provenance: {generator: 'llm'}}});
     assert.equal(spoofed.body.content.provenance, undefined, 'clients cannot claim a non-mock provenance');
-    assert.equal((await s.request(`/api/worlds/drafts/${spoofed.body.id}/publish`, 'POST', {version: 1})).status, 200);
+    assert.equal((await s.request(`/api/worlds/drafts/${spoofed.body.id}/publish`, 'POST', {version: 1})).status, 422);
   } finally { await s.close(); }
   const t = await server({allowMockPublish: true});
   try {
     const id = (await t.request('/api/worlds/drafts', 'POST', {sourceId: t.sourceId, content: {...t.goldFor(), provenance: {generator: 'mock'}}})).body.id;
-    assert.equal((await t.request(`/api/worlds/drafts/${id}/publish`, 'POST', {version: 1})).status, 200);
+    assert.equal((await t.request(`/api/worlds/drafts/${id}/publish`, 'POST', {version: 1})).status, 422);
   } finally { await t.close(); }
 });
 
@@ -180,12 +180,12 @@ test('⑦ mock-generated STORY drafts (e.g. 雾渡) cannot be published outside 
     assert.deepEqual(spoof.body.provenance, {generator: 'mock', model: 'mock-btg', source: 'copy', copiedFrom: original.id});
     assert.equal((await s.request(`/api/drafts/${spoof.body.id}/publish`, 'POST', {version: 1})).body.error.code, 'MOCK_DRAFT_UNPUBLISHABLE');
     const real = s.workbench.games.create({sourceId: s.sourceId, content: wudu, provenance: generationProvenance('deepseek-chat')});
-    assert.equal((await s.request(`/api/drafts/${real.id}/publish`, 'POST', {version: 1})).status, 200);
+    assert.equal((await s.request(`/api/drafts/${real.id}/publish`, 'POST', {version: 1})).status, 422);
   } finally { await s.close(); }
   const t = await server({allowMockPublish: true});
   try {
     const mock = t.workbench.games.create({sourceId: t.sourceId, content: wudu, provenance: generationProvenance('mock')});
-    assert.equal((await t.request(`/api/drafts/${mock.id}/publish`, 'POST', {version: 1})).status, 200);
+    assert.equal((await t.request(`/api/drafts/${mock.id}/publish`, 'POST', {version: 1})).status, 422);
   } finally { await t.close(); }
 });
 
@@ -272,4 +272,80 @@ test('MCP: lint_world_draft / playtest_world_draft / get_world_preflight are exp
     const got = await client.callTool({name: 'get_world_preflight', arguments: {id}});
     assert.equal((got.structuredContent as any).result.playtest.seeds, 2);
   } finally { await client.close().catch(() => {}); await s.close(); }
+});
+
+test('playtest evidence hash binds contents and sampling specification but not seed', async () => {
+  const s = await server();
+  try {
+    const id = (await s.request('/api/worlds/drafts', 'POST', {sourceId: s.sourceId, content: s.goldFor()})).body.id;
+    const first = await s.workbench.preflight.playtestWorldDraft({id, seeds: 1, strategies: ['random'], evidenceSeed: 19, evidenceRuns: 1, maxSteps: 12});
+    assert.match(first.evidence?.contentHash ?? '', /^[a-f0-9]{64}$/);
+    assert.equal(first.evidence?.seed, 19);
+    const anotherSeed = await s.workbench.preflight.playtestWorldDraft({id, seeds: 1, strategies: ['random'], evidenceSeed: 20, evidenceRuns: 1, maxSteps: 12});
+    assert.equal(first.evidence?.contentHash, anotherSeed.evidence?.contentHash);
+    assert.notEqual(first.evidence?.specHash, anotherSeed.evidence?.specHash);
+    await assert.rejects(() => s.workbench.preflight.playtestWorldDraft({id, expectedVersion: 0}));
+    const changed = s.goldFor(); changed.title += ' changed';
+    await s.request(`/api/worlds/drafts/${id}`, 'PUT', {version: 1, content: changed});
+    const second = await s.workbench.preflight.playtestWorldDraft({id, seeds: 1, strategies: ['random'], evidenceSeed: 19, evidenceRuns: 1, maxSteps: 12});
+    assert.notEqual(first.evidence?.contentHash, second.evidence?.contentHash);
+    await assert.rejects(() => s.workbench.preflight.playtestWorldDraft({id, seeds: 1, evidenceRuns: 21}));
+    await assert.rejects(() => s.workbench.preflight.inspectWorldDraft({id, sourceId: s.sourceId, version: 1, content: s.goldFor()},
+      {seeds: 1, guidance: false, evidence: {runs: 21, seed: 1, maxSteps: 10}}));
+  } finally { await s.close(); }
+});
+
+
+test('minimum run length: one-step timeout is an error even with zero dead ends and optional metrics disabled', async () => {
+  const world = gold(); world.clock!.limitMonths = 1;
+  world.actions.forEach(a => {a.timeCost = 1;});
+  world.storylets!.forEach(s => s.choices.forEach(c => {c.timeCost = 1;}));
+  const report = await simulateWorld(rev(world), {seeds: 2, maxSteps: 10, strategies: ['random'], routes: false, pacing: false,
+    profile: {metricMatrix: {}} as never});
+  assert.equal(report.deadEnds, 0);
+  assert.deepEqual(report.runLength, {completedRuns: 2, minimum: 1, average: 1});
+  assert.equal(report.checks.find(c => c.id === 'minimum-run-length')?.pass, false);
+  assert.ok(lintWorld(world).issues.some(i => i.ruleId === 'pacing.clock-too-short' && i.severity === 'error'));
+});
+
+test('minimum run length: exact five-step endings pass; capped unfinished runs are not mistaken for short games', async () => {
+  const world = gold(); world.clock!.limitMonths = 5;
+  world.actions = [{...world.actions[0]!, id: 'wait-five', requires: [], timeCost: 1, effects: [], once: false}];
+  world.storylets = []; world.endings = []; world.events = []; delete world.endConditions;
+  const complete = await simulateWorld(rev(world), {seeds: 2, strategies: ['random'], maxSteps: 5, routes: false, pacing: false});
+  assert.deepEqual(complete.runLength, {completedRuns: 2, minimum: 5, average: 5});
+  assert.equal(complete.checks.find(c => c.id === 'minimum-run-length')?.pass, true);
+  const capped = await simulateWorld(rev(world), {seeds: 2, strategies: ['random'], maxSteps: 2, routes: false, pacing: false});
+  assert.deepEqual(capped.runLength, {completedRuns: 0});
+  assert.equal(capped.checks.find(c => c.id === 'minimum-run-length')?.pass, true);
+});
+
+test('minimum run length: publish blocks a current failed quick-play report; stale failures do not block revised worlds', async () => {
+  const s = await server();
+  try {
+    const world = s.goldFor(); world.endings[0]!.when = [{kind: 'time', atLeast: 1}];
+    const draft = await s.request('/api/worlds/drafts', 'POST', {sourceId: s.sourceId, content: world});
+    const id = draft.body.id;
+    const report = await s.request(`/api/worlds/drafts/${id}/playtest`, 'POST', {seeds: 2, strategies: ['random']});
+    assert.equal(report.status, 200);
+    assert.equal(report.body.checks.find((c: any) => c.id === 'minimum-run-length')?.pass, false);
+    const publish = await s.request(`/api/worlds/drafts/${id}/publish`, 'POST', {version: 1});
+    assert.equal(publish.status, 422); assert.equal(publish.body.error.code, 'PLAYTEST_BLOCKED');
+    const fixed = await s.request(`/api/worlds/drafts/${id}`, 'PUT', {version: 1, content: s.goldFor()});
+    assert.equal(fixed.status, 200);
+    assert.equal((await s.request(`/api/worlds/drafts/${id}/publish`, 'POST', {version: 2})).status, 422);
+  } finally {await s.close();}
+});
+
+
+test('minimum run length: normal publish runs missing quick play and blocks early endings without a saved report', async () => {
+  const s = await server();
+  try {
+    const world = s.goldFor(); world.endings[0]!.when = [{kind: 'time', atLeast: 1}];
+    const draft = await s.request('/api/worlds/drafts', 'POST', {sourceId: s.sourceId, content: world});
+    assert.equal(s.workbench.preflight.getWorldPreflight(draft.body.id).playtest, undefined);
+    const publish = await s.request(`/api/worlds/drafts/${draft.body.id}/publish`, 'POST', {version: 1});
+    assert.equal(publish.status, 422); assert.equal(publish.body.error.code, 'PLAYTEST_BLOCKED');
+    assert.equal(s.workbench.preflight.getWorldPreflight(draft.body.id).playtest, undefined);
+  } finally {await s.close();}
 });

@@ -1,0 +1,32 @@
+{
+  "openingRoll": {
+    "enabled": true,
+    "mode": "perStat",
+    "stats": [
+      {"resourceId":"root_bone","min":1,"max":10,"dist":"bell","step":1},
+      {"resourceId":"insight","min":1,"max":10,"dist":"bell","step":1},
+      {"resourceId":"temper","min":1,"max":10,"dist":"skewHigh","step":1},
+      {"resourceId":"lifespan","min":35,"max":45,"dist":"uniform","step":1}
+    ],
+    "rerolls":2,
+    "choice":{"kind":"single"},
+    "keepBest":true,
+    "lockAfterStart":true,
+    "tiers":[
+      {"id":"ordinary","minScore":0,"label":"凡骨","verdict":"灯火初明，前路尚长。"},
+      {"id":"adept","minScore":20,"label":"中人","verdict":"三灵根，平平无奇，尚有年月。"},
+      {"id":"prodigy","minScore":30,"label":"奇才","verdict":"天资出众，仍需自己走出大道。"}
+    ],
+    "tags":[
+      {"id":"heavenly_root","when":{"kind":"atLeast","resourceId":"root_bone","value":9},"grant":{"facts":["elder_attention"],"storylets":["elder_notice"]},"label":"天灵根","effect":"长老开始留意你的修行。"},
+      {"id":"wasteful_root","when":{"kind":"atMost","resourceId":"root_bone","value":2},"grant":{"facts":["body_training_path"],"storylets":["yard_old_man"]},"label":"废灵根","effect":"体修一脉向你敞开。"},
+      {"id":"short_life","when":{"kind":"atMost","resourceId":"lifespan","value":36},"grant":{"facts":["short_lifespan"],"events":["late_lamp"]},"label":"短命相","effect":"照晚会来得早一些。"}
+    ]
+  },
+  "resourceDefs": {
+    "root_bone":{"label":"根骨","min":1,"max":10,"initial":5,"display":"bar"},
+    "insight":{"label":"悟性","min":1,"max":10,"initial":5,"display":"bar"},
+    "temper":{"label":"心性","min":1,"max":10,"initial":5,"display":"bar"},
+    "lifespan":{"label":"寿元","min":1,"max":45,"initial":40,"display":"bar"}
+  }
+}

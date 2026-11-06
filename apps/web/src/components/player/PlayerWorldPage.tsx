@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { type AdventureView, type WorldRevision } from '@novel-game/contracts';
+import { type AdventureView, type OpeningRollCommand, type WorldRevision } from '@novel-game/contracts';
 import { useI18n } from '../../lib/i18n';
 import { PendingAdventure, restoreAdventure } from '../../lib/pending-adventure';
 import type { WorldPagePort } from '../../lib/play-port';
@@ -10,6 +10,7 @@ import { AdventurePlaySurface } from '../play/AdventurePlaySurface';
 import { CopyPlayLinkButton } from './CopyPlayLinkButton';
 import type { PackageChrome } from './package-chrome';
 import { SaveSlotList, type SaveSlot } from './SaveSlotList';
+import { OpeningRollPanel } from '../play/OpeningRollPanel';
 
 type Props = {
   port: WorldPagePort;
@@ -152,6 +153,14 @@ export function PlayerWorldPage({ port, revisionId, initialAdventureId, pkg }: P
     } finally { setBusy(false); }
   }
 
+  async function opening(command:OpeningRollCommand) {
+    if(!session||!port.opening)return;
+    setBusy(true);setError(null);
+    try { const value=await port.opening(session.id,command);setSession(value);await refreshLists(); }
+    catch(e){setError(port.message(e));}
+    finally{setBusy(false);}
+  }
+
   function backToStart() {
     setSessionId(''); setSession(null); setError(null); setInfo(null);
     navigateHash(hashFor());
@@ -160,7 +169,7 @@ export function PlayerWorldPage({ port, revisionId, initialAdventureId, pkg }: P
   const slots = useMemo((): SaveSlot[] => rows ?? adventures.map(s => ({
     id: s.id,
     title: revision?.content.title ?? t('开放冒险'),
-    summary: s.ended
+    summary: s.phase==='opening' ? t('投胎中') : s.ended
       ? t('已结束')
       : t('{location} · 耗时 {elapsed}/{limit}', { location: s.location.title, elapsed: s.elapsed, limit: s.timeLimit }),
     ended: s.ended,
@@ -213,7 +222,7 @@ export function PlayerWorldPage({ port, revisionId, initialAdventureId, pkg }: P
           />
           {!pkg && <button type="button" className="quiet small" onClick={() => navigateHash(playLandingHash())}>{t('返回书目')}</button>}
         </aside>
-        <AdventurePlaySurface
+        {session?.phase==='opening' ? <OpeningRollPanel session={session} revision={revision} busy={busy} error={error} onCommand={command=>void opening(command)}/> : <AdventurePlaySurface
           session={session}
           revision={revision}
           busy={busy}
@@ -235,7 +244,7 @@ export function PlayerWorldPage({ port, revisionId, initialAdventureId, pkg }: P
             ? (slots.length ? t('选择左侧存档继续，或开始新存档。') : pkg.emptyNoSaves)
             : t('选择左侧存档，或开始新冒险。')}
           includeMapColumn
-        />
+        />}
       </div>
     </section>
   );

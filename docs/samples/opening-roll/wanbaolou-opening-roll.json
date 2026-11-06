@@ -1,0 +1,4 @@
+{
+  "openingRoll":{"enabled":true,"mode":"pointBuy","stats":[{"resourceId":"eloquence","min":1,"max":8,"dist":"uniform","step":1},{"resourceId":"appraisal","min":1,"max":8,"dist":"uniform","step":1},{"resourceId":"capital","min":1,"max":8,"dist":"uniform","step":1},{"resourceId":"network","min":1,"max":8,"dist":"uniform","step":1}],"pointBuy":{"total":{"min":18,"max":24},"perStatMin":1,"perStatMax":8},"choice":{"kind":"pickOf","n":3},"rerolls":0,"keepBest":false,"lockAfterStart":true,"tags":[]},
+  "resourceDefs":{"eloquence":{"label":"口才","min":1,"max":8},"appraisal":{"label":"眼力","min":1,"max":8},"capital":{"label":"本钱","min":1,"max":8},"network":{"label":"人脉","min":1,"max":8}}
+}

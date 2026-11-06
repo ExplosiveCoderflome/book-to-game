@@ -115,6 +115,14 @@ test('ReaderPlaySurface renders the scene-lens shell: HUD, capped dock, overflow
   assert.match(html, /更多选择/);
 });
 
+test('ReaderPlaySurface keeps an existing-save start hint as plain text without the empty-state diamond', () => {
+  const html = renderToStaticMarkup(createElement(ReaderPlaySurface, {
+    session: null, revision: null, busy: false, emptyHint: '选择左侧存档继续，或开始新存档。', onAct() {}, onReplay() {},
+  }));
+  assert.match(html, /class="reader-empty-hint"/);
+  assert.ok(!html.includes('class="empty"') && !html.includes('◇'));
+});
+
 test('pickLensStats puts a declared danger ahead of money even without a countdown', () => {
   const meta: AdventureResourceMeta[] = [
     { id: 'coin', label: '银两', value: 30, min: 0, display: 'number' },

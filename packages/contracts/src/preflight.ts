@@ -27,9 +27,23 @@ export interface PlaytestReport {
   draftId?: string; draftVersion: number; createdAt: string;
   /** Present only when the caller supplied a named FunProfile; legacy reports keep their shape. */
   profileId?: string;
+  /** Server-derived fingerprint for the exact rules, prose, blocks and evidence specification. */
+  evidence?: {
+    schemaVersion: 1; checkVersion: string; reportId: string; contentHash: string; specHash?: string;
+    runs: number; seed: number; maxSteps: number; strategies: string[];
+    status: 'observed' | 'unsupported'; unsupportedReason?: string;
+    endingReachability: {endingId: string; status: 'observed' | 'sampled-not-hit' | 'not-run'; witness?: {strategy: string; seed: number; actionIds: string[]}}[];
+    witnesses: {strategy: string; seed: number; endingId: string; rawSteps: number; effectiveSteps: number; actionIds: string[]}[];
+    samples: {strategy: string; seed: number; endingId?: string; outcome: 'ending' | 'dead-end' | 'capped'; rawSteps: number; effectiveSteps: number; actionIds: string[]}[];
+    distribution: {runs: number; rawSteps: {minimum: number; average: number; maximum: number}; effectiveSteps: {minimum: number; average: number; maximum: number}};
+    deadEnds: {strategy: string; seed: number; rawSteps: number; actionIds: string[]}[];
+    cappedRuns: number; cappedWitnesses: {strategy: string; seed: number; rawSteps: number; effectiveSteps: number; actionIds: string[]}[];
+    repeatedStates: number; noProgressRuns: number; prose: {observed: boolean; repeatedBodies: string[]};
+  };
   seeds: number; maxSteps: number;
   timeUnit?: ClockUnit | 'turn';
   strategies: PlaytestStrategyInfo[];
+  openingRoll?: {strategies: Record<string,{runs:number;failureRate:number;endingRates:Record<string,number>}>};
   checks: PassCheck[];
   /** endingRates[strategyId][endingKey] = share of runs (0–1); endingKey = ending id or `(none)` for capped runs. */
   endingRates: Record<string, Record<string, number>>;
@@ -39,6 +53,8 @@ export interface PlaytestReport {
   /** resourceBands[resourceId] = P10/P50/P90 at checkpoints (share of the run). */
   resourceBands: Record<string, {label: string; points: {at: number; p10: number; p50: number; p90: number}[]}>;
   cards: {neverDrawn: string[]; drawRate: Record<string, number>; consecutiveRepeatRate: number};
+  /** Hard safety floor, independent of optional FunProfile metrics; capped unfinished runs are excluded. */
+  runLength?: {completedRuns: number; minimum?: number; average?: number};
   deadEnds: number;
   lockedRatio: number;
   /** Share of steps where a resource sat at its min or max (warning > 0.5). */
@@ -52,6 +68,13 @@ export interface PlaytestReport {
   /** S3: why the 「随机」 run is short (present when G1 fails) plus the static minimum-step estimate per ending. */
   pacing?: PacingReport;
   durationMs: number;
+}
+export interface CausalityReport {
+  worldId: string; expectedVersion: number; contentHash: string; reportId: string; checkVersion: string;
+  status: 'pass' | 'fail' | 'inconclusive' | 'unsupported'; exploredStates: number; maxStates: number;
+  findings: {code: string; severity: 'error' | 'warning'; entityIds: string[]; message: string;
+    witness?: {seed: number; actionIds: string[]; alternateActionIds?: string[]}}[];
+  limitations: string[];
 }
 /** covered = a generic strategy reaches it ≥ 5%; goal-only = only a goal-directed strategy reaches it (needs route guidance under random play);
  *  unreached = no automatic strategy reached it (NOT proof that it is unreachable); no-trigger = nothing in the content can fire it. */

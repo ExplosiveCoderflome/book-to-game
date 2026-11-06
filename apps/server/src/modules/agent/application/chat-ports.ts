@@ -7,7 +7,14 @@ export interface ChatTool {
   execute(input: Record<string, unknown>): unknown;
 }
 export interface ChatModel {
-  respond(messages: AgentChatMessage[], tools: ChatTool[], signal: AbortSignal): Promise<{text: string; calls: AgentChatToolCall[]}>;
+  run(messages: AgentChatMessage[], tools: ChatTool[], signal: AbortSignal, hooks: ChatRunHooks): Promise<{limited: boolean}>;
+}
+export interface ChatRunHooks {
+  maxRounds: number;
+  startTurn(): void;
+  assistant(reply: {text: string; calls: AgentChatToolCall[]}, final: boolean): void;
+  execute(call: AgentChatToolCall): Promise<{content: string; proposed: boolean}>;
+  toolResult(call: AgentChatToolCall, content: string): void;
 }
 export interface ChatRepository {
   insert(conversation: AgentChatConversation): void;

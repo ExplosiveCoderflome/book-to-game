@@ -2,9 +2,12 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { AgentChatAction, AgentChatConversation, AgentChatSummary, AgentChatToolCall } from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
 import type { ChatDeps, ChatModel, ChatTool } from './chat-ports.js';
-import { chatError, chatMessage, chatResult } from './chat-data.js';
+import { chatError, chatMessage, chatResult, chatValidationError } from './chat-data.js';
 
 const LEASE_MS = 600_000;
+const DEFAULT_TOOL_ROUNDS = 8;
+const configuredRounds = Number(process.env.AGENT_CHAT_MAX_TOOL_ROUNDS);
+export const MAX_TOOL_ROUNDS = Number.isInteger(configuredRounds) && configuredRounds > 0 ? Math.min(configuredRounds, 32) : DEFAULT_TOOL_ROUNDS;
 
 export class AgentChatService {
   constructor(private readonly deps: ChatDeps) {}
@@ -42,10 +45,11 @@ export class AgentChatService {
     this.idle(c);
     if (!input.text.trim() || input.text.length > 8000) throw new AppError('INVALID_CHAT_MESSAGE', '请输入1–8000字的消息', 400);
     if (c.messages.length > 240) throw new AppError('CHAT_HISTORY_LIMIT', '本会话已较长，请新建对话继续', 409);
+    const requestId = input.requestId || randomUUID();
     const model = this.deps.model();
     const text = this.deps.redact?.(input.text.trim()) ?? input.text.trim();
     if (!c.messages.length) c.title = text.slice(0, 36);
-    c.messages.push(chatMessage('user', text, {requestId: input.requestId, requestHash}));
+    c.messages.push(chatMessage('user', text, {requestId, requestHash}));
     c = this.claim(c); return this.run(c, model);
   }
 
@@ -87,23 +91,30 @@ export class AgentChatService {
     let c = initial;
     try {
       const tools = this.deps.tools();
-      for (let round = 0; round < 4; round++) {
-        c.leaseUntil = Date.now() + LEASE_MS; c = this.save(c);
-        const reply = await model.respond(c.messages, tools, AbortSignal.timeout(330_000));
-        if (reply.calls.length > 4) throw new AppError('CHAT_TOOL_LIMIT', '单轮工具数量超限', 422);
-        c.messages.push(chatMessage('assistant', reply.text, reply.calls.length ? {toolCalls: reply.calls} : {}));
-        c = this.save(c);
-        if (!reply.calls.length) {c.status = 'idle'; c.leaseUntil = 0; return this.save(c);}
-        let proposed = false;
-        for (const call of reply.calls) {
-          const result = await this.useTool(c, tools, call, proposed);
-          proposed ||= result.proposed;
-          c.messages.push(chatMessage('tool', result.content, {toolCallId: call.id, toolName: call.name}));
+      let assistantId: string | undefined, streamedAt = 0;
+      const result = await model.run(c.messages, tools, AbortSignal.timeout(330_000), {
+        maxRounds: MAX_TOOL_ROUNDS,
+        startTurn: () => {assistantId = undefined; streamedAt = 0; c.leaseUntil = Date.now() + LEASE_MS; c = this.save(c);},
+        assistant: (reply, final) => {
+          if (!final && Date.now() - streamedAt < 150) return;
+          streamedAt = Date.now();
+          let message = assistantId ? c.messages.find(item => item.id === assistantId) : undefined;
+          if (!message) {message = chatMessage('assistant', ''); assistantId = message.id; c.messages.push(message);}
+          message.content = reply.text;
+          // Only persist complete tool calls; partial JSON is never executable.
+          if (final && reply.calls.length) message.toolCalls = reply.calls;
           c = this.save(c);
-        }
-        if (proposed) {c.status = 'idle'; c.leaseUntil = 0; return this.save(c);}
-      }
-      c.messages.push(chatMessage('assistant', '已达到本轮工具调用上限，已完成的结果已保存。请继续说明下一步。'));
+        },
+        execute: async call => {
+          const result = await this.useTool(c, tools, call, c.actions.some(a => a.status === 'pending'));
+          return {...result, content: this.deps.redact?.(result.content) ?? result.content};
+        },
+        toolResult: (call, content) => {
+          c.messages.push(chatMessage('tool', content, {toolCallId: call.id, toolName: call.name}));
+          c = this.save(c);
+        },
+      });
+      if (result.limited) c.messages.push(chatMessage('assistant', '已达到本轮工具调用上限，已完成的结果已保存。请继续说明下一步。'));
     } catch (error) {
       // A failed provider response never erases successful tools or exposes upstream bodies/credentials.
       c.messages.push(chatMessage('assistant', `这一轮请求未完成。${chatError(error)}`));
@@ -124,7 +135,17 @@ export class AgentChatService {
         summary: preview.summary, guard: preview.guard, status: 'pending', createdAt: now, updatedAt: now};
       c.actions.push(action);
       return {content: chatResult({status: 'awaiting_author_confirmation', actionId: action.id, summary: action.summary}), proposed: true};
-    } catch (error) {return {content: chatError(error), proposed: false};}
+    } catch (error) {
+      if (error instanceof Error && error.name === 'ZodError' && 'issues' in error) {
+        const fingerprint = JSON.stringify(call.arguments ?? null);
+        const repeated = c.messages.some(message => message.role === 'tool' && message.toolName === call.name
+          && message.content.includes('CHAT_INVALID_ARGS') && c.messages.some(prior => prior.role === 'assistant'
+            && prior.toolCalls?.some(previous => previous.id === message.toolCallId && previous.name === call.name
+              && JSON.stringify(previous.arguments ?? null) === fingerprint)));
+        return {content: repeated ? chatResult({error: 'CHAT_INVALID_ARGS', message: '参数与上次相同已失败，请修改后重试。'}) : chatValidationError(error as import('zod').ZodError), proposed: false};
+      }
+      return {content: chatError(error), proposed: false};
+    }
   }
   private receipt(c: AgentChatConversation, action: AgentChatAction) {
     action.updatedAt = new Date().toISOString();

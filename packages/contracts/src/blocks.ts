@@ -50,6 +50,7 @@ export const SUBSTRATE_CONTRACTS = [
   'game.variables',
   'world.locations', 'world.map', 'world.clock', 'world.storylets', 'world.endings', 'world.endConditions',
   'world.resourceDefs', 'world.facts', 'world.npcs', 'world.actions',
+  'world.ledgerAssertions',
   'building.library', 'item.catalog',
 ] as const;
 export const substrateContractSchema = z.enum(SUBSTRATE_CONTRACTS);
@@ -70,7 +71,7 @@ export type SubstrateContract = z.infer<typeof substrateContractSchema>;
 export const BLOCK_PROVIDES = [
   'variables', 'resource-defs', 'locations', 'map.fill', 'building-library',
   'item-catalog', 'storylets', 'endings', 'recap', 'clock', 'encounters', 'preflight-sim',
-  'actions', 'facts', 'ai-overlay',
+  'actions', 'facts', 'ledger-assertions', 'ai-overlay',
 ] as const;
 export const blockProvideSchema = z.enum(BLOCK_PROVIDES);
 export type BlockProvide = z.infer<typeof blockProvideSchema>;
@@ -82,6 +83,8 @@ export const blockParamSchema = z.object({
   type: z.enum(['number', 'integer', 'string', 'boolean', 'array', 'select']),
   /** Default value when the author does not override. Kept loose; typed params are validated superRefine-side. */
   default: z.union([z.string().max(500), z.number().finite(), z.boolean(), z.array(z.union([z.string().max(80), z.number().finite()]))]).optional(),
+  /** Whether authors must provide a value when neither a default nor select option exists. Defaults to required. */
+  required: z.boolean().optional(),
   /** Required for `select`: allowed values (first is default when no explicit default). */
   options: z.array(z.string().min(1).max(80)).optional(),
 });
@@ -143,6 +146,16 @@ const RAW_BLOCKS = [
     params: [{key: 'stat_template_id', label: '模板', type: 'select', description: '题材化数值骨架。',
       options: ['xianxia_pressure', 'mystery_deduction', 'trade_venture', 'relationship_drama']}],
     provides: ['variables'], acceptance: ['G1', 'G2'], shelves: ['foundation'],
+  },
+  {
+    id: 'opening-roll', version: 1,
+    label: '开局随机数值', blurb: 'K16 开局投掷骨架：按资源模板生成可复现的起点数值；作者填入标签效果与剧情联动，确认后由既有世界状态和剧情卡承接。',
+    funTags: ['growth', 'collection'], requires: ['world.resourceDefs', 'world.facts'],
+    composesWith: {dependsOn: ['stat-templates'], conflictsWith: []},
+    params: [{key: 'enabled', label: '启用开局投掷', type: 'boolean', default: false},
+      {key: 'mode', label: '投掷模式', type: 'select', options: ['perStat', 'pointBuy', 'preset'], default: 'perStat'},
+      {key: 'rerolls', label: '重掷次数', type: 'integer', default: 2}],
+    provides: ['variables', 'resource-defs', 'facts', 'storylets'], acceptance: ['opening-roll-worst', 'opening-roll-best'], shelves: ['foundation'],
   },
   {
     id: 'world-map', version: 1,
@@ -304,6 +317,13 @@ const RAW_BLOCKS = [
     provides: ['facts', 'actions'], acceptance: ['G8', 'pressure-bidirectional'], shelves: ['combat-growth'],
   },
   {
+    id: 'fact-evidence-ledger', version: 1,
+    label: '事实/证据/承诺账本', blurb: '通用账本契约：以事实真相、玩家知识、资源持有/消耗与一次性行动承诺编译到既有 WorldContent；作者在 action/event/ending 上声明 typed ledgerAssertions，运行时由真实动作重放校验。自由文本语义仍不自动判定。',
+    funTags: ['mystery', 'collection'], requires: ['world.facts', 'world.actions', 'world.ledgerAssertions'],
+    composesWith: {dependsOn: [], conflictsWith: []}, params: [],
+    provides: ['facts', 'actions', 'ledger-assertions'], acceptance: ['G4'], shelves: ['world-content', 'foundation'],
+  },
+  {
     id: 'ai-narration', version: 1,
     label: 'AI 临场旁白', blurb: '积木商店的玩时旁白层：包装现有 narrate_session / narrate_adventure，由共享 play-ai 助手统一调用、限额与 soft-fail。默认关；只写旁白文案，不改图、不改变量/事实、不发明选项。',
     funTags: ['warmth', 'mystery'], requires: [],
@@ -318,7 +338,7 @@ const RAW_BLOCKS = [
   },
   {
     id: 'ai-npc-dialog', version: 1,
-    label: 'AI NPC 临场对话', blurb: '积木商店的 NPC 气泡层：在玩家点选已有 NPC 时生成 1–2 句临场台词。开放冒险已接线（POST /api/adventures/:id/npc-dialog）；故事模式旁白已通、NPC 对话留待下一刀。运行时仅用当前地点已公开的 NPC 与世界书，写回对话气泡；不新增行动、不改事实/变量，失败 soft-fail。',
+    label: 'AI NPC 临场对话', blurb: '积木商店的 NPC 气泡层：在玩家点选已有 NPC 时生成 1–2 句临场台词。开放冒险已接线 NPC 对白命令；故事模式旁白已通、NPC 对话留待下一刀。运行时仅用当前地点已公开的 NPC 与世界书，写回对话气泡；不新增行动、不改事实/变量，失败 soft-fail。',
     funTags: ['warmth'], requires: ['world.npcs', 'world.facts'],
     composesWith: {dependsOn: [], conflictsWith: []},
     params: [

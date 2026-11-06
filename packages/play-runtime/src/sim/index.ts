@@ -1,7 +1,7 @@
 /** Author-side simulator (§6.7). Not exported from the package root → never bundled into the offline player. */
 export {
-  simulateWorld, defaultStrategies, STRATEGY_IDS, PACING_LINE, XIANXIA_SIM_PREFS,
-  type SimulateOptions, type SimProfile, type Strategy, type SimOption, type SimRoute,
+  simulateWorld, semanticDependencyState, MIN_RUN_DECISIONS, MIN_RUN_LENGTH_CHECK, defaultStrategies, STRATEGY_IDS, PACING_LINE, XIANXIA_SIM_PREFS,
+  type SimulateOptions, type SimProfile, type Strategy, type SimOption, type SimRoute, checkWorldExtensions,
 } from './simulate.js';
 export { goalStrategy, endingSources } from './goal-strategy.js';
 export { routeGuidance, applyGuidance, candidateEdits, keyStepsOf, type GuidanceOptions } from './guidance.js';

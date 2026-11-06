@@ -1769,8 +1769,11 @@ legend {
 .play-ending-recap li { font-size: 15px; line-height: 1.6; padding: 8px 0; border-bottom: 1px solid var(--line); color: var(--ink); }
 .play-ending-recap li:last-child { border-bottom: 0; }
 .play-ending-summary { margin: 20px 0 6px; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; line-height: 1.7; }
-.play-ending-summary-label { font-weight: 600; color: var(--ink); margin-right: 8px; }
+.play-ending-summary-label { font-weight: 600; color: var(--ink); margin-right: 8px; white-space: nowrap; }
 .play-ending-stat, .play-ending-step { white-space: nowrap; display: inline-block; }
+.play-ending-stat:not(:last-child)::after { content: " ·"; }
+.reader-empty-hint { margin: 0; color: var(--muted); font-size: 14px; }
+.blocked-reason { box-sizing: border-box; width: 100%; }
 .play-ending-hint { margin: 0 0 12px; font-size: 14px; color: var(--muted); }
 .play-ending-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .play-ending-actions button { font-size: 14px; }
@@ -4137,9 +4140,13 @@ button.chip.active {
 .play-ending.is-failure { border-left-color: var(--rust); }
 .play-ending.is-timeout { border-left-color: var(--line-strong); }
 .play-ending-path { font-size: 14px; color: var(--muted); margin: 20px 0 0; line-height: 1.7; max-width: 36em; }
-/* M10: a 「名 值/上限」 never breaks inside; M8: storylet prose is narrative → serif like the location text. */
+/* M10: names and values stay intact; spaces around slash allow `x / y` to wrap as a pair. */
 .play-stats-number, .play-stats-value, .play-stats-delta-chip, .play-stats-compact-item { white-space: nowrap; }
+.play-stats-numbers { display: flex; flex-wrap: wrap; column-gap: 0.35em; }
+.play-stats-number { white-space: normal; }
 /* …so the stats rows may wrap between units instead of widening the page (390px). */
+.play-stats-numbers { display: flex; flex-wrap: wrap; column-gap: 0.35em; }
+.play-stats-number { white-space: normal; }
 .play-stats-body, .play-stats-chart { grid-template-columns: minmax(0, 1fr); }
 .play-stats-number { display: inline-block; }
 .play-stats-item { min-width: 0; }
@@ -4230,6 +4237,28 @@ button.chip.active {
    package and author playtest): compact top HUD, dominant scene text, a short
    primary action dock and one folded drawer for everything secondary. */
 
+.opening-roll { width: min(100%, var(--prose-max, 68ch)); margin: 0 auto; display: grid; gap: 12px; }
+.opening-roll h3 { margin: 0; font-size: 1rem; }
+.opening-roll .play-stats-chart { display: grid; gap: 8px; }
+.opening-roll-set { padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.opening-roll-set.is-selected { border: 2px solid var(--green); }
+.opening-roll-select { min-height: 44px; width: 100%; text-align: left; }
+.opening-roll-tier { font-size: 1rem; }
+.opening-roll-verdict { font-family: var(--reader-font, Georgia, serif); font-size: 1rem; margin: 0; }
+.opening-roll-tags { display: grid; gap: 4px; }
+.opening-roll-tags p { margin: 0; }
+.opening-roll-history { display: grid; gap: 4px; }
+.opening-roll-history summary,.opening-roll-history button { min-height: 44px; }
+.opening-roll-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.opening-roll-actions button { min-height: 44px; }
+.opening-roll-actions .primary { order: -1; }
+.opening-roll-options { display: grid; gap: 8px; }
+@media (max-width: 760px) {
+  .opening-roll { gap: 10px; }
+  .opening-roll-actions { display: grid; grid-template-columns: minmax(0,1fr); }
+  .opening-roll-actions button { width: 100%; }
+}
+
 .scene-lens-hud {
   display: grid;
   grid-auto-flow: column;
@@ -4241,6 +4270,28 @@ button.chip.active {
   border-left: 3px solid var(--green);
   border-radius: var(--radius-sm);
   background: var(--surface-muted);
+}
+
+.opening-roll { width: min(100%, var(--prose-max, 68ch)); margin: 0 auto; display: grid; gap: 12px; }
+.opening-roll h3 { margin: 0; font-size: 1rem; }
+.opening-roll .play-stats-chart { display: grid; gap: 8px; }
+.opening-roll-set { padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.opening-roll-set.is-selected { border: 2px solid var(--green); }
+.opening-roll-select { min-height: 44px; width: 100%; text-align: left; }
+.opening-roll-tier { font-size: 1rem; }
+.opening-roll-verdict { font-family: var(--reader-font, Georgia, serif); font-size: 1rem; margin: 0; }
+.opening-roll-tags { display: grid; gap: 4px; }
+.opening-roll-tags p { margin: 0; }
+.opening-roll-history { display: grid; gap: 4px; }
+.opening-roll-history summary,.opening-roll-history button { min-height: 44px; }
+.opening-roll-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.opening-roll-actions button { min-height: 44px; }
+.opening-roll-actions .primary { order: -1; }
+.opening-roll-options { display: grid; gap: 8px; }
+@media (max-width: 760px) {
+  .opening-roll { gap: 10px; }
+  .opening-roll-actions { display: grid; grid-template-columns: minmax(0,1fr); }
+  .opening-roll-actions button { width: 100%; }
 }
 .scene-lens-stat {
   display: grid;

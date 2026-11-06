@@ -4,7 +4,7 @@
 
 ### Specialist surfaces (2026-10-30 · current author tools)
 
-App/Product UI + Redesign. **Concept:** follow a manuscript through source evidence, production, editing and playtesting, with the Agent always one discussion away. Extends the conversation studio to all nine author tools: sources, production, worlds, stories, buildings, items, both playtests and model settings. The standalone reader remains a reading surface.
+App/Product UI + Redesign. **Concept:** follow a manuscript through source evidence, production, editing and playtesting, with the Agent always one discussion away. Extends the conversation studio to all ten author tools: sources, production, worlds, stories, blocks, buildings, items, both playtests and model settings. The standalone reader remains a reading surface.
 
 `WorkspaceHeader` supplies one page h1, a concrete description and right-aligned actions. `workspace-surfaces.css` uses existing tokens: surface-muted page, white working surfaces, restrained green actions, 24px headings, 18px section headings, 16px prose, 14px controls, 12–13px metadata. Dense control labels retain the established workbench scale. Neutral surface hierarchy replaces old numbered/marketing introductions and decorative selection stripes. Reuse `StudioIcon`; no new dependency, raster asset, font download or animation.
 
@@ -15,6 +15,10 @@ The specialist stage scrolls inside the viewport below the 56px header (52px pho
 Every specialist header can prepare an Agent discussion. A visible handoff strip lets the author load and edit it; sending invokes the model. It preserves existing composer input and attaches only the selected saved draft/version or source. Local unsaved graph changes are not passed as saved content. This entry does not grant new model tools or replace existing write/publish confirmations.
 
 Adversarial pass found a cramped tablet reading column, a phone toolbar that pushed the actual canvas offscreen, the author/player play-route collision, and a cross-page draft-switch bypass. Fixed by stacking the reading layout, disclosing advanced tools, separating the hashes and sharing one navigation check. No fake assets or fabricated task progress. Computed contrast: muted/paper5.67:1, muted/surface-muted5.28:1, muted/accent-soft4.79:1, primary/paper6.29:1, ink/surface-muted15.91:1. See [workspace UI acceptance](docs/workspace-surfaces-2026-10-30.md) for actual browser and build evidence. Prior reference choices below remain: Linear hierarchy, Notion wayfinding, adjacent Claude artifacts, adapted to this manuscript workflow.
+
+### Block library maintenance (2026-11-05)
+
+The block library is a catalog workstation, not a storefront: four quiet tabs share one search/filter toolbar, a dense 260–360px entry list and an adjacent detail/editor surface. Built-in/custom origin and version stay visible; the only primary action is creating or saving a custom entry, with destructive delete spatially separated. Complex definitions remain inspectable in a monospace JSON editor while name, description, id and version use ordinary fields. Loading, empty, filtered-empty, service-error, lint-error and read-only states stay inline. At ≤980px list and inspector stack; no new palette, font, dependency, decorative imagery or motion.
 
 ### Agent workspace redesign (2026-10-29 · current author shell)
 
@@ -129,7 +133,20 @@ Anti-slop: no purple gradients, no AI lavender fills, no cream-literary chrome.
 - **Status strips:** `.branch-canvas-gen`, `.branch-canvas-banner`, skeleton/extend guides — compact left-accent strips.
 - **Play stats HUD:** `.play-stats` — ChoiceScript-inspired always-visible chart (role-ordered meters / flag pills; optional collapse, default open) between scene prose and choices. Outer shell keeps left green accent + muted fill; **inner rows are dense property-list dividers (no per-row card chrome)**. Supports optional `resources` with soft display labels. `.play-stats-delta` chips: `tone-gain` (green), `tone-loss` (muted), `tone-pressure` (rust). Option open/close lines under delta. Empty session HUD copy when no vars/resources. Patterns: `docs/if-editor-patterns.md`.
 - **Play feedback concept:** 试玩反馈是精密仪器的读数面板：正文是信号，HUD 是刻度，代价是预告，delta 是回弹指针；辅区（天道/旁白）保持静音。
-- **Play ending:** `.play-ending` — shared story/open shell: eyebrow · body · final-state chips ·「再开一局」primary +「回编辑改结局文案」quiet.
+- **Play ending (S1 · 结局页):** 一页读物；见下表（替换旧「eyebrow · body · chips」写法，`.play-ending-chip` 退役）。
+
+| Token / class | Rule |
+|---|---|
+| `.play-ending` | 不加底色、不加外框；只保留 3px 左线（`ending` 用 `--green`、`failure` 用 `--rust`、`timeout` 用 `--line-strong`）；左内边距 14px（手机 12px）；`scroll-margin-top: 12px` |
+| `.play-ending-eyebrow` | 13px / 600，不转大写；`failure` 用 rust 字，其余 muted。有标题时只写类型 |
+| `.play-ending-title` | 20px / 600 无衬线（手机 18px） |
+| `.play-ending-body` / `.play-ending-passages` | 复用 `.reader-text p`（衬线 17px，手机 16px），行高 2.0；`max-width: 36em`；段落组 `margin-top: 1.2em`，不加线、不加花饰 |
+| `.play-ending-recap` | 上方 1px `--line` 细线，`margin-top: 24px`；标题 15px / 600；`ul` 去掉列表符号；每条 15px 无衬线、行高 1.6，`padding: 8px 0`，条间 1px `--line` 细线；`max-width: 36em` |
+| `.play-ending-summary` | 一行 14px muted 文字，用「 · 」相连，`tabular-nums`；不用胶囊（`.play-ending-chip` 退役）；`margin-top: 20px` |
+| `.play-ending-hint` | 14px muted |
+| `.play-ending-actions` | 放在最后；按钮 ≥44px（手机）；主按钮只有一个 |
+| 禁止 | 卷轴 / 宣纸底纹、墓碑或灯灭插画、星级评分、成就徽章、彩色胶囊、分享海报、「通关」横幅 |
+
 - **Adventure goal / result:** `.adventure-goal` / `.adventure-result` use `--surface-muted` + left 3px `--green` (no cream `#f1f2e7` / `#e9eddf`).
 - **Stat Editor:** `.stat-editor` — universal inspector for `content.variables` (template-seeded or hand-added). Dense property-list rows (display label + mono name, role chip from catalog, type select, initial value, delete); compact template-apply strip; footer add bar. No fieldset stack, no card-in-card. Roles are display metadata only.
 - **Choice rules:** `.choice-rules` — same dense instrument language as Stat Editor; conditions labeled gate, effects labeled cost; logic stays `conditions`/`effects` only.

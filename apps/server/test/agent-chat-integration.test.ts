@@ -12,6 +12,7 @@ import { createWorkbench } from '../src/app/workbench.js';
 import { openDatabase } from '../src/platform/database.js';
 import { createModelSettings } from '../src/platform/create-model-settings.js';
 import { createApp } from '../src/adapters/http/app.js';
+import { streamChatReply } from './helpers/agent-pi.js';
 
 test('agent conversation: real provider protocol, shared tools, author confirmation, HTTP/MCP history and replay', async () => {
   let calls = 0;
@@ -23,7 +24,7 @@ test('agent conversation: real provider protocol, shared tools, author confirmat
         const rows = JSON.parse(input.messages.at(-1).content);
         return {content: '找到测试草稿，建议修改标题，请确认。', tool_calls: [{id: 'edit-1', type: 'function', function: {name: 'edit_world_summary', arguments: JSON.stringify({id: rows[0].id, version: rows[0].version, title: '对话修改后的标题'})}}]};
       })() : {content: '已按确认修改标题，草稿为新版本。'};
-    res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({choices: [{message: result}]}));
+    assert.equal(input.stream, true); streamChatReply(res, result);
   }).listen(0, '127.0.0.1'); await once(provider, 'listening');
   const dir = mkdtempSync(path.join(tmpdir(), 'btg-agent-chat-test-'));
   const db = openDatabase(path.join(dir, 'workbench.sqlite'));

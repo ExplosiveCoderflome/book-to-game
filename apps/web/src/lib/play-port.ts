@@ -1,5 +1,5 @@
 import type {
-  ActInput, AdventureActInput, AdventureView, GameRevision, SessionView, WorldRevision,
+  ActInput, AdventureActInput, AdventureView, GameRevision, OpeningRollCommand, SessionView, WorldRevision,
 } from '@novel-game/contracts';
 import type { SaveSlot } from '../components/player/SaveSlotList';
 
@@ -18,6 +18,7 @@ export interface PlayPagePort<R, V, A> {
   get(id: string): Promise<V>;
   start(revisionId: string): Promise<V>;
   act(id: string, input: A): Promise<V>;
+  opening?(id: string, command: OpeningRollCommand): Promise<V>;
   message(error: unknown): string;
   /** True when the outcome is unknown (retry the same request). Local play is never uncertain. */
   uncertain(error: unknown): boolean;

@@ -1,11 +1,12 @@
 import type { StudioIconName } from '../components/studio/StudioIcon';
 
-export type WorkspaceTab = 'sources' | 'agent' | 'generation' | 'worlds' | 'buildings' | 'items' | 'adventures' | 'drafts' | 'play' | 'settings';
+export type WorkspaceTab = 'sources' | 'agent' | 'generation' | 'worlds' | 'blocks' | 'buildings' | 'items' | 'adventures' | 'drafts' | 'play' | 'settings';
 export const workspacePages: {id: WorkspaceTab; label: string; icon: StudioIconName; group: 'main' | 'tools' | 'settings'}[] = [
   {id: 'agent', label: 'Agent 工作区', icon: 'chat', group: 'main'},
   {id: 'sources', label: '原作书架', icon: 'book', group: 'main'},
   {id: 'generation', label: '制作任务', icon: 'tasks', group: 'main'},
   {id: 'worlds', label: '世界草稿', icon: 'world', group: 'main'},
+  {id: 'blocks', label: '积木库', icon: 'grid', group: 'tools'},
   {id: 'buildings', label: '建筑库', icon: 'grid', group: 'tools'},
   {id: 'items', label: '物品目录', icon: 'grid', group: 'tools'},
   {id: 'drafts', label: '分支草稿', icon: 'branch', group: 'tools'},

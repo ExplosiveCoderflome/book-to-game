@@ -22,6 +22,13 @@ test('local access token survives restart and absent provider stays disabled', (
     assert.equal(config.provider.maxAttempts, 3);
     assert.equal(config.provider.retryBaseMs, 500);
     assert.equal(config.provider.repairAttempts, 3);
+    assert.equal(config.provider.streamIdleTimeoutMs, 120000);
+    assert.equal(config.provider.streamTotalTimeoutMs, 600000);
+    const stream = loadConfig({LLM_STREAM_IDLE_TIMEOUT_MS: '180000', LLM_STREAM_TOTAL_TIMEOUT_MS: '900000'});
+    assert.equal(stream.provider.streamIdleTimeoutMs, 180000);
+    assert.equal(stream.provider.streamTotalTimeoutMs, 900000);
+    assert.throws(() => loadConfig({LLM_STREAM_IDLE_TIMEOUT_MS: '0'}), /LLM_STREAM_IDLE_TIMEOUT_MS/);
+    assert.throws(() => loadConfig({LLM_STREAM_TOTAL_TIMEOUT_MS: 'NaN'}), /LLM_STREAM_TOTAL_TIMEOUT_MS/);
     const tuned = loadConfig({LLM_MAX_ATTEMPTS: '2', LLM_RETRY_BASE_MS: '0', LLM_RETRY_MAX_MS: '1000', LLM_REPAIR_ATTEMPTS: '4'});
     assert.deepEqual({maxAttempts: tuned.provider.maxAttempts, retryBaseMs: tuned.provider.retryBaseMs, repairAttempts: tuned.provider.repairAttempts},
       {maxAttempts: 2, retryBaseMs: 0, repairAttempts: 4});

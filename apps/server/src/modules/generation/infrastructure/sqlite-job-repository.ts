@@ -1,6 +1,6 @@
 import type { SqliteDatabase } from '../../../platform/database.js';
 import { randomUUID } from 'node:crypto';
-import type { Analysis, AnalysisResult, BranchSkeleton, GenerationInput, JobFailure, ProductionPlan, ProductionUnit, ProductionNarrative, LintReport, PlaytestReport } from '@novel-game/contracts';
+import type { Analysis, AnalysisResult, BranchSkeleton, GenerationInput, JobFailure, ProductionPlan, ProductionPlanningState, ProductionUnit, ProductionNarrative, LintReport, PlaytestReport } from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
 import { formatJobError } from '../domain/failure.js';
 import { productionUnits } from '../domain/production.js';
@@ -113,8 +113,12 @@ export class SqliteJobRepository implements JobRepository {
   saveProductionPlan(id: string, owner: string, plan: ProductionPlan): boolean {
     return this.owned(id, owner, job => {
       job.productionState = {plan, approved: false, texts: {}};
+      delete job.productionPlanning;
       job.status = 'awaiting_review'; job.stage = '请审阅人物与玩法规划'; job.progress = 0.25;
     });
+  }
+  saveProductionPlanning(id: string, owner: string, state: ProductionPlanningState): boolean {
+    return this.owned(id, owner, job => {job.productionPlanning = structuredClone(state); job.stage = `玩法规划 ${state.completed.length} 段已保存`; job.progress = Math.min(0.24, 0.03 + state.completed.length * 0.01);});
   }
   approveProduction(id: string, plan: ProductionPlan, expectedUpdatedAt?: string): StoredJob {
     return this.db.transaction(() => {

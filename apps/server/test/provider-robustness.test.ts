@@ -64,6 +64,31 @@ test('provider accepts fenced JSON, leading prose, and trailing commas', async (
   } finally {await stub.close();}
 });
 
+test('narrate prompt uses a JSON example and schema echoes still require repair', async () => {
+  const bodies: {messages: {role: string; content: string}[]}[] = [];
+  const stub = await listen(async (req, res) => {
+    bodies.push(JSON.parse(await read(req)));
+    const content = bodies.length === 1
+      ? {schema: 'https://json-schema.org/draft/2020-12/schema', type: 'object', properties: {narration: {type: 'string'}}, required: ['narration']}
+      : {narration: '河风掠过潮湿的木栈桥。'};
+    res.end(envelope(JSON.stringify(content)));
+  });
+  try {
+    const model = provider(stub.port, {repairAttempts: 2, maxAttempts: 1});
+    const result = await model.narrate({sceneTitle: '渡口', sceneText: '小船轻轻碰岸。', choices: [],
+      variables: {}, worldbookSnippets: []}, new AbortController().signal);
+    assert.equal(result.narration, '河风掠过潮湿的木栈桥。');
+    assert.equal(bodies.length, 2);
+    const system = bodies[0]!.messages[0]!.content;
+    assert.equal(bodies[0]!.messages[0]!.role, 'system');
+    assert.match(system, /\{"narration":"河风掠过空荡的渡口。"\}/);
+    assert.match(system, /不要 Markdown、JSON Schema、类型定义或格式说明/);
+    assert.equal(system.includes('"$schema"'), false);
+    assert.equal(system.includes('"additionalProperties"'), false);
+    assert.match(bodies[1]!.messages.at(-1)!.content, /SCHEMA_VALIDATION_FAILED/);
+  } finally {await stub.close();}
+});
+
 test('truncated JSON fails specifically and is not repaired into a fake object', async () => {
   let calls = 0;
   const stub = await listen(async (req, res) => {
@@ -138,6 +163,188 @@ test('timeouts are retried and a later response can succeed', async () => {
     const model = provider(stub.port, {timeoutMs: 80, maxAttempts: 2, retryBaseMs: 0, retryMaxMs: 0, repairAttempts: 1});
     assert.equal((await model.analyze(chunk, new AbortController().signal)).summary, '渡口');
     assert.equal(calls, 2);
+  } finally {await stub.close();}
+});
+
+test('production plan consumes SSE deltas and tolerates token gaps below the idle limit', async () => {
+  const {testProductionPlan} = await import('./helpers/production-plan.js');
+  const plan = testProductionPlan(['c1']);
+  let streamRequested = false;
+  const stub = await listen(async (req, res) => {
+    const body = JSON.parse(await read(req)); streamRequested = body.stream === true;
+    res.setHeader('content-type', 'text/event-stream');
+    const json = JSON.stringify(plan);
+    res.write(`data: ${JSON.stringify({choices: [{delta: {content: json.slice(0, 12)}}]})}\n\n`);
+    await new Promise(resolve => setTimeout(resolve, 60));
+    res.write(`data: ${JSON.stringify({choices: [{delta: {content: json.slice(12)}, finish_reason: 'stop'}]})}\n\n`);
+    res.end('data: [DONE]\n\n');
+  });
+  try {
+    const model = provider(stub.port, {timeoutMs: 20, streamIdleTimeoutMs: 200, streamTotalTimeoutMs: 1000, repairAttempts: 1, maxAttempts: 1});
+    const result = await model.planProduction(analysis as any, {tier: 'S'} as any, ['c1'], new AbortController().signal);
+    assert.equal(streamRequested, true);
+    assert.deepEqual(result, plan);
+  } finally {await stub.close();}
+});
+
+test('production plan retries without stream when the provider rejects stream mode', async () => {
+  const {testProductionPlan} = await import('./helpers/production-plan.js');
+  const plan = testProductionPlan(['c1']);
+  const streamFlags: boolean[] = [];
+  const stub = await listen(async (req, res) => {
+    const body = JSON.parse(await read(req)); streamFlags.push(body.stream === true);
+    if (body.stream) {res.statusCode = 400; res.end(JSON.stringify({error: {message: 'stream unsupported'}})); return;}
+    res.setHeader('content-type', 'application/json'); res.end(envelope(JSON.stringify(plan)));
+  });
+  try {
+    const model = provider(stub.port, {streamIdleTimeoutMs: 100, streamTotalTimeoutMs: 1000, repairAttempts: 1, maxAttempts: 1});
+    const result = await model.planProduction(analysis as any, {tier: 'S'} as any, ['c1'], new AbortController().signal);
+    assert.deepEqual(result, plan);
+    assert.deepEqual(streamFlags, [true, false]);
+  } finally {await stub.close();}
+});
+
+test('production plan accepts ignored stream mode without duplicating a successful request', async () => {
+  const {testProductionPlan} = await import('./helpers/production-plan.js');
+  const plan = testProductionPlan(['c1']);
+  const streamFlags: boolean[] = [];
+  const stub = await listen(async (req, res) => {
+    const body = JSON.parse(await read(req)); streamFlags.push(body.stream === true);
+    res.setHeader('content-type', 'application/json'); res.end(envelope(JSON.stringify(plan)));
+  });
+  try {
+    const model = provider(stub.port, {streamIdleTimeoutMs: 100, streamTotalTimeoutMs: 1000, repairAttempts: 1, maxAttempts: 1});
+    assert.deepEqual(await model.planProduction(analysis as any, {tier: 'S'} as any, ['c1'], new AbortController().signal), plan);
+    assert.deepEqual(streamFlags, [true]);
+  } finally {await stub.close();}
+});
+
+test('production stream idle failure retries while reasoning tokens keep the next attempt alive', async () => {
+  const {testProductionPlan} = await import('./helpers/production-plan.js');
+  const plan = testProductionPlan(['c1']);
+  let calls = 0;
+  const stub = await listen(async (req, res) => {
+    await read(req); calls++;
+    res.writeHead(200, {'content-type': 'text/event-stream'});
+    res.flushHeaders();
+    if (calls === 1) return;
+    for (let i = 0; i < 4; i++) {
+      res.write(`data: ${JSON.stringify({choices: [{delta: {reasoning_content: 'thinking'}}]})}\r\n\r\n`);
+      await new Promise(resolve => setTimeout(resolve, 60));
+    }
+    // Split UTF-8 and SSE lines across transport chunks; final event has no newline.
+    const bytes = Buffer.from(`data: ${JSON.stringify({choices: [{delta: {content: JSON.stringify(plan)}, finish_reason: 'stop'}]})}`);
+    res.write(bytes.subarray(0, 73)); res.end(bytes.subarray(73));
+  });
+  try {
+    const model = provider(stub.port, {timeoutMs: 20, streamIdleTimeoutMs: 150, streamTotalTimeoutMs: 1500, maxAttempts: 2, repairAttempts: 1, retryBaseMs: 0});
+    assert.deepEqual(await model.planProduction(analysis as any, {tier: 'S'} as any, ['c1'], new AbortController().signal), plan);
+    assert.equal(calls, 2);
+  } finally {await stub.close();}
+});
+
+test('continuous tokens cannot bypass the total stream deadline', async () => {
+  const stub = await listen(async (req, res) => {
+    await read(req); res.writeHead(200, {'content-type': 'text/event-stream'});
+    const timer = setInterval(() => res.write('data: {"choices":[{"delta":{"content":"x"}}]}\n\n'), 20);
+    res.on('close', () => clearInterval(timer));
+  });
+  try {
+    const model = provider(stub.port, {streamIdleTimeoutMs: 200, streamTotalTimeoutMs: 140, maxAttempts: 1, repairAttempts: 1});
+    await assert.rejects(model.planProduction(analysis as any, {tier: 'S'} as any, [], new AbortController().signal), (error: any) => error.code === 'MODEL_CONNECTION_FAILED' && error.details.reason === 'timeout');
+  } finally {await stub.close();}
+});
+
+test('non-stream fallback uses the long budget and shares its total deadline', async () => {
+  const {testProductionPlan} = await import('./helpers/production-plan.js');
+  const plan = testProductionPlan(['c1']);
+  const flags: boolean[] = [];
+  const stub = await listen(async (req, res) => {
+    const body = JSON.parse(await read(req)); flags.push(!!body.stream);
+    if (body.stream) {res.writeHead(422); res.end(); return;}
+    await new Promise(resolve => setTimeout(resolve, 80));
+    res.end(envelope(JSON.stringify(plan)));
+  });
+  try {
+    const model = provider(stub.port, {timeoutMs: 20, streamIdleTimeoutMs: 60, streamTotalTimeoutMs: 1000, maxAttempts: 1, repairAttempts: 1});
+    assert.deepEqual(await model.planProduction(analysis as any, {tier: 'S'} as any, ['c1'], new AbortController().signal), plan);
+    assert.deepEqual(flags, [true, false]);
+  } finally {await stub.close();}
+});
+
+test('cancelling a production stream does not retry or fall back', async () => {
+  let calls = 0;
+  const controller = new AbortController();
+  const stub = await listen(async (req, res) => {
+    calls++; await read(req); res.writeHead(200, {'content-type': 'text/event-stream'}); res.flushHeaders();
+    setTimeout(() => controller.abort(), 30);
+  });
+  try {
+    await assert.rejects(provider(stub.port).planProduction(analysis as any, {tier: 'S'} as any, [], controller.signal));
+    assert.equal(calls, 1);
+  } finally {await stub.close();}
+});
+
+test('stream rejection and its non-stream fallback share one total deadline', async () => {
+  const flags: boolean[] = [];
+  const stub = await listen(async (req, res) => {
+    const body = JSON.parse(await read(req)); flags.push(!!body.stream);
+    if (body.stream) {await new Promise(resolve => setTimeout(resolve, 80)); res.writeHead(400); res.end(); return;}
+    res.writeHead(200, {'content-type': 'application/json'}); res.flushHeaders();
+  });
+  try {
+    const started = performance.now();
+    const model = provider(stub.port, {streamIdleTimeoutMs: 500, streamTotalTimeoutMs: 200, maxAttempts: 1, repairAttempts: 1});
+    await assert.rejects(model.planProduction(analysis as any, {tier: 'S'} as any, [], new AbortController().signal), (error: any) => error.code === 'MODEL_CONNECTION_FAILED' && error.details.reason === 'timeout');
+    assert.ok(performance.now() - started < 1000);
+    assert.deepEqual(flags, [true, false]);
+  } finally {await stub.close();}
+});
+
+test('SSE heartbeats cannot keep an idle request alive before or after headers', async () => {
+  for (const headers of [false, true]) {
+    const stub = await listen(async (req, res) => {
+      await read(req);
+      if (!headers) return;
+      res.writeHead(200, {'content-type': 'text/event-stream'});
+      const timer = setInterval(() => res.write(': heartbeat\n\n'), 20);
+      res.on('close', () => clearInterval(timer));
+    });
+    try {
+      await assert.rejects(provider(stub.port, {streamIdleTimeoutMs: 100, streamTotalTimeoutMs: 1000, maxAttempts: 1, repairAttempts: 1})
+        .planProduction(analysis as any, {tier: 'S'} as any, [], new AbortController().signal), (error: any) => error.details.reason === 'timeout');
+    } finally {await stub.close();}
+  }
+});
+
+test('an incomplete SSE stream retries instead of accepting a partial checkpoint', async () => {
+  const {testProductionPlan} = await import('./helpers/production-plan.js');
+  const plan = testProductionPlan(['c1']);
+  let calls = 0;
+  const stub = await listen(async (req, res) => {
+    await read(req); calls++;
+    res.writeHead(200, {'content-type': 'text/event-stream'});
+    res.write(`data: ${JSON.stringify({choices: [{delta: {content: JSON.stringify(plan)}}]})}\n\n`);
+    res.end(calls === 1 ? '' : 'data: [DONE]\n\n');
+  });
+  try {
+    assert.deepEqual(await provider(stub.port, {maxAttempts: 2, repairAttempts: 1, retryBaseMs: 0})
+      .planProduction(analysis as any, {tier: 'S'} as any, ['c1'], new AbortController().signal), plan);
+    assert.equal(calls, 2);
+  } finally {await stub.close();}
+});
+
+test('production prose also requests streaming and stops at DONE without waiting for EOF', async () => {
+  const {testProductionPlan} = await import('./helpers/production-plan.js');
+  let streamed = false;
+  const stub = await listen(async (req, res) => {
+    streamed = JSON.parse(await read(req)).stream === true;
+    res.writeHead(200, {'content-type': 'text/event-stream'});
+    res.write(`data: ${JSON.stringify({choices: [{delta: {content: JSON.stringify({unitKey: 'location:dock', texts: ['渡口的晨风。'.repeat(30)]})}}]})}\n\ndata: [DONE]\n\n`);
+  });
+  try {
+    const result = await provider(stub.port, {repairAttempts: 1}).writeProductionUnit(testProductionPlan(['c1']), {key: 'location:dock', kind: 'location', id: 'dock', variants: 1} as any, [], new AbortController().signal);
+    assert.equal(streamed, true); assert.equal(result.texts.length, 1);
   } finally {await stub.close();}
 });
 

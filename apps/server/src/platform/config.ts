@@ -19,6 +19,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   }
   const timeoutMs = Number(env.LLM_TIMEOUT_MS || 90000);
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 300000) throw new Error('LLM_TIMEOUT_MS 必须在 1000–300000 毫秒之间');
+  const streamIdleTimeoutMs = readInt(env, 'LLM_STREAM_IDLE_TIMEOUT_MS', 120000, 1000, 300000);
+  const streamTotalTimeoutMs = readInt(env, 'LLM_STREAM_TOTAL_TIMEOUT_MS', 600000, 10000, 1800000);
   const maxAttempts = readInt(env, 'LLM_MAX_ATTEMPTS', DEFAULT_MAX_ATTEMPTS, 1, 8);
   const retryBaseMs = readInt(env, 'LLM_RETRY_BASE_MS', DEFAULT_RETRY_BASE_MS, 0, 60_000);
   const retryMaxMs = readInt(env, 'LLM_RETRY_MAX_MS', DEFAULT_RETRY_MAX_MS, 0, 120_000);
@@ -28,7 +30,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   const provider: ModelConfig = {baseUrl,
     model: env.LLM_MODEL?.trim() || (xfyunSelected && xfyunApiKey ? XFYUN_MODEL : ''),
     apiKey: env.LLM_API_KEY?.trim() || (xfyunSelected ? xfyunApiKey : ''), timeoutMs,
-    maxAttempts, retryBaseMs, retryMaxMs, repairAttempts};
+    maxAttempts, retryBaseMs, retryMaxMs, repairAttempts, streamIdleTimeoutMs, streamTotalTimeoutMs};
   const localProvider = ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname);
   const allowedOrigins = [`http://127.0.0.1:${port}`, `http://localhost:${port}`, 'http://127.0.0.1:5173', 'http://localhost:5173', 'http://127.0.0.1:5174', 'http://localhost:5174'];
   return {port, dataDir, databasePath: path.join(dataDir, 'workbench.sqlite'), allowedOrigins, provider,

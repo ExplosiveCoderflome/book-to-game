@@ -13,8 +13,10 @@ import { createModelSettings } from '../src/platform/create-model-settings.js';
 import { lintWorld } from '@novel-game/rules/preflight';
 import { ChatCompletionsProvider } from '../src/platform/model/chat-completions.js';
 import { simulateWorld } from '@novel-game/play-runtime/sim';
+import { produceWorld } from '../src/modules/generation/application/produce-world.js';
 import { fillDemoWorld } from './helpers/fill-fixture.js';
 import { createApp } from '../src/adapters/http/app.js';
+import { productionPlanParts, mergeProductionPlan, runStagedProductionPlan } from '../src/modules/generation/index.js';
 
 const brief = productionBriefSchema.parse(JSON.parse(readFileSync(new URL('../../../examples/wulin-waizhuan.production.json', import.meta.url), 'utf8')));
 const source: SourceDocument = {id: 's', title: '测试资料', filename: 'test.txt', encoding: 'utf8', chapterCount: 1, charCount: 3,
@@ -153,7 +155,12 @@ test('OpenAI-compatible adapter sends a schema for planning and a single locked 
   const server = createServer(async (req, res) => {
     let raw = ''; for await (const part of req) raw += part;
     const body = JSON.parse(raw); captured.push(body);
-    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Type', body.stream ? 'text/event-stream' : 'application/json');
+    if (body.stream) {
+      const content = JSON.stringify(captured.length === 1 ? p : narrative(p, unit));
+      res.end(`data: ${JSON.stringify({choices: [{delta: {content}, finish_reason: 'stop'}]})}\n\ndata: [DONE]\n\n`);
+      return;
+    }
     res.end(JSON.stringify({choices: [{message: {content: JSON.stringify(captured.length === 1 ? p : narrative(p, unit))}, finish_reason: 'stop'}]}));
   }).listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -190,6 +197,71 @@ test('three successful strategies cannot be satisfied by substituting a failure 
   assert.throws(() => assertProductionPlan(p, brief, source), /失败结局不能替代通关策略/);
 });
 
+test('staged production planning merges by stable IDs and resumes after the last saved part', async () => {
+  const complete = plan();
+  const skeleton = structuredClone(complete);
+  const parts = productionPlanParts(skeleton, 3);
+  assert.ok(parts.length > 4);
+  assert.ok(parts.filter(part => part.kind !== 'skeleton').every(part => part.ids.length <= 3));
+  const detailParts = parts.filter(part => part.kind !== 'skeleton');
+  const merged = mergeProductionPlan(skeleton, Object.fromEntries(detailParts.map(part => [part.key, {items:
+    part.kind === 'routes' ? complete.routes.filter(item => part.ids.includes(item.id)) :
+      (complete.world[part.kind as keyof typeof complete.world] as unknown[]).filter((item: any) => part.ids.includes(item.id))}])));
+  assert.deepEqual(merged, complete, 'detail batches replace skeleton placeholders without duplicate IDs');
+
+  let saved: any; let interrupted = false; const calls = new Map<string, number>();
+  const input = {analysis: {...analysis, coverage: {chapterIds: [source.chapters[0]!.id], totalChapters: 1}}, brief,
+    chapterIds: [source.chapters[0]!.id], source, batchSize: 3, signal: AbortSignal.timeout(10000),
+    save(state: any) {saved = structuredClone(state); if (state.completed.length === 2 && !interrupted) {interrupted = true; return false;} return true;},
+    async write(part: {key: string; kind: string; ids: string[]}) {
+      calls.set(part.key, (calls.get(part.key) ?? 0) + 1);
+      if (part.kind === 'skeleton') return skeleton;
+      const list = part.kind === 'routes' ? complete.routes : complete.world[part.kind as keyof typeof complete.world] as unknown[];
+      return {items: list.filter((item: any) => part.ids.includes(item.id))};
+    }};
+  assert.equal(await runStagedProductionPlan(input), null, 'simulated lease loss stops after durable checkpoint');
+  const firstCompleted = [...saved.completed];
+  const result = await runStagedProductionPlan({...input, state: saved, save(state: any) {saved = structuredClone(state); return true;}});
+  assert.ok(result?.plan);
+  for (const key of firstCompleted) assert.equal(calls.get(key), 1, `${key} is not regenerated after resume`);
+  assert.deepEqual(result!.plan, complete);
+});
+
+test('staged merge closes resource, ending, fact and clock drift between completed parts', () => {
+  const drift = plan();
+  drift.world.resourceDefs = Object.fromEntries(Object.entries(drift.world.resourceDefs ?? {}).slice(0, 2));
+  drift.world.resources = Object.fromEntries(Object.entries(drift.world.resources ?? {}).filter(([id]) => id in drift.world.resourceDefs!));
+  for (const ending of drift.world.endings) if (ending.kind === 'failure') ending.kind = 'timeout';
+  delete drift.world.clock;
+  for (const action of drift.world.actions) action.timeCost = Math.min(5, Math.max(1, action.timeCost));
+  drift.world.events = [{id: 'event_deadline', label: '封港将近', when: [{kind: 'clock', atLeastMonth: 7}],
+    effects: [{kind: 'set', factId: drift.world.facts[0]!.id, value: true}], text: '封港期限将近。', visibility: 'public'}];
+  drift.world.storylets![0]!.choices[0]!.effects.push({kind: 'set', factId: 'fact_missing_detail', value: true});
+  const parts = productionPlanParts(drift, 4).filter(part => part.kind !== 'skeleton');
+  const merged = mergeProductionPlan(drift, Object.fromEntries(parts.map(part => [part.key, {items:
+    part.kind === 'routes' ? drift.routes.filter(item => part.ids.includes(item.id)) :
+      (drift.world[part.kind as keyof typeof drift.world] as unknown[]).filter((item: any) => part.ids.includes(item.id))}])));
+  assert.equal(Object.keys(merged.world.resourceDefs ?? {}).length, 4);
+  assert.ok(merged.world.resourceDefs!.relationship && merged.world.resourceDefs!.pressure);
+  assert.equal(merged.world.endings.filter(ending => ending.kind === 'failure').length, 1);
+  assert.ok(merged.world.facts.some(fact => fact.id === 'fact_missing_detail'));
+  assert.deepEqual(merged.world.events[0]!.when, [{kind: 'time', atLeast: 7}]);
+});
+
+test('staged skeleton retries when ending kinds cannot satisfy the tier', async () => {
+  const invalid = plan(); for (const ending of invalid.world.endings) delete ending.kind;
+  let writes = 0; let saved: any;
+  const result = await runStagedProductionPlan({analysis: {...analysis, coverage: {chapterIds: [source.chapters[0]!.id], totalChapters: 1}}, brief,
+    chapterIds: [source.chapters[0]!.id], source, batchSize: 3, signal: AbortSignal.timeout(10000),
+    save(state: any) {saved = structuredClone(state); return false;},
+    async write(part: {key: string; kind: string; ids: string[]}) {
+      assert.equal(part.kind, 'skeleton'); writes++; return writes === 1 ? invalid : plan();
+    }});
+  assert.equal(result, null, 'the test stops immediately after the repaired skeleton checkpoint');
+  assert.equal(writes, 2);
+  assert.deepEqual(saved.completed, ['skeleton']);
+});
+
 test('official DeepSeek uses modest planning reasoning and direct prose without changing other providers', async t => {
   const p = plan(); const unit = productionUnits(p)[0]!; const requests: Record<string, unknown>[] = [];
   t.mock.method(globalThis, 'fetch', async (_url: string, options: RequestInit) => {
@@ -208,6 +280,7 @@ test('official DeepSeek uses modest planning reasoning and direct prose without 
     .planProduction({...analysis, coverage: {chapterIds: ['shoudeng-c1'], totalChapters: 1}}, brief, ['shoudeng-c1'], AbortSignal.timeout(10000));
   assert.deepEqual(requests[2]!.thinking, {type: 'enabled'});
   assert.equal(requests[2]!.reasoning_effort, 'low');
+  assert.ok(requests.every(request => request.stream === true));
 });
 
 test('text-only assembly preserves choices and rejects missing outcomes, short bodies and template prose', () => {
@@ -297,4 +370,30 @@ test('production creation and approval are available through the same HTTP comma
     const premature = await fetch(`${base}/api/jobs/${job.id}/approve-plan`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({plan: plan()})});
     assert.equal(premature.status, 422, 'invalid source scope/plan cannot be approved through transport');
   } finally { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); db.close(); rmSync(dir, {recursive: true, force: true}); }
+});
+
+
+test('staged clock budget: a one-day unit never becomes a one-action game; existing long clocks are retained', () => {
+  const short = plan(); short.world.clock!.limitMonths = 1;
+  const merged = mergeProductionPlan(short, {});
+  const cost = Math.max(...short.world.actions.map(a => a.timeCost), ...short.world.storylets!.flatMap(s => s.choices.map(c => c.timeCost)));
+  assert.ok(merged.world.clock!.limitMonths >= cost * 10);
+  assert.ok(merged.world.clock!.limitMonths >= short.world.timeLimit);
+  const original = plan(); assert.deepEqual(mergeProductionPlan(original, {}).world.clock, original.world.clock);
+});
+
+test('production minimum run gate persists diagnostics but rejects one-step completed games', async () => {
+  const p = plan(); p.world.clock!.limitMonths = 1;
+  p.world.actions = p.world.actions.map(a => ({...a, timeCost: 1}));
+  p.world.storylets = p.world.storylets!.map(s => ({...s, choices: s.choices.map(c => ({...c, timeCost: 1}))}));
+  const texts = Object.fromEntries(productionUnits(p).map(unit => [unit.key, narrative(p, unit)]));
+  let report: any;
+  const job = {id: 'short-game', sourceId: source.id, productionBrief: brief, createdAt: source.createdAt,
+    productionState: {plan: p, approved: true, texts}};
+  const repository = {saveProductionLint(_id: string, _owner: string, _lint: unknown, playtest: unknown) {if (playtest) report = playtest; return true;}};
+  await assert.rejects(() => produceWorld(job as never, 'owner', source, repository as never,
+    {planProduction() {}, writeProductionUnit() {throw new Error('saved prose must be reused');}} as never,
+    AbortSignal.timeout(20_000), async (_step, run) => run()), (e: any) => e.code === 'PLAYTEST_BLOCKED');
+  assert.equal(report.runLength.minimum, 1);
+  assert.equal(report.checks.find((c: any) => c.id === 'minimum-run-length').pass, false);
 });

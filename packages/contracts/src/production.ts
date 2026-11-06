@@ -49,3 +49,11 @@ export interface ProductionState {
   playtest?: PlaytestReport;
   rewrite?: {key: string; direction: string; previousText?: ProductionNarrative};
 }
+
+/** Durable intermediate state for resumable production planning. */
+export interface ProductionPlanningState {
+  completed: string[];
+  skeleton?: unknown;
+  plan?: ProductionPlan;
+  parts: Record<string, unknown>;
+}

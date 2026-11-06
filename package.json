@@ -30,13 +30,15 @@
     "agent": "node --env-file-if-exists=.env dist/server/agent.mjs"
   },
   "dependencies": {
+    "@mariozechner/pi-agent-core": "^0.73.1",
+    "@mariozechner/pi-ai": "^0.73.1",
     "@modelcontextprotocol/sdk": "1.32.1",
     "@novel-game/contracts": "*",
+    "@novel-game/play-runtime": "*",
+    "@novel-game/rules": "*",
     "express": "5.3.0",
     "iconv-lite": "0.7.3",
-    "zod": "4.6.5",
-    "@novel-game/rules": "*",
-    "@novel-game/play-runtime": "*"
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

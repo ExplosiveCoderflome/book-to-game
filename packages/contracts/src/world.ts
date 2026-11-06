@@ -1,9 +1,40 @@
 import { z } from 'zod';
 import { worldbookSchema } from './worldbook.js';
 import { worldMapSchema, type MapFillIcon } from './world-map.js';
+import { openingRollSchema } from './opening-roll.js';
 export const SYSTEM_WAIT_ACTION_ID = '__wait__';
 
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/, '标识只允许字母、数字、短横线和下划线');
+const extensionParamSchema = z.object({type: z.enum(['number', 'integer', 'boolean', 'string']), required: z.boolean().default(true),
+  default: z.union([z.number().finite(), z.boolean(), z.string()]).optional(), min: z.number().finite().optional(), max: z.number().finite().optional(),
+  maxLength: z.number().int().min(0).max(1000).optional()}).strict();
+export const extensionDeclarationSchema = z.object({id, version: z.string().regex(/^\d+\.\d+\.\d+$/), point: z.enum(['condition', 'effect']),
+  name: z.string().min(1).max(120), reads: z.array(z.string().regex(/^(resource|fact):[a-zA-Z0-9_-]{1,80}$|^elapsed$/)).max(80), writes: z.array(z.object({state: z.string().regex(/^(resource|fact):[a-zA-Z0-9_-]{1,80}$/), minDelta: z.number().finite(), maxDelta: z.number().finite()}).refine(w => w.maxDelta >= w.minDelta)).max(80),
+  hooks: z.array(z.enum(['onStart', 'onTurn', 'onTimeAdvance', 'onAction', 'onEnter', 'onEnding', 'onLoad'])).min(1).max(7), params: z.record(id, extensionParamSchema),
+  reason: z.string().trim().min(1).max(1000), tests: z.array(z.object({input: z.object({
+    state: z.record(z.string(), z.union([z.number().finite(), z.boolean()])).default({}),
+    params: z.record(z.string(), z.union([z.number().finite(), z.boolean(), z.string().max(1000)])).default({}),
+    seed: z.number().int().min(0).max(4294967295).default(1),
+  }).strict(), expected: z.unknown()}).strict()).min(3).max(100),
+  code: z.string().min(1).max(32768)}).strict().superRefine((d, ctx) => {
+    const issue = (message: string) => ctx.addIssue({code: 'custom', message});
+    if (d.point === 'condition' && d.writes.length) issue('condition extensions cannot write state');
+    if (d.point === 'effect' && d.hooks.includes('onLoad')) issue('onLoad is read-only');
+    for (const keys of [d.reads, d.writes.map(w => w.state), d.hooks]) if (new Set(keys).size !== keys.length) issue('duplicate declaration entry');
+    for (const w of d.writes) if (w.state.startsWith('fact:') && (w.minDelta < 0 || w.maxDelta > 1)) issue('fact write bounds must be within 0..1');
+    for (const [key, p] of Object.entries(d.params)) {
+      if (['__proto__', 'constructor', 'prototype'].includes(key)) issue(`reserved parameter: ${key}`);
+      const numeric = p.type === 'number' || p.type === 'integer';
+      if (numeric && (p.min === undefined || p.max === undefined || p.min > p.max)) issue(`numeric parameter ${key} requires min <= max`);
+      if (p.type === 'string' && p.maxLength === undefined) issue(`string parameter ${key} requires maxLength`);
+      if (!numeric && (p.min !== undefined || p.max !== undefined)) issue(`non-numeric parameter ${key} cannot have min/max`);
+      if (p.type !== 'string' && p.maxLength !== undefined) issue(`non-string parameter ${key} cannot have maxLength`);
+      if (p.default !== undefined && (numeric ? typeof p.default !== 'number' || (p.type === 'integer' && !Number.isInteger(p.default)) || p.default < p.min! || p.default > p.max!
+        : typeof p.default !== p.type || (typeof p.default === 'string' && p.default.length > p.maxLength!))) issue(`invalid default for ${key}`);
+    }
+  });
+export type ExtensionDeclaration = z.infer<typeof extensionDeclarationSchema>;
+export const extensionAuditSchema = z.object({severity: z.literal('error'), code: z.string(), extensionId: id.optional(), message: z.string()});
 const evidence = z.object({chapterId: z.string().min(1).max(80), paragraphId: z.string().min(1).max(80)});
 const provenance = {origin: z.enum(['source', 'adapted']), evidence: z.array(evidence).max(30)};
 export const FACTION_STANCES = ['ally', 'neutral', 'hostile'] as const;
@@ -13,6 +44,12 @@ export type FactionStance = z.infer<typeof factionStanceSchema>;
 export const factionRelationSchema = z.object({a: id, b: id, stance: factionStanceSchema, standing: z.number().int().min(-100).max(100)});
 export type FactionRelation = z.infer<typeof factionRelationSchema>;
 const cell = z.string().regex(/^-?\d{1,3},-?\d{1,3}$/);
+export const ledgerAssertionSchema = z.object({
+  id, factId: id, claim: z.enum(['world-true', 'world-false', 'player-knows', 'holds', 'consumed', 'committed']),
+}).strict();
+export type LedgerAssertion = z.infer<typeof ledgerAssertionSchema>;
+export const ledgerEffectSchema = z.object({kind: z.literal('ledger'), factId: id, operation: z.enum(['acquire', 'release', 'consume', 'commit', 'fulfill'])}).strict();
+export type LedgerEffect = z.infer<typeof ledgerEffectSchema>;
 const baseConditionOptions = [
   z.object({kind: z.literal('fact'), factId: id, value: z.boolean()}),
   z.object({kind: z.literal('known'), factId: id}),
@@ -32,6 +69,7 @@ const baseConditionOptions = [
   /** Open-world numeric resource gate (P1 fill buy/supply). S1: atLeast and/or atMost (inclusive interval). */
   z.object({kind: z.literal('resource'), resourceId: id, atLeast: z.number().finite().optional(), atMost: z.number().finite().optional()})
     .refine(c => c.atLeast !== undefined || c.atMost !== undefined, 'resource 条件至少需要 atLeast 或 atMost'),
+  z.object({kind: z.literal('extension'), extensionId: id, params: z.record(z.string(), z.unknown()).default({})}),
   /** S1 monthly clock: months elapsed since the clock start (0 = start month). Inclusive bounds. */
   z.object({kind: z.literal('clock'), atLeastMonth: z.number().int().min(0).max(2400).optional(), atMostMonth: z.number().int().min(0).max(2400).optional(),
     /** Calendar months (1–12) in which the condition holds, e.g. autumn = [9, 10]. */
@@ -46,6 +84,7 @@ export const worldAnyOfConditionSchema = z.object({kind: z.literal('anyOf'), con
 export const worldConditionSchema = z.discriminatedUnion('kind', [...baseConditionOptions, worldAnyOfConditionSchema]);
 const baseEffectOptions = [
   z.object({kind: z.literal('set'), factId: id, value: z.boolean()}),
+  ledgerEffectSchema,
   z.object({kind: z.literal('reveal'), factId: id}),
   z.object({kind: z.literal('npc_learn'), npcId: id, factId: id}),
   z.object({kind: z.literal('move'), locationId: id}),
@@ -67,6 +106,7 @@ const baseEffectOptions = [
     .refine(e => (e.set === undefined) !== (e.delta === undefined), 'resource_max 需且仅需 set 或 delta 之一'),
   /** S1: end the adventure with an authored ending (by id). */
   z.object({kind: z.literal('ending'), endingId: id}),
+  z.object({kind: z.literal('extension'), extensionId: id, params: z.record(z.string(), z.unknown()).default({})}),
 ] as const;
 export const worldBaseEffectSchema = z.discriminatedUnion('kind', [...baseEffectOptions]);
 const chanceModSchema = z.object({resourceId: id.optional(), atLeast: z.number().finite().optional(), atMost: z.number().finite().optional(),
@@ -121,7 +161,7 @@ export const storyletChoiceSchema = z.object({id, label: z.string().min(1).max(2
   availableWhen: z.array(worldConditionSchema).max(20).optional(),
   requires: z.array(worldConditionSchema).max(20).optional(),
   blockedReason: z.string().min(1).max(500).optional(), risk: z.string().max(500).optional(),
-  effects: z.array(worldEffectSchema).max(20), text: z.string().min(1).max(3000)});
+   effects: z.array(worldEffectSchema).max(20), text: z.string().min(1).max(3000), ledgerAssertions: z.array(ledgerAssertionSchema).max(20).optional()});
 export const storyletSchema = z.object({id, title: z.string().min(1).max(120),
   /** Authoring category (main / repeat / trigger). Metadata only. */
   kind: z.enum(['main', 'repeat', 'trigger']).optional(),
@@ -249,6 +289,7 @@ export const worldContentSchema = z.object({
     ...provenance})).min(3).max(40),
   facts: z.array(z.object({id, label: z.string().min(1).max(120), description: z.string().max(1000),
     kind: z.enum(['clue', 'item', 'relationship', 'event']), initialValue: z.boolean(), playerKnown: z.boolean(), ...provenance})).max(80),
+  ledgerVersion: z.literal(1).optional(),
   npcs: z.array(z.object({id, name: z.string().min(1).max(120), description: z.string().max(1000),
     goal: z.string().min(1).max(1000), initialLocationId: id, knownFactIds: z.array(id).max(80),
     /** World layer (P4): affiliation, home, tags, bio and links into worldbook entries. Authoring metadata. */
@@ -261,10 +302,12 @@ export const worldContentSchema = z.object({
     /** 1–5 turns; with an S1 `clock` the unit is months, 0 (instant, e.g. selling) is allowed and the cap is 120 (checked at content level). */
     timeCost: z.number().int().min(0).max(120),
     once: z.boolean(), effects: z.array(worldEffectSchema).min(1).max(20), text: z.string().min(1).max(3000),
+    ledgerAssertions: z.array(ledgerAssertionSchema).max(20).optional(),
     /** Optional tags for worldbook hard rules (same constraint types as story choices). */
     tags: z.array(z.string().min(1).max(40)).max(10).optional(), ...provenance})).min(3).max(80),
   events: z.array(z.object({id, label: z.string().min(1).max(120), when: z.array(worldConditionSchema).min(1).max(20),
-    effects: z.array(worldEffectSchema).min(1).max(20), text: z.string().max(2000), visibility: z.enum(['public', 'hidden'])})).max(40),
+    effects: z.array(worldEffectSchema).min(1).max(20), text: z.string().max(2000), visibility: z.enum(['public', 'hidden']),
+    ledgerAssertions: z.array(ledgerAssertionSchema).max(20).optional()})).max(40),
   endings: z.array(z.object({id, title: z.string().min(1).max(200), text: z.string().min(1).max(3000),
     /** Empty only in S1 worlds: the ending is then reached by an `ending` effect / onMin / onMax, never by `when`. */
     when: z.array(worldConditionSchema).max(20),
@@ -276,6 +319,7 @@ export const worldContentSchema = z.object({
     textVariants: z.array(z.object({when: z.array(worldConditionSchema).min(1).max(10), text: z.string().min(1).max(3000)})).max(10).optional(),
     /** K15: passages appended after the ending body, in array order, for every `when` that holds at the moment the ending fires. */
     passages: z.array(endingPassageSchema).max(40).optional(),
+    ledgerAssertions: z.array(ledgerAssertionSchema).max(20).optional(),
   })).min(1).max(40),
   /** K15: 「这一生」 recap shown at the bottom of the ending page (entries whose `when` holds at the ending; by `order`, else array order). */
   recap: z.array(recapEntrySchema).max(120).optional(),
@@ -283,6 +327,11 @@ export const worldContentSchema = z.object({
   resources: z.record(z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/), z.number().finite()).optional(),
   /** S1: resource definitions (bounds, display, threshold triggers). Absent = legacy unbounded resources. */
   resourceDefs: z.record(z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/), resourceDefSchema).optional(),
+  /** Explicit scope for causal checks; omission means no resource/choice/commitment is asserted as important. */
+  causalClaims: z.object({keyResourceIds: z.array(id).max(80).default([]), keyChoiceIds: z.array(id).max(200).default([]),
+    commitments: z.array(z.object({id, actionId: id, factId: id}).strict()).max(100).default([])}).strict().optional(),
+  /** K16: optional seeded opening values; omitted/disabled preserves the legacy start flow. */
+  openingRoll: openingRollSchema.optional(),
   /** S1 clock. When present, `limitMonths` replaces `timeLimit` and timeCost means clock ticks. */
   clock: clockSchema.optional(),
   /** S1: storylet hand rules. */
@@ -293,6 +342,10 @@ export const worldContentSchema = z.object({
   /** S1 acceptance ⑦: who produced this draft. `generator: 'mock'` = fixture model output; publishing it is refused outside tests. */
   provenance: z.object({generator: z.string().min(1).max(80), model: z.string().max(200).optional(),
     source: z.enum(['runner', 'backfill', 'copy']).optional(), copiedFrom: z.string().max(80).optional()}).optional(),
+  /** T2: immutable-at-selection catalog contract receipts for author-time composition. */
+  blockSelections: z.array(z.object({blockId: id, version: z.number().int().positive(), params: z.record(z.string(), z.unknown())}).strict()).max(40).optional(),
+  extensions: z.array(extensionDeclarationSchema).max(100).optional(),
+  extensionAudit: z.array(extensionAuditSchema).max(1000).optional(),
   /** S1: storylet card pool. */
   storylets: z.array(storyletSchema).max(400).optional(),
   /** Same hard worldbook as story; scope may use locations. */
@@ -340,13 +393,14 @@ export type WorldBaseCondition = z.infer<typeof worldBaseConditionSchema>;
 export type WorldEffect = z.infer<typeof worldEffectSchema>;
 export type WorldBaseEffect = z.infer<typeof worldBaseEffectSchema>;
 export type WorldRollEffect = z.infer<typeof worldRollEffectSchema>;
-export interface WorldDraft {id: string; sourceId: string; content: WorldContent; version: number; createdAt: string; updatedAt: string}
+export interface WorldDraft {id: string; sourceId: string; content: WorldContent; version: number; createdAt: string; updatedAt: string; qualityContractVersion?: number}
 export interface WorldRevision {id: string; draftId: string; sourceId: string; content: WorldContent; version: number; createdAt: string}
 export const adventureActSchema = z.object({actionId: id, expectedTurn: z.number().int().nonnegative(), requestId: z.string().uuid()});
 export type AdventureActInput = z.infer<typeof adventureActSchema>;
 export interface AdventureHistory {turn: number; elapsed: number; actionLabel?: string; text: string}
 export interface AdventureView {
   id: string; worldRevisionId: string; turn: number; elapsed: number; timeLimit: number; ended: boolean;
+  phase?: 'opening' | 'play'; openingRoll?: import('./opening-roll.js').OpeningRollSession;
   playerRole: string; goal: string; location: {id: string; title: string; text: string};
   facts: {id: string; label: string; description: string; kind: 'clue' | 'item' | 'relationship' | 'event'; value: boolean}[];
   resources?: Record<string, number>;

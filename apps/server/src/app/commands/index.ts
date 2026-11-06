@@ -11,13 +11,15 @@ import { preflightCommands } from './preflight.js';
 import { agentCommands } from './agent.js';
 import { agentChatCommands } from './agent-chat.js';
 import { blocksCommands } from './blocks.js';
+import { blockLibraryCommands } from './block-library.js';
 import { funProfileCommands } from './fun-profiles.js';
 import { genreRecipeCommands } from './genre-recipes.js';
+import { gameDevCommands } from './game-dev.js';
 import type { Workbench } from '../workbench.js';
 
 export function createCommands(w: Workbench) {
   return [command('runtime_info', '查询支持的模式与模型是否已配置，不暴露凭据。', emptySchema, true,
     () => ({providerConfigured: w.providerConfigured, supportedModes: ['story', 'open'], version: '0.2.0', worldSchemaVersion: 1})),
-  ...sourceCommands(w), ...gameCommands(w), ...modelSettingsCommands(w), ...buildingLibraryCommands(w), ...itemCatalogCommands(w), ...worldCommands(w), ...adventureCommands(w), ...exportCommands(w), ...preflightCommands(w), ...agentCommands(w), ...agentChatCommands(w), ...blocksCommands(), ...funProfileCommands(w), ...genreRecipeCommands()];
+    ...sourceCommands(w), ...gameCommands(w), ...modelSettingsCommands(w), ...buildingLibraryCommands(w), ...itemCatalogCommands(w), ...worldCommands(w), ...adventureCommands(w), ...exportCommands(w), ...preflightCommands(w), ...agentCommands(w), ...agentChatCommands(w), ...blocksCommands(w), ...blockLibraryCommands(w), ...funProfileCommands(w), ...genreRecipeCommands(), ...gameDevCommands()];
 }
 export type { Command } from './definition.js';

@@ -21,7 +21,7 @@ test('K15 / ending page: body then passages (only when present), reading typogra
 });
 
 test('K15 / ending page: 「这一生」 after the prose, then one-line 本局收束, hint, actions; replaces 「走过的路」 (E1)', () => {
-  const summary = [{ label: '时间', value: '第5年 7月' }, { label: '寿元', value: '40/40' }];
+  const summary = [{ label: '时间', value: '第5年 7月' }, { label: '寿元', value: '40/40' }, { label: '修为', value: '12' }];
   const html = renderToStaticMarkup(createElement(PlayEndingPanel, { ...base, summary, path: ['入门', '旧账'], recap: [{ id: 'a', text: '你欠哑伯一盏油。' }, { id: 'b', text: '你见过苏师姐的灯。' }] }));
   assert.match(html, /data-testid="play-ending-recap"/);
   assert.match(html, /<h5>这一生<\/h5>/);
@@ -30,7 +30,8 @@ test('K15 / ending page: 「这一生」 after the prose, then one-line 本局�
   const order = ['play-ending-body', 'play-ending-recap', 'play-ending-summary', 'play-ending-hint', 'play-ending-actions'].map(c => html.indexOf(c));
   assert.deepEqual([...order].sort((x, y) => x - y), order);
   assert.ok(!html.includes('play-ending-chip'), 'summary is one line of text, no pills');
-  assert.match(html, /<span class="play-ending-stat">时间 第5年 7月<\/span><span class="play-ending-stat"> · 寿元 40\/40<\/span>/);
+  assert.match(html, /<span class="play-ending-stat">寿元 40\/40 ·<\/span><span class="play-ending-stat">修为 12<\/span>/);
+  assert.ok(!html.includes('时间 第5年'));
   const empty = renderToStaticMarkup(createElement(PlayEndingPanel, { ...base, path: ['入门'], recap: [] }));
   assert.ok(!empty.includes('play-ending-recap') && !empty.includes('play-ending-path'), 'recap [] hides the block, no fallback');
   const legacy = renderToStaticMarkup(createElement(PlayEndingPanel, { ...base, path: ['入门', '旧账'] }));

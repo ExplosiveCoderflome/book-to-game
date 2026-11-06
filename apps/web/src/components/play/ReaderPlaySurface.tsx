@@ -63,7 +63,7 @@ export function ReaderPlaySurface({
   }), [session, varDeltas, revision]);
 
   if (busy && !session) return <p role="status">{t('正在读取存档…')}</p>;
-  if (!session) return <Empty>{emptyHint ?? t('选择一本已发布的故事，或者打开左侧存档。')}</Empty>;
+  if (!session) return emptyHint ? <p className="reader-empty-hint">{emptyHint}</p> : <Empty>{t('选择一本已发布的故事，或者打开左侧存档。')}</Empty>;
 
   const choiceSplit = splitPrimaryActions(session.scene.choices, () => true, 4);
   const choiceRow = (choice: SessionView['scene']['choices'][number], index: number) => {

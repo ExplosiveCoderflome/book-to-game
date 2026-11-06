@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { z } from 'zod';
 import { agentChatCommandMetadata, createAgentChatTools, type AgentChatCommandState } from '../src/app/agent-chat-tools.js';
@@ -13,7 +14,7 @@ const automaticCommands = [
   'propose_end_conditions', 'propose_fun_profile', 'recommend_blocks_for_profile',
   'agent_status', 'list_agent_decisions', 'list_agent_repairs', 'create_agent_repair', 'list_drafts', 'get_draft',
   'validate_draft', 'lint_draft', 'list_world_revisions', 'list_games', 'list_blocks', 'list_fun_profiles',
-  'list_genre_recipes',
+    'list_genre_recipes', 'get_block', 'get_block_library', 'list_game_dev_skills', 'load_game_dev_skill', 'validate_world_composition', 'check_world_ledger', 'check_world_causality', 'check_world_preservation',
 ];
 
 const confirmationCases: Array<{
@@ -30,7 +31,9 @@ const confirmationCases: Array<{
     title: '雾港·三门之夜', playerRole: '守灯人', goal: '在天亮前找出失踪的守夜人', tone: '潮湿压抑的悬疑', tier: 'S',
     setting: '雾港的灯塔在午夜熄灭，港务局封锁了所有出口，只有巡夜人知道三扇门通向哪里。',
   }}, versionCheck: 'none',
-    summary: '创建角色扮演制作任务：「雾港·三门之夜」；身份：守灯人；目标：在天亮前找出失踪的守夜人；基调：潮湿压抑的悬疑；体量：S；设定：雾港的灯塔在午夜熄灭，港务局封锁了所有出口，只有巡夜人知道三扇门通向哪里。'},
+     summary: '创建角色扮演制作任务：「雾港·三门之夜」；身份：守灯人；目标：在天亮前找出失踪的守夜人；基调：潮湿压抑的悬疑；体量：S；设定：雾港的灯塔在午夜熄灭，港务局封锁了所有出口，只有巡夜人知道三扇门通向哪里。'},
+  {name: 'create_world_from_idea', args: {requestId: 'request-idea', title: '新世界', idea: '由想法直接搭建世界', sourceIds: [], content: {}}, versionCheck: 'none',
+    summary: '按想法「新世界」创建世界；9字想法；确认后写入来源与草稿。'},
   {name: 'retry_job', args: {id: 'job-1'}, versionCheck: 'updatedAt', guard: '2026-10-30T00:00:00.000Z',
     summary: '恢复生成任务：任务 job-1（awaiting_review，production）'},
   {name: 'cancel_job', args: {id: 'job-1'}, versionCheck: 'updatedAt', guard: '2026-10-30T00:00:00.000Z',
@@ -55,11 +58,29 @@ const confirmationCases: Array<{
     {path: 'storylets.card.text', op: 'replace', after: '新正文'},
     {path: 'clock.limitMonths', op: 'replace', after: 30},
   ]}, versionCheck: 'version', guard: '3',
-    summary: '应用世界补丁：「旧标题」v3；4 项：replace clock.unit、replace storylets.card.title、replace storylets.card.text……'},
+     summary: '应用世界补丁：「旧标题」v3；4 项：replace clock.unit、replace storylets.card.title、replace storylets.card.text……'},
+  {name: 'apply_world_composition', args: {worldId: 'world-1', expectedVersion: 3, operations: [{entity: 'fact', op: 'add', value: {id: 'f'}}], blockSelections: []}, versionCheck: 'version', guard: '3',
+    summary: '确认应用「旧标题」v3 的 1 项实体组合。'},
   {name: 'apply_end_conditions', args: {worldDraftId: 'world-1', version: 3, acknowledgeReshape: true,
     selection: {kind: 'package', packageId: 'standard', win: [{id: 'win_progress', label: '进度推满', when: [{kind: 'resource', resourceId: 'qi', atLeast: 10}]}],
       lose: [{id: 'lose_pressure', label: '压力见底', when: [{kind: 'resource', resourceId: 'qi', atMost: 0}]}]}}, versionCheck: 'version', guard: '3',
     summary: '应用终局条件：「旧标题」v3；条件包 standard：1 胜 / 1 负'},
+  {name: 'upsert_block_override', args: {id: 'clock_custom', expectedVersion: 1, data: {id: 'clock_custom', version: 2, label: '作者时钟'}}, versionCheck: 'version', guard: '1',
+    summary: '保存自定义积木：「作者时钟」（clock_custom）；目标 v2，基于 v1。只保存自定义目录，不修改世界或存档。'},
+  {name: 'delete_block_override', args: {id: 'clock_custom', expectedVersion: 1}, versionCheck: 'version', guard: '1',
+    summary: '删除自定义积木：clock_custom（基于 v1）；不影响内置条目，仍被引用时会拒绝。'},
+  {name: 'upsert_fun_profile_override', args: {id: 'author_profile', expectedVersion: 1, data: {id: 'author_profile', version: 2, label: '作者画像'}}, versionCheck: 'version', guard: '1',
+    summary: '保存自定义爽感画像：「作者画像」（author_profile）；目标 v2，基于 v1。只保存自定义目录，不修改世界或存档。'},
+  {name: 'delete_fun_profile_override', args: {id: 'author_profile', expectedVersion: 1}, versionCheck: 'version', guard: '1',
+    summary: '删除自定义爽感画像：author_profile（基于 v1）；不影响内置条目，仍被引用时会拒绝。'},
+  {name: 'upsert_stat_template_override', args: {id: 'author_stats', expectedVersion: 1, data: {id: 'author_stats', version: 2, label: '作者数值'}}, versionCheck: 'version', guard: '1',
+    summary: '保存自定义数值模板：「作者数值」（author_stats）；目标 v2，基于 v1。只保存自定义目录，不修改世界或存档。'},
+  {name: 'delete_stat_template_override', args: {id: 'author_stats', expectedVersion: 1}, versionCheck: 'version', guard: '1',
+    summary: '删除自定义数值模板：author_stats（基于 v1）；不影响内置条目，仍被引用时会拒绝。'},
+  {name: 'upsert_simulation_strategy_override', args: {id: 'author_random', expectedVersion: 1, data: {id: 'author_random', version: 2, label: '作者随机'}}, versionCheck: 'version', guard: '1',
+    summary: '保存自定义模拟策略：「作者随机」（author_random）；目标 v2，基于 v1。只保存自定义目录，不修改世界或存档。'},
+  {name: 'delete_simulation_strategy_override', args: {id: 'author_random', expectedVersion: 1}, versionCheck: 'version', guard: '1',
+    summary: '删除自定义模拟策略：author_random（基于 v1）；不影响内置条目，仍被引用时会拒绝。'},
 ];
 
 const mapFillConfirmationCases: typeof confirmationCases = [
@@ -144,9 +165,10 @@ const state = {
       fill: {placements: [{id: 'shop_dock', kind: 'shop', locationId: 'dock', label: '旧商店', localOverrides: {color: '#111111'}}]}},
   }})},
   games: {get: () => ({id: 'game-1', version: 4, content: {title: '游戏草稿'}})},
+  blockLibrary: {getVersion: () => 1},
 } as unknown as AgentChatCommandState;
 
-test('agent chat tools: confirmation levels and metadata registry cover all 57 commands', () => {
+test('agent chat tools: confirmation levels and metadata registry cover all 74 commands', () => {
   const allNames = [
     ...automaticCommands, ...confirmationCases.map(item => item.name),
     ...fineGrainedConfirmationCases.map(item => item.name), ...mapFillConfirmationCases.map(item => item.name),
@@ -159,9 +181,9 @@ test('agent chat tools: confirmation levels and metadata registry cover all 57 c
     ...mapFillConfirmationCases.map(item => [item.name, true]),
   ]);
 
-  assert.equal(automaticCommands.length, 31);
-  assert.equal(confirmationCases.length, 13);
-  assert.equal(allNames.length, 57);
+  assert.equal(automaticCommands.length, 39);
+  assert.equal(confirmationCases.length, 23);
+  assert.equal(allNames.length, 75);
   assert.deepEqual(Object.keys(agentChatCommandMetadata).sort(), allNames.slice().sort());
   assert.deepEqual(Object.fromEntries(tools.map(tool => [tool.name, tool.requiresConfirmation])), expected);
   for (const name of automaticCommands) {
@@ -183,7 +205,7 @@ test('agent chat tools: every confirmed command retains its Chinese summary and 
 });
 
 test('agent chat tools: job creation confirmations read as prose instead of raw argument JSON', () => {
-  const tools = createAgentChatTools(commandsFor(['create_generation_job', 'create_production_job']), state);
+  const tools = createAgentChatTools(commandsFor(['create_generation_job', 'create_production_job', 'create_world_from_idea']), state);
   for (const item of confirmationCases.filter(candidate => candidate.name.startsWith('create_'))) {
     const {summary} = tools.find(tool => tool.name === item.name)!.prepare(item.args);
     assert.doesNotMatch(summary, /\{"|\["/, `${item.name} must not dump raw argument JSON`);
@@ -196,6 +218,15 @@ test('agent chat tools: job creation confirmations read as prose instead of raw 
   const generation = tools.find(tool => tool.name === 'create_generation_job')!.prepare(confirmationCases.find(item => item.name === 'create_generation_job')!.args).summary;
   assert.match(generation, /模式：分支故事/);
   assert.match(generation, /章节：2章/);
+});
+
+test('agent chat tools: production job normalizes missing request id and common tier aliases', () => {
+  const schema = z.object({requestId: z.string().uuid(), brief: z.object({tier: z.enum(['S', 'M'])})});
+  const tool = createAgentChatTools([{...commandsFor(['create_production_job'])[0]!, inputSchema: schema}], state)[0]!;
+  const result = tool.validate({brief: {tier: 'standard'}});
+  assert.match(String(result.requestId), /^[0-9a-f-]{36}$/i);
+  assert.equal((result.brief as {tier: string}).tier, 'S');
+  assert.equal((tool.validate({requestId: randomUUID(), brief: {tier: 'large'}}).brief as {tier: string}).tier, 'M');
 });
 
 test('agent chat tools: all 10 fine-grained edits require confirmation with Chinese details and world version guards', () => {
@@ -252,7 +283,7 @@ test('agent chat tools: a changed world version rejects confirmation before comm
   const replies = [{text: '', calls: [{id: 'edit-1', name: 'edit_world_summary', arguments: {id: 'world-1', version: 1, title: '新标题'}}]}];
   const service = new AgentChatService({
     repository: new SqliteChatRepository(db),
-    model: () => ({respond: async () => replies.shift() ?? {text: '完成', calls: []}}),
+    model: () => scriptedChat(async () => replies.shift() ?? {text: '完成', calls: []}),
     tools: () => tools,
   });
   const conversation = service.create();
@@ -269,3 +300,4 @@ test('agent chat tools: a changed world version rejects confirmation before comm
     db.close();
   }
 });
+import { scriptedChat } from './helpers/agent-pi.js';

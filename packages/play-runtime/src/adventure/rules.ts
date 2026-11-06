@@ -2,9 +2,23 @@ import {type WorldContent, type WorldCondition, type WorldEffect} from '@novel-g
 import { computeChance, currentMax, formatCalendar, isS1World, newEffectContext, resourceLabel, rngNext, timeLimitOf, type EffectContext } from './s1-core.js';
 import {applySetFactionRelation, applySetTerritory, applyTerritoryOverlay, exploreLocation, findMap, locationMap, mapIdOf, locationSpatial, matchesWorldConditions, mergeTakenTags, worldbookBlockReason, worldbookIncrementCap, worldbookSpendsForChoice} from '@novel-game/rules';
 import type { AdventureState } from './adventure-state.js';
+import { assertExtensionWorldReferences, extensionIssue, recordExtensionError, runExtensionSync } from './extensions.js';
 
 /** Pure WorldCondition match — authority lives in @novel-game/rules (world-opening). */
 export function matches(conditions: WorldCondition[], state: AdventureState, world?: WorldContent): boolean {
+  if (conditions.some(condition => condition.kind === 'extension' || condition.kind === 'anyOf')) {
+    return conditions.every(condition => {
+      if (condition.kind === 'anyOf') return condition.conditions.some(member => matches([member], state, world));
+      if (condition.kind !== 'extension') return matches([condition], state, world);
+      try {
+        const declaration = world?.extensions?.find(item => item.id === condition.extensionId && item.point === 'condition');
+        if (!declaration || !world) throw new Error('condition extension not found');
+        assertExtensionWorldReferences(declaration, world);
+        // Conditions read a snapshot of the RNG stream, never consume it during projection.
+          return runExtensionSync(declaration, condition.params, state, {seed: state.rng?.seed}).output === true;
+      } catch (error) { recordExtensionError(state, extensionIssue(condition.extensionId, error)); return false; }
+    });
+  }
   const map = world ? effectiveLocationMap(world, state) : undefined;
   return matchesWorldConditions(conditions, {
     ...state, ...(map ? { map } : {}),
@@ -22,10 +36,25 @@ export function effectiveLocationMap(world: WorldContent, state: Pick<AdventureS
 }
 function addOnce(items: string[], id: string): void { if (!items.includes(id)) items.push(id); }
 
-export function applyEffects(effects: WorldEffect[], state: AdventureState, world?: WorldContent, ctx?: EffectContext): void {
+export function applyEffects(effects: WorldEffect[], state: AdventureState, world?: WorldContent, ctx?: EffectContext, sourceId = 'unknown'): void {
   for (const effect of effects) {
     switch (effect.kind) {
       case 'set': state.facts[effect.factId] = effect.value; break;
+      case 'ledger': {
+        const ledger = state.ledger ??= {version: 1, heldFactIds: [], consumedFactIds: [], committedFactIds: [], sources: []};
+        const held = new Set(ledger.heldFactIds); const consumed = new Set(ledger.consumedFactIds); const committed = new Set(ledger.committedFactIds);
+        if (effect.operation === 'acquire') { held.add(effect.factId); consumed.delete(effect.factId); }
+        if (effect.operation === 'release') held.delete(effect.factId);
+        if (effect.operation === 'consume') {
+          if (!held.has(effect.factId)) break;
+          held.delete(effect.factId); consumed.add(effect.factId);
+        }
+        if (effect.operation === 'commit') committed.add(effect.factId);
+        if (effect.operation === 'fulfill') committed.delete(effect.factId);
+        ledger.heldFactIds = [...held]; ledger.consumedFactIds = [...consumed]; ledger.committedFactIds = [...committed];
+        ledger.sources = [...(ledger.sources ?? []), {factId: effect.factId, operation: effect.operation, sourceId, turn: state.turn}];
+        break;
+      }
       case 'reveal': addOnce(state.knownFactIds, effect.factId); break;
       case 'npc_learn': addOnce(state.npcs[effect.npcId].knownFactIds, effect.factId); break;
       case 'move': state.locationId = effect.locationId; break;
@@ -70,6 +99,18 @@ export function applyEffects(effects: WorldEffect[], state: AdventureState, worl
       case 'ending': {
         if (ctx) ctx.endingId ??= effect.endingId;
         else if (world && !state.ending) state.ending = resolveEnding(world, state, effect.endingId);
+        break;
+      }
+      case 'extension': {
+        try {
+          const declaration = world?.extensions?.find(item => item.id === effect.extensionId && item.point === 'effect');
+          if (!world || !declaration) throw new Error('effect extension not found');
+          assertExtensionWorldReferences(declaration, world);
+          const result = runExtensionSync(declaration, effect.params, state, {seed: state.rng?.seed});
+          // Validated effects compile down to the existing resource/set pipeline in authored order.
+          applyEffects(result.effects, state, world, ctx);
+          if (result.randomCalls) { state.rng ??= {seed: 0, cursor: 0}; state.rng.cursor += result.randomCalls; }
+        } catch (error) { recordExtensionError(state, extensionIssue(effect.extensionId, error)); }
         break;
       }
       case 'roll': {
@@ -209,7 +250,7 @@ export function evaluateEndConditions(world: WorldContent, state: AdventureState
   return undefined;
 }
 
-export function settle(world: WorldContent, state: AdventureState, ctx?: EffectContext): string[] {
+export function settle(world: WorldContent, state: AdventureState, ctx?: EffectContext, observer?: (kind: 'event' | 'ending', id: string, state: AdventureState) => void): string[] {
   const narration: string[] = [];
   // Events may make an earlier event eligible. Every event can fire only once, so this terminates.
   let triggered = true;
@@ -217,7 +258,7 @@ export function settle(world: WorldContent, state: AdventureState, ctx?: EffectC
     triggered = false;
     for (const event of world.events) {
       if (state.triggeredEventIds.includes(event.id) || !matches(event.when, state, world)) continue;
-      state.triggeredEventIds.push(event.id); applyEffects(event.effects, state, world, ctx); triggered = true;
+      state.triggeredEventIds.push(event.id); applyEffects(event.effects, state, world, ctx, event.id); observer?.('event', event.id, structuredClone(state)); triggered = true;
       if (event.visibility === 'public' && event.text) narration.push(event.text);
     }
   }
@@ -225,7 +266,10 @@ export function settle(world: WorldContent, state: AdventureState, ctx?: EffectC
   if (ctx) {
     fireThresholds(world, state, ctx);
     if (ctx.endingId && !state.ending) state.ending = resolveEnding(world, state, ctx.endingId, ctx.endingKind);
-    if (state.ending) return narration;
+    if (state.ending) {
+      observer?.('ending', state.ending.id, structuredClone(state));
+      return narration;
+    }
   }
   const s1 = isS1World(world);
   // 终局条件块：先判胜负，命中即触发对应结局（不引入平行引擎，仍走 resolveEnding）。
@@ -236,6 +280,8 @@ export function settle(world: WorldContent, state: AdventureState, ctx?: EffectC
       : {id: endCondition.endingId, title: world.endings.find(item => item.id === endCondition.endingId)?.title ?? endCondition.endingId,
         text: world.endings.find(item => item.id === endCondition.endingId)?.text ?? '', kind: endCondition.kind === 'lose' ? 'failure' : 'ending',
         ...endingExtras(world, state, world.endings.find(item => item.id === endCondition.endingId))};
+    const endingSnapshot = state.ending;
+    if (endingSnapshot) observer?.('ending', endingSnapshot.id, structuredClone(state));
     return narration;
   }
   // Endings with an empty `when` (S1 only) are reached by effects/triggers, never matched here.
@@ -247,6 +293,7 @@ export function settle(world: WorldContent, state: AdventureState, ctx?: EffectC
       ? {...resolveEnding(world, state, world.clock.timeoutEndingId), kind: 'timeout'}
       : {id: 'timeout', title: '时间已到', text: world.timeoutEnding, kind: 'timeout', path: endingPath(state), ...endingExtras(world, state, undefined)})
     : {id: 'timeout', title: '时间已到', text: world.timeoutEnding};
+  if (state.ending) observer?.('ending', state.ending.id, structuredClone(state));
   return narration;
 }
 

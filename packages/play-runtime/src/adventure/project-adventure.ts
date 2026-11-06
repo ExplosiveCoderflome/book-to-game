@@ -155,13 +155,13 @@ export function projectAdventure(
     resourceLabels: labels,
   });
 
-  const worldActions = state.ending
+  const worldActions = state.ending || state.openingRoll?.phase === 'opening'
     ? []
     : [...world.actions, systemWait(state.locationId)]
       .filter(action => visible(action, state, world))
       .map(action => projectOneAction(action, world, state));
 
-  const fillActions = state.ending
+  const fillActions = state.ending || state.openingRoll?.phase === 'opening'
     ? []
     : fill.actions
       .filter(action => visible(action, state, world))
@@ -186,10 +186,11 @@ export function projectAdventure(
   const map = projectAdventureMap(world, state, actions, {buildingLibrary: opts.buildingLibrary});
   return {
     id: state.id, worldRevisionId: state.worldRevisionId, turn: state.turn, elapsed: state.elapsed,
+    ...(state.openingRoll ? {phase: state.openingRoll.phase, openingRoll: state.openingRoll} : {}),
     timeLimit: timeLimitOf(world), ended: !!state.ending, playerRole: world.playerRole, goal: world.goal,
     location: { id: location.id, title: location.title, text: location.textVariants ? locationText(world, state, location.id) : location.text },
     facts: (() => {
-      const fromWorld = world.facts.filter(fact => state.knownFactIds.includes(fact.id)).map(fact => ({
+        const fromWorld = world.facts.filter(fact => state.knownFactIds.includes(fact.id)).map(fact => ({
         id: fact.id, label: fact.label, description: fact.description, kind: fact.kind as 'clue' | 'item' | 'relationship' | 'event', value: state.facts[fact.id],
       }));
       const seen = new Set(fromWorld.map(f => f.id));

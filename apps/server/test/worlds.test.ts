@@ -42,7 +42,7 @@ function fineInput(name: typeof fineCommandNames[number], world: WorldContent, v
 }
 function commandSetup(db: Database) {
   const worlds = setup(db);
-  const commands = worldCommands({worlds} as unknown as Workbench);
+  const commands = worldCommands({worlds, preflight: {getWorldPreflight: () => ({playtest: undefined, stale: {playtest: false}}), playtestWorldDraft: async () => undefined}} as unknown as Workbench);
   return {worlds, run(name: string, input: Record<string, unknown>) {
     const command = commands.find(item => item.name === name);
     assert.ok(command, `missing command ${name}`);
@@ -98,6 +98,8 @@ test('unreachable locations warn conservatively without rejecting valid declarat
 test('world publication is immutable and idempotent even after later draft edits', () => {
   const db = new Database(':memory:'); try {
     const worlds = setup(db); const draft = worlds.create({sourceId: source.id, content: content()});
+    const legacy = worlds.get(draft.id) as WorldDraft & {qualityContractVersion?: number}; delete legacy.qualityContractVersion;
+    db.prepare('UPDATE world_drafts SET data=? WHERE id=?').run(JSON.stringify(legacy), draft.id);
     const revision = worlds.publish(draft.id, {version: 1}); const changed = content(); changed.title = '更新';
     worlds.update(draft.id, {version: 1, content: changed});
     assert.deepEqual(worlds.publish(draft.id, {version: 1}), revision);
@@ -172,6 +174,8 @@ test('validateWorld does not count requires-locked visible actions toward openin
 test('archived world drafts leave the list but keep revisions readable', () => {
   const db = new Database(':memory:'); try {
     const worlds = setup(db); const draft = worlds.create({sourceId: source.id, content: content()});
+    const legacy = worlds.get(draft.id) as WorldDraft & {qualityContractVersion?: number}; delete legacy.qualityContractVersion;
+    db.prepare('UPDATE world_drafts SET data=? WHERE id=?').run(JSON.stringify(legacy), draft.id);
     worlds.publish(draft.id, {version: 1});
     assert.deepEqual(worlds.archive(draft.id), {id: draft.id, archived: true});
     assert.equal(worlds.list().length, 0); assert.equal(worlds.listRevisions().length, 1);

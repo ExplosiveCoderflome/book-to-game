@@ -1,8 +1,8 @@
 import type { SqliteDatabase } from '../../../platform/database.js';
 import type { SourceDocument, SourceSummary } from '@novel-game/contracts';
-import type { SourceRepository } from '../application/source-service.js';
+import type { IdeaSourceRequestRepository, SourceRepository } from '../application/source-service.js';
 
-export class SqliteSourceRepository implements SourceRepository {
+export class SqliteSourceRepository implements SourceRepository, IdeaSourceRequestRepository {
   constructor(private readonly database: SqliteDatabase) {
     database.exec(`
       CREATE TABLE IF NOT EXISTS sources (
@@ -16,7 +16,18 @@ export class SqliteSourceRepository implements SourceRepository {
         document_json TEXT NOT NULL,
         original_bytes BLOB NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS idea_world_requests (
+        request_id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, source_id TEXT NOT NULL REFERENCES sources(id), world_id TEXT
+      );
     `);
+  }
+
+  getIdeaRequest(requestId: string): {fingerprint: string; sourceId: string; worldId: string | null} | undefined {
+    const row = this.database.prepare('SELECT fingerprint, source_id AS sourceId, world_id AS worldId FROM idea_world_requests WHERE request_id=?').get(requestId) as {fingerprint: string; sourceId: string; worldId: string | null} | undefined;
+    return row;
+  }
+  saveIdeaRequest(requestId: string, fingerprint: string, sourceId: string, worldId: string): void {
+    this.database.prepare('INSERT INTO idea_world_requests(request_id,fingerprint,source_id,world_id) VALUES(?,?,?,?)').run(requestId, fingerprint, sourceId, worldId);
   }
 
   save(document: SourceDocument, bytes: Uint8Array): void {

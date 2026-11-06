@@ -2,6 +2,7 @@ import type { SqliteDatabase } from '../../../platform/database.js';
 import type { DraftProvenance, WorldDraft, WorldRevision } from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
 import type { WorldRepository } from '../application/ports.js';
+import type { PreservationBaseline } from '../application/check-world-preservation.js';
 export class SqliteWorldRepository implements WorldRepository {
   constructor(private readonly db: SqliteDatabase) {
     db.exec(`
@@ -12,6 +13,9 @@ export class SqliteWorldRepository implements WorldRepository {
       CREATE TABLE IF NOT EXISTS world_revisions (
         id TEXT PRIMARY KEY, draft_id TEXT NOT NULL REFERENCES world_drafts(id), source_id TEXT NOT NULL,
         version INTEGER NOT NULL CHECK(version > 0), data TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(draft_id, version)
+      );
+      CREATE TABLE IF NOT EXISTS world_preservation_baselines (
+        draft_id TEXT PRIMARY KEY REFERENCES world_drafts(id), data TEXT NOT NULL
       );
       CREATE TRIGGER IF NOT EXISTS world_revisions_immutable_update BEFORE UPDATE ON world_revisions
       BEGIN SELECT RAISE(ABORT, 'Published world revisions are immutable'); END;
@@ -33,9 +37,31 @@ export class SqliteWorldRepository implements WorldRepository {
   }
   getDraft(id: string): WorldDraft | undefined {return parse<WorldDraft>(this.db.prepare('SELECT data FROM world_drafts WHERE id=?').get(id));}
   listDrafts(): WorldDraft[] {return this.db.prepare('SELECT data FROM world_drafts WHERE archived_at IS NULL ORDER BY created_at DESC, id').all().map(row => parse<WorldDraft>(row)!);}
-  updateDraft(draft: WorldDraft, expectedVersion: number): void {
-    const result = this.db.prepare('UPDATE world_drafts SET version=?,data=?,updated_at=? WHERE id=? AND version=?').run(draft.version, JSON.stringify(draft), draft.updatedAt, draft.id, expectedVersion);
-    if (!result.changes) throw new AppError('DRAFT_VERSION_CONFLICT', '草稿已更新，请刷新后编辑', 409);
+  updateDraft(draft: WorldDraft, expectedVersion: number, baseline: PreservationBaseline): void {
+    this.db.transaction(() => {
+      this.capturePreservationBaseline(draft.id, baseline);
+      const previous = this.getDraft(draft.id);
+      const persisted = draft.qualityContractVersion === undefined && previous && usesNewQualityFeatures(draft.content)
+        ? {...draft, qualityContractVersion: 1} : draft;
+      const result = this.db.prepare('UPDATE world_drafts SET version=?,data=?,updated_at=? WHERE id=? AND version=?').run(persisted.version, JSON.stringify(persisted), persisted.updatedAt, persisted.id, expectedVersion);
+      if (!result.changes) throw new AppError('DRAFT_VERSION_CONFLICT', '草稿已更新，请刷新后编辑', 409);
+      this.db.prepare('UPDATE world_preservation_baselines SET data=? WHERE draft_id=?').run(JSON.stringify(baseline), draft.id);
+    }).immediate();
+  }
+  getPreservationBaseline(id: string): PreservationBaseline | undefined {
+    return parse<PreservationBaseline>(this.db.prepare('SELECT data FROM world_preservation_baselines WHERE draft_id=?').get(id));
+  }
+  capturePreservationBaseline(id: string, baseline: PreservationBaseline): PreservationBaseline {
+    this.db.prepare('INSERT OR IGNORE INTO world_preservation_baselines(draft_id,data) VALUES(?,?)').run(id, JSON.stringify(baseline));
+    return this.getPreservationBaseline(id)!;
+  }
+  updateQualityContract(id: string, version: number): void {
+    this.db.transaction(() => {
+      const draft = this.getDraft(id);
+      if (!draft) throw new AppError('DRAFT_NOT_FOUND', '世界草稿不存在', 404);
+      if (draft.qualityContractVersion !== undefined) return;
+      this.db.prepare('UPDATE world_drafts SET data=? WHERE id=?').run(JSON.stringify({...draft, qualityContractVersion: version}), id);
+    }).immediate();
   }
   setProvenanceIfMissing(id: string, provenance: DraftProvenance): boolean {
     return this.db.transaction(() => {
@@ -60,5 +86,9 @@ export class SqliteWorldRepository implements WorldRepository {
       return revision;
     }).immediate();
   }
+}
+function usesNewQualityFeatures(content: WorldDraft['content']): boolean {
+  return !!(content.blockSelections?.length || content.ledgerVersion || content.causalClaims
+    || [...content.actions, ...content.events, ...content.endings].some(item => item.ledgerAssertions?.length));
 }
 function parse<T>(row: unknown): T | undefined {return row ? JSON.parse((row as {data: string}).data) as T : undefined;}

@@ -12,6 +12,7 @@ import { openDatabase } from '../src/platform/database.js';
 import { AppError } from '../src/shared/errors.js';
 import { content, source } from './helpers/open-fixture.js';
 import { playMap } from './helpers/map-fixture.js';
+import { scriptedChat } from './helpers/agent-pi.js';
 
 function setup(lock = true) {
   const db = openDatabase(':memory:');
@@ -38,7 +39,7 @@ function agentService(ctx: ReturnType<typeof setup>, replies: ChatReply[]) {
   const state = {worlds: ctx.worlds} as unknown as AgentChatCommandState;
   return new AgentChatService({
     repository: new SqliteChatRepository(ctx.db),
-    model: () => ({respond: async () => replies.shift() ?? {text: '完成', calls: []}}),
+    model: () => scriptedChat(async () => replies.shift() ?? {text: '完成', calls: []}),
     tools: () => createAgentChatTools(ctx.commands, state),
   });
 }

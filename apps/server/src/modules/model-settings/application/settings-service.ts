@@ -17,7 +17,8 @@ export class ModelSettingsService {
   resolve(): ProviderConfiguration {
     const row = this.repository.get();
     return row ? {baseUrl: row.baseUrl, model: row.model, timeoutMs: row.timeoutMs,
-      apiKey: row.encryptedApiKey ? this.secrets.decrypt(row.encryptedApiKey) : ''} : {...this.fallback};
+      apiKey: row.encryptedApiKey ? this.secrets.decrypt(row.encryptedApiKey) : '',
+      streamIdleTimeoutMs: this.fallback.streamIdleTimeoutMs, streamTotalTimeoutMs: this.fallback.streamTotalTimeoutMs} : {...this.fallback};
   }
   private prepare(input: ModelSettingsInput): ProviderConfiguration {
     const parsed = modelSettingsInputSchema.parse(input);

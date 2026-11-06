@@ -128,6 +128,31 @@ export function validateEndingExtras(world: WorldContent): S1Issue[] {
   const factIds = new Set(world.facts.map(f => f.id)); const defs = world.resourceDefs ?? {};
   const resourceIds = new Set([...Object.keys(world.resources ?? {}), ...Object.keys(defs)]);
   const storyletIds = new Set((world.storylets ?? []).map(s => s.id));
+  const knownAssertions = (assertions: {id: string; factId: string; claim: string}[] | undefined, owner: string) => {
+    const seen = new Set<string>();
+    for (const assertion of assertions ?? []) {
+      if (seen.has(assertion.id)) err('ledger.duplicate-assertion', `${owner} 断言 ID 重复：${assertion.id}`, owner);
+      seen.add(assertion.id);
+      if (!factIds.has(assertion.factId)) err('ledger.unknown-fact', `${owner} 断言引用未知事实：${assertion.factId}`, owner);
+    }
+  };
+  const checkLedgerEffects = (effects: readonly WorldEffect[] | undefined, owner: string) => {
+    for (const effect of effects ?? []) {
+      if (effect.kind === 'ledger' && !factIds.has(effect.factId)) err('ledger.unknown-effect-fact', `${owner} 账本效果引用未知事实：${effect.factId}`, owner);
+      if (effect.kind === 'roll') { checkLedgerEffects(effect.success, owner); checkLedgerEffects(effect.failure, owner); }
+    }
+  };
+  for (const action of world.actions) checkLedgerEffects(action.effects, `action:${action.id}`);
+  for (const event of world.events) checkLedgerEffects(event.effects, `event:${event.id}`);
+  for (const storylet of world.storylets ?? []) for (const choice of storylet.choices) checkLedgerEffects(choice.effects, `storylet:${storylet.id}/${choice.id}`);
+  for (const action of world.actions) knownAssertions(action.ledgerAssertions, `action:${action.id}`);
+  for (const event of world.events) knownAssertions(event.ledgerAssertions, `event:${event.id}`);
+  for (const ending of world.endings) knownAssertions(ending.ledgerAssertions, `ending:${ending.id}`);
+  const assertionIds = new Set<string>();
+  for (const assertion of [...world.actions, ...world.events, ...world.endings].flatMap(entity => entity.ledgerAssertions ?? [])) {
+    if (assertionIds.has(assertion.id)) err('ledger.duplicate-assertion-id', `账本断言 ID 重复：${assertion.id}`, assertion.id);
+    assertionIds.add(assertion.id);
+  }
   const flat = (items: readonly WorldCondition[]): WorldCondition[] => items.flatMap(c => c.kind === 'anyOf' ? [c, ...(c.conditions as WorldCondition[])] : [c]);
   /** Returns the problems of one condition list (unknown refs / out-of-range gates). */
   const problems = (items: readonly WorldCondition[]): string[] => flat(items).flatMap(c => {

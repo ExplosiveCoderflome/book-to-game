@@ -33,5 +33,6 @@ export function httpWorldPort(token: string): WorldPagePort {
     get: id => request<AdventureView>(token, `/adventures/${id}`),
     start: id => request<AdventureView>(token, '/adventures', 'POST', { worldRevisionId: id }),
     act: (id, input) => request<AdventureView>(token, `/adventures/${id}/actions`, 'POST', input),
+    opening: (id, command) => request<AdventureView>(token, `/adventures/${id}/opening-roll`, 'POST', command),
   };
 }

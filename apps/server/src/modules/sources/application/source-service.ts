@@ -9,9 +9,29 @@ export interface SourceRepository {
   get(id: string): SourceDocument | undefined;
   list(): SourceSummary[];
 }
+export interface IdeaSourceRequestRepository {
+  getIdeaRequest(requestId: string): {fingerprint: string; sourceId: string; worldId: string | null} | undefined;
+  saveIdeaRequest(requestId: string, fingerprint: string, sourceId: string, worldId: string): void;
+}
 
 export class SourceService implements SourceReader {
-  constructor(private readonly repository: SourceRepository) {}
+  constructor(private readonly repository: SourceRepository, private readonly ideaRequests?: IdeaSourceRequestRepository) {}
+
+  createIdeaSource(input: {requestId: string; title: string; idea: string; sourceIds?: string[]; fingerprint: string}): SourceDocument {
+    const previous = this.ideaRequests?.getIdeaRequest(input.requestId);
+    if (previous) {
+      if (previous.fingerprint !== input.fingerprint) throw new AppError('REQUEST_ID_CONFLICT', 'requestId 已用于不同的想法输入', 409);
+      return this.get(previous.sourceId);
+    }
+    const references = (input.sourceIds ?? []).map(id => this.get(id));
+    const referenceText = references.map(source => `参考来源：${source.title}（${source.id}）`).join('\n');
+    const bytes = Buffer.from([input.idea, referenceText].filter(Boolean).join('\n\n'), 'utf8');
+    const source = this.importFile({title: input.title, filename: 'idea.txt', bytes, encoding: 'utf8'});
+    return source;
+  }
+  saveIdeaWorldRequest(requestId: string, fingerprint: string, sourceId: string, worldId: string): void {
+    this.ideaRequests?.saveIdeaRequest(requestId, fingerprint, sourceId, worldId);
+  }
 
   importFile(input: { title: string; filename: string; bytes: Uint8Array; encoding?: SourceEncoding }): SourceDocument {
     if (!(input.bytes instanceof Uint8Array) || input.bytes.byteLength === 0) {

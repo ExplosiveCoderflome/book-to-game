@@ -1,8 +1,12 @@
 import type { AdventureHistory, EndingSnapshot } from '@novel-game/contracts';
+import type { OpeningRollSession } from '@novel-game/contracts';
 export interface AdventureState {
   schemaVersion: 1;
   id: string; worldRevisionId: string; turn: number; elapsed: number; locationId: string;
   facts: Record<string, boolean>; knownFactIds: string[];
+  /** Optional v1 domain ledger; absent in legacy saves means no acquired/committed claims. */
+  ledger?: {version: 1; heldFactIds: string[]; consumedFactIds: string[]; committedFactIds: string[];
+    sources: {factId: string; operation: 'acquire' | 'release' | 'consume' | 'commit' | 'fulfill'; sourceId: string; turn: number}[]};
   /** Open-world numeric pools (qi/mana/…) for worldbook power/upgrade. */
   resources: Record<string, number>;
   /** Tags from actions already taken — drives worldbook one_path_lock. */
@@ -21,6 +25,8 @@ export interface AdventureState {
   // ── S1 (all optional; only present for worlds using resourceDefs / clock / storylets) ──
   /** Seeded RNG: value n = mulberry32 step n of `seed`. Same seed + same actions ⇒ same results. */
   rng?: {seed: number; cursor: number};
+  /** Per-save errors; never mutate the immutable published world revision. */
+  extensionAudit?: {severity: 'error'; code: string; extensionId?: string; message: string}[];
   /** Current storylet hand (≤ handSize). `variant` indexes textVariants. */
   hand?: AdventureHandCard[];
   storyletState?: {seen: Record<string, number>; lastTurn: Record<string, number>; lastVariant: Record<string, number>;
@@ -35,6 +41,7 @@ export interface AdventureState {
   openWindows?: string[];
   /** What the last action changed (C2/C6) — projected as-is. */
   lastResult?: AdventureLastResult;
+  openingRoll?: OpeningRollSession;
 }
 export interface AdventureHandCard {storyletId: string; variant: number; drawnTurn: number; forced?: boolean}
 export interface AdventureLastResult {

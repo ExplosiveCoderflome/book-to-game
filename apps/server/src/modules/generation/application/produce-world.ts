@@ -1,10 +1,11 @@
 import { lintWorld } from '@novel-game/rules/preflight';
-import { simulateWorld } from '@novel-game/play-runtime/sim';
+import { simulateWorld, MIN_RUN_LENGTH_CHECK } from '@novel-game/play-runtime/sim';
 import { productionPlanSchema, productionNarrativeSchema, type SourceDocument, type WorldContent } from '@novel-game/contracts';
 import { AppError } from '../../../shared/errors.js';
 import { assembleProduction, assertProductionNarrative, assertProductionPlan, productionUnits } from '../domain/production.js';
 import { assertPlanMechanics } from './plan-check.js';
 import type { GenerationProvider, JobRepository, ModelRepairFeedback, StoredJob } from '../domain/ports.js';
+import { runStagedProductionPlan } from './production-planner.js';
 
 export type RepairStep = <T>(step: string, run: (feedback?: ModelRepairFeedback) => Promise<T>) => Promise<T>;
 
@@ -18,13 +19,26 @@ export async function produceWorld(job: StoredJob, owner: string, source: Source
     return null;
   }
   if (!job.productionState) {
-    const plan = await repair('production:plan', async feedback => {
-      const candidate = productionPlanSchema.parse(await provider.planProduction!(job.analysis!, brief, source.chapters.map(chapter => chapter.id), signal, feedback));
-      assertProductionPlan(candidate, brief, source);
-      assertPlanMechanics(candidate, {probe: false}); // S5: static rule errors go back to the model as repair feedback
-      return candidate;
-    });
-    repository.saveProductionPlan(job.id, owner, plan);
+    if (provider.planProductionPart) {
+      const planning = await runStagedProductionPlan({analysis: job.analysis!, brief,
+        chapterIds: source.chapters.map(chapter => chapter.id), source, state: job.productionPlanning,
+        batchSize: Number(process.env.PRODUCTION_PLAN_BATCH_SIZE) || 4, signal,
+        save: state => repository.saveProductionPlanning(job.id, owner, state),
+        write: (part, feedback) => provider.planProductionPart!(job.analysis!, brief,
+          source.chapters.map(chapter => chapter.id), part, signal, feedback),
+      });
+      if (!planning) return null;
+      if (!planning.plan) throw new Error('Staged production plan is missing its merged plan');
+      repository.saveProductionPlan(job.id, owner, productionPlanSchema.parse(planning.plan));
+    } else {
+      const plan = await repair('production:plan', async feedback => {
+        const candidate = productionPlanSchema.parse(await provider.planProduction!(job.analysis!, brief, source.chapters.map(chapter => chapter.id), signal, feedback));
+        assertProductionPlan(candidate, brief, source);
+        assertPlanMechanics(candidate, {probe: false});
+        return candidate;
+      });
+      repository.saveProductionPlan(job.id, owner, plan);
+    }
     return null;
   }
   const state = job.productionState;
@@ -51,5 +65,7 @@ export async function produceWorld(job: StoredJob, owner: string, source: Source
     routes: state.plan.routes.map(r => ({id: r.id, name: r.name, endingIds: r.endingIds})), routeSeeds: 10, routeEndings: 'uncovered', guidance: {seeds: 40},
     yieldEvery: async () => { signal.throwIfAborted(); await new Promise<void>(resolve => setImmediate(resolve)); }});
   if (!repository.saveProductionLint(job.id, owner, lint, playtest)) return null;
+  const tooShort = playtest.checks.find(check => check.id === MIN_RUN_LENGTH_CHECK && !check.pass);
+  if (tooShort) throw new AppError('PLAYTEST_BLOCKED', `快速试玩未通过最低局长门禁：${tooShort.measured}`, 422, {playtest});
   return content;
 }

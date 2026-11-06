@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { z } from 'zod';
 import * as agent from '../src/modules/agent/index.js';
 import { openDatabase } from '../src/platform/database.js';
+import { scriptedChat } from './helpers/agent-pi.js';
 
 function setup() {
   assert.equal(typeof agent.AgentChatService, 'function', 'Agent must expose a conversational service, not only supervisor reports');
@@ -11,14 +13,14 @@ function setup() {
   const received: any[] = [];
   const replies: any[] = [];
   let responder: ((messages: any[]) => Promise<any>) | undefined;
-  const model = {respond: async (messages: any[]) => {
+  const model = scriptedChat(async (messages: any[]) => {
     modelCalls++; received.push(structuredClone(messages));
     if (responder) return responder(messages);
     const reply = replies.shift(); if (reply instanceof Error) throw reply;
     return reply ?? {text: '已完成，根据工具回执回复。', calls: []};
-  }};
+  });
   const tool = (name: string, requiresConfirmation: boolean) => ({name, description: name, parameters: {type: 'object'}, requiresConfirmation,
-    validate: (input: unknown) => {if (!input || typeof input !== 'object' || !('id' in input)) throw new Error('id required'); return {id: String((input as {id: unknown}).id)};},
+    validate: (input: unknown) => z.object({id: z.string()}).parse(input),
     prepare: () => ({summary: '修改测试草稿 v1', guard: state}),
     execute: () => {if (requiresConfirmation) writes++; else reads++; return {id: 'draft-1', title: '工具中保存的真实标题', version: 2};}});
   const deps = {repository, model: () => model, tools: () => [tool('get_world_draft', false), tool('update_world_draft', true)]};
@@ -66,6 +68,45 @@ test('agent chat: writes wait for author confirmation, execute once and continue
   } finally {s.db.close();}
 });
 
+test('agent chat: a confirmation stops the next turn and pairs every call in its batch', async () => {
+  const s = setup(); try {
+    s.replies.push({text: '先读取，再建议修改。', calls: [call('get_world_draft', 'read-first'), call('update_world_draft', 'write-first'),
+      call('get_world_draft', 'read-after'), call('update_world_draft', 'write-after')]});
+    const pending = await send(s);
+    assert.deepEqual(s.counts(), {writes: 0, reads: 1, modelCalls: 1});
+    assert.equal(pending.actions.length, 1);
+    assert.equal(pending.actions[0]!.callId, 'write-first');
+    const results = pending.messages.filter(message => message.role === 'tool');
+    assert.deepEqual(results.map(message => message.toolCallId), ['read-first', 'write-first', 'read-after', 'write-after']);
+    assert.match(results[2]!.content, /not_executed/);
+    const restarted = new agent.AgentChatService(s.deps);
+    const done = await restarted.decide({id: pending.id, actionId: pending.actions[0]!.id, decision: 'confirm'});
+    assert.equal(done.actions[0]!.status, 'succeeded'); assert.equal(s.counts().writes, 1);
+  } finally {s.db.close();}
+});
+
+test('agent chat: more than four calls are refused before any tool executes', async () => {
+  const s = setup(); try {
+    s.replies.push({text: '', calls: Array.from({length: 5}, (_, i) => call('get_world_draft', `excess-${i}`))});
+    const result = await send(s);
+    assert.equal(s.counts().reads, 0); assert.match(result.messages.at(-1)!.content, /CHAT_TOOL_LIMIT/);
+  } finally {s.db.close();}
+});
+
+test('agent chat: tool receipts are redacted before Pi sends the next model request', async () => {
+  const s = setup(); try {
+    const service = new agent.AgentChatService({...s.deps,
+      redact: text => text.replaceAll('test-tool-credential', '[REDACTED]'),
+      tools: () => s.deps.tools().map(tool => ({...tool, execute: () => ({value: 'test-tool-credential'})})),
+    });
+    s.replies.push({text: '', calls: [call('get_world_draft')]}, {text: '已读取', calls: []});
+    const result = await service.send({id: s.conversation.id, requestId: '', text: '读取'});
+    assert.ok(result.messages[0]!.requestId);
+    assert.equal(JSON.stringify(s.received).includes('test-tool-credential'), false);
+    assert.equal(JSON.stringify(result).includes('test-tool-credential'), false);
+  } finally {s.db.close();}
+});
+
 test('agent chat: rejecting a proposed write never executes it', async () => {
   const s = setup(); try {
     s.replies.push({text: '', calls: [call('update_world_draft')]});
@@ -100,6 +141,18 @@ test('agent chat: unknown tools and invalid arguments are reported without execu
     const c = await send(s);
     assert.equal(c.actions.length, 0); assert.equal(s.counts().writes, 0); assert.equal(s.counts().reads, 0);
     assert.ok(c.messages.some(m => m.role === 'tool' && /error/.test(m.content)));
+  } finally {s.db.close();}
+});
+
+test('agent chat: invalid schema arguments return safe field guidance and flag identical retries', async () => {
+  const s = setup(); try {
+    s.respond(async () => ({text: '', calls: [{id: `bad-${s.counts().modelCalls}`, name: 'update_world_draft', arguments: {}}]}));
+    const c = await send(s);
+    const toolResults = c.messages.filter(m => m.role === 'tool');
+    assert.ok(toolResults[0]!.content.includes('CHAT_INVALID_ARGS'));
+    assert.ok(toolResults[0]!.content.includes('id'));
+    assert.ok(toolResults[1]!.content.includes('参数与上次相同已失败'));
+    assert.equal(s.counts().modelCalls, 8);
   } finally {s.db.close();}
 });
 
@@ -144,7 +197,7 @@ test('agent chat: expired execution becomes uncertain and is never replayed', as
 test('agent chat: a tool loop stops at the per-turn model round limit', async () => {
   const s = setup(); try {
     s.respond(async () => ({text: '', calls: [call('get_world_draft', `loop-${s.counts().modelCalls}`)]}));
-    const c = await send(s); assert.equal(c.status, 'idle'); assert.equal(s.counts().modelCalls, 4);
+    const c = await send(s); assert.equal(c.status, 'idle'); assert.equal(s.counts().modelCalls, 8);
     assert.match(c.messages.at(-1)!.content, /上限/);
   } finally {s.db.close();}
 });

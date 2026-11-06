@@ -3,10 +3,15 @@ import {
   acceptMapFillInputSchema, applyEndConditionsInputSchema, applyWorldPatchInputSchema, authorReadSchema, extractMapDraftInputSchema, mapFillPlacementSchema,
   proposeClockPatchInputSchema, proposeEndConditionsInputSchema, proposeMapFillInputSchema, proposeStoryletPatchInputSchema,
   resourceDefSchema, storyletSchema, worldConditionSchema, worldContentSchema, worldEffectSchema,
+  createWorldFromIdeaInputSchema, validateWorldCompositionInputSchema, applyWorldCompositionInputSchema,
+  checkWorldLedgerInputSchema,
+  checkWorldCausalityInputSchema,
+  checkWorldPreservationInputSchema,
 } from '@novel-game/contracts';
+import {worldQualityContentHash} from '../../modules/preflight/index.js';
 import {
   acceptMapFill, applyEndConditions, applyWorldPatch, extractMapDraft, mockEndConditionsModel, mockMapFillModel, mockWorldPatchModel, placeMapFill,
-  proposeClockPatch, proposeEndConditions, proposeMapFill, proposeStoryletPatch, updateMapFillPlacement,
+  proposeClockPatch, proposeEndConditions, proposeMapFill, proposeStoryletPatch, updateMapFillPlacement, validateWorldComposition, applyWorldComposition, checkWorldLedger, checkWorldCausality, checkWorldPreservation,
 } from '../../modules/worlds/index.js';
 import { AppError } from '../../shared/errors.js';
 import type { Workbench } from '../workbench.js';
@@ -23,6 +28,18 @@ const conditionTarget = z.object({
 
 export function worldCommands(w: Workbench) {
   return [
+    command('create_world_from_idea', '按作者想法创建开放世界小版本；Pi须提交完整合法WorldContent，想法会成为来源，sourceIds只作参考关联。不启动制作任务/worker。requestId相同输入幂等。',
+      createWorldFromIdeaInputSchema, false, input => w.createWorldFromIdea(input)),
+    command('validate_world_composition', '只读预演受限的实体级积木组合；返回经世界引用与积木依赖契约验证的候选内容，不写数据库。',
+      validateWorldCompositionInputSchema, true, input => validateWorldComposition(w.worlds, w.blockLibrary, input)),
+    command('apply_world_composition', '应用已预演的实体级积木组合；完整候选校验后按expectedVersion一次CAS写入。',
+      applyWorldCompositionInputSchema, false, input => applyWorldComposition(w.worlds, w.blockLibrary, input)),
+    command('check_world_ledger', '按草稿真实内容和expectedVersion运行有界、只读的账本重放；返回内容hash、已观察范围、缺失断言与状态反例。不接受模型自报库存。',
+      checkWorldLedgerInputSchema, true, input => checkWorldLedger(w.worlds, input)),
+    command('check_world_causality', '对世界声明运行有界、只读因果检查；使用合法动作分支和正式引擎重放，返回hash、依赖发现及可重放见证。未覆盖范围标记unsupported/inconclusive，不作不可达证明。',
+      checkWorldCausalityInputSchema, true, input => checkWorldCausality(w.worlds, input)),
+    command('check_world_preservation', '只读比较服务器保留基线与当前草稿的实体ID、正文anchors及hash；不证明自然语言语义。',
+      checkWorldPreservationInputSchema, true, input => checkWorldPreservation(w.worlds, input)),
     command('edit_world_summary', '按指定版本修改世界草稿标题、背景、目标或改编说明，保留所有玩法及其余内容，不发布。',
       z.object({id: z.string().min(1), version: z.number().int().positive(), title: z.string().min(1).max(200).optional(),
         premise: z.string().min(1).max(4000).optional(), goal: z.string().min(1).max(2000).optional(), adaptationNotes: z.string().max(4000).optional()})
@@ -104,7 +121,16 @@ export function worldCommands(w: Workbench) {
     command('archive_world_draft', '归档世界草稿：从列表隐藏，已发布版本与冒险存档保留，不做硬删除。', idSchema, false, ({id}) => w.worlds.archive(id)),
     command('validate_world_draft', '检查世界引用、原文范围和潜在连通；不能保证文学质量或所有策略可解。', idSchema, true, ({id}) => w.worlds.validate(id)),
     command('publish_world_draft', '发布已校验的世界版本，内容不可变；同一草稿版本重复发布幂等。',
-      z.object({id: z.string(), version: z.number().int().positive()}), false, ({id, version}) => w.worlds.publish(id, {version})),
+      z.object({id: z.string(), version: z.number().int().positive()}), false, async ({id, version}) => {
+        const draft = w.worlds.get(id);
+        if (draft.version !== version) return w.worlds.publish(id, {version});
+        if (draft.qualityContractVersion === 1 && w.worlds.validate(id).valid) {
+          const report = w.preflight.getWorldPreflight(id).playtest;
+          if (!report || report.draftVersion !== version || report.evidence?.contentHash !== worldQualityContentHash(draft.content))
+            await w.preflight.playtestWorldDraft({id, expectedVersion: version, seeds: 6, strategies: ['random', 'greedy-growth', 'greedy-money', 'merchant', 'lazy'], evidenceRuns: 6, maxSteps: 300});
+        }
+        return w.worlds.publish(id, {version});
+      }),
     command('list_world_revisions', '读取开放世界发布版本（作者视图，包含全部规则和秘密）。', emptySchema, true, () => w.worlds.listRevisions()),
   ];
 }

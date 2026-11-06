@@ -1,10 +1,14 @@
 import { z } from 'zod';
-import { productionBriefSchema, type ProductionBrief, type ProductionState } from './production.js';
+import { productionBriefSchema, type ProductionBrief, type ProductionState, type ProductionPlanningState } from './production.js';
 export * from './production.js';
+export * from './game-dev.js';
 export * from './fun-profiles.js';
+export * from './block-library.js';
 export * from './blocks.js';
+export * from './block-library.js';
 export * from './genre-recipes.js';
 export * from './world.js';
+export * from './opening-roll.js';
 export * from './world-map.js';
 export * from './map-templates.js';
 export * from './building-library.js';
@@ -144,6 +148,7 @@ export interface GenerationJob {
   failure?: JobFailure | null;
   productionBrief?: ProductionBrief;
   productionState?: ProductionState;
+  productionPlanning?: ProductionPlanningState;
 }
 export const generationInputSchema = z.object({
   sourceId: z.string().min(1), requestId: z.string().uuid(),

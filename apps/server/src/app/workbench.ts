@@ -10,7 +10,7 @@ import { BuildingImageService, BuildingLibraryService, SqliteBuildingLibraryRepo
 import { ItemCatalogService, SqliteItemCatalogRepository } from '../modules/item-catalog/index.js';
 import path from 'node:path';
 import { ModelConnectionProbe } from '../platform/model/connection-probe.js';
-import { WorldService, SqliteWorldRepository } from '../modules/worlds/index.js';
+import { WorldService, SqliteWorldRepository, validateSelectedBlocks, assertWorldPublishQuality } from '../modules/worlds/index.js';
 import { PreflightService, SqlitePreflightRepository } from '../modules/preflight/index.js';
 import { AdventureService, SqliteAdventureRepository } from '../modules/adventure-sessions/index.js';
 import { AgentChatService, AgentRepairService, SqliteChatRepository, SqliteDecisionRepository, SqliteRepairRepository } from '../modules/agent/index.js';
@@ -20,9 +20,12 @@ import { createCommands } from './commands/index.js';
 import type { Logger } from '../shared/logger.js';
 import { ChatCompletionsProvider } from '../platform/model/chat-completions.js';
 import { ExportService, FsMediaReader, FsPlayerTemplateReader, FsWindowsPlayerReader } from '../modules/exports/index.js';
+import { BlockLibraryService, SqliteBlockCatalogRepository } from '../modules/block-library/index.js';
+import {canonicalJson} from '../shared/canonical-json.js';
 
 export function createWorkbench(db: SqliteDatabase, modelSettings: ModelSettingsService, logger?: Logger, options?: {repairAttempts?: number; dataDir?: string; playerTemplatePath?: string; windowsPlayerPath?: string; exportSecrets?: () => string[]; exportMaxBytes?: number; allowMockPublish?: boolean}) {
-  const sources = new SourceService(new SqliteSourceRepository(db));
+  const sourceRepository = new SqliteSourceRepository(db);
+  const sources = new SourceService(sourceRepository, sourceRepository);
   const allowMockPublish = options?.allowMockPublish ?? allowMockPublishFromEnv();
   const jobsRepository = new SqliteJobRepository(db);
   const agentDecisions = new SqliteDecisionRepository(db);
@@ -41,12 +44,22 @@ export function createWorkbench(db: SqliteDatabase, modelSettings: ModelSettings
   const mediaDir = path.join(options?.dataDir ?? 'data', 'building-images');
   const imageProviders = createBuildingImageProvider(process.env);
   const buildingImages = new BuildingImageService(buildingLibrary, imageProviders.provider, mediaDir, imageProviders.svg);
-  const worlds = new WorldService(new SqliteWorldRepository(db), sources, () => buildingLibrary.assetIds(), {allowMockPublish, traceProvenance});
+  const preflightRepository = new SqlitePreflightRepository(db);
+  const worldRepository = new SqliteWorldRepository(db);
+  let preflightRef: PreflightService | undefined;
+  const worlds = new WorldService(worldRepository, sources, () => buildingLibrary.assetIds(), {allowMockPublish, traceProvenance,
+    playtest: id => preflightRepository.get('world', id).playtest,
+    publishQualityGate: draft => assertWorldPublishQuality(worlds, draft, preflightRepository.get('world', draft.id).playtest),
+    upgradeQualityContract: draft => worldRepository.updateQualityContract(draft.id, 1)});
   const adventures = new AdventureService(new SqliteAdventureRepository(db), worlds, {
     buildingLibrary: () => buildingLibrary.get().library,
     itemCatalog: () => itemCatalog.get().catalog,
   });
-  const preflight = new PreflightService(new SqlitePreflightRepository(db), {world: id => worlds.get(id), story: id => games.get(id)});
+  const blockLibrary = new BlockLibraryService(new SqliteBlockCatalogRepository(db), {
+    listStories: () => games.list(), listWorlds: () => worlds.list(), listGenerationJobs: () => jobs.list(),
+  });
+  const preflight = new PreflightService(preflightRepository, {world: id => worlds.get(id), story: id => games.get(id)}, () => new Promise(resolve => setImmediate(resolve)), blockLibrary);
+  preflightRef = preflight;
   const agentRepairs = new AgentRepairService({worlds, preflight, repository: new SqliteRepairRepository(db),
     atomic: operation => db.transaction(operation).immediate()});
   const jobs = new JobService(jobsRepository, sources, () => modelSettings.get().configured);
@@ -62,6 +75,27 @@ export function createWorkbench(db: SqliteDatabase, modelSettings: ModelSettings
       }).id;
       return jobs.create({sourceId, requestId: data.requestId, mode: 'open', playerRole: brief.playerRole,
         canonPolicy: 'faithful', direction: brief.goal, productionBrief: brief});
+    }).immediate();
+  };
+  const createWorldFromIdea = (input: import('@novel-game/contracts').CreateWorldFromIdeaInput) => {
+    const {requestId, ...payload} = input;
+    const fingerprint = canonicalJson(payload);
+    return db.transaction(() => {
+      const prior = sourceRepository.getIdeaRequest(requestId);
+      if (prior) {
+        if (prior.fingerprint !== fingerprint) throw new AppError('REQUEST_ID_CONFLICT', 'requestId 已用于不同的想法输入', 409);
+        if (!prior.worldId) throw new AppError('IDEMPOTENCY_RECORD_INCOMPLETE', '想法请求记录不完整，拒绝重复创建', 500);
+        return worlds.get(prior.worldId);
+      }
+      const source = sources.createIdeaSource({requestId, title: input.title, idea: input.idea, sourceIds: input.sourceIds, fingerprint});
+      const selections = input.blockSelections ?? input.content.blockSelections;
+      const selected = selections === undefined ? undefined : validateSelectedBlocks(input.content, selections, blockLibrary);
+      const content = {...input.content, title: input.content.title || input.title, sourceChapterIds: source.chapters.map(chapter => chapter.id), adaptationNotes: input.content.adaptationNotes || `由作者想法创建：${input.title}`};
+      const draft = worlds.create({sourceId: source.id, content: {...content, ...(selected === undefined ? {} : {blockSelections: selected})}});
+      const validation = worlds.validate(draft.id);
+      if (!validation.valid) throw new AppError('INVALID_WORLD', '想法生成的世界未通过规则校验', 422, validation);
+      sourceRepository.saveIdeaRequest(requestId, fingerprint, source.id, draft.id);
+      return draft;
     }).immediate();
   };
   const createRunner = (provider: GenerationProvider) => new GenerationRunner(jobsRepository, sources, provider, input => {
@@ -118,12 +152,13 @@ export function createWorkbench(db: SqliteDatabase, modelSettings: ModelSettings
       if (!modelSettings.get().configured) throw new AppError('MODEL_NOT_CONFIGURED', '请先在模型设置配置Agent使用的模型', 503);
       return new AgentChatCompletionsModel(modelSettings.resolve());
     },
-    tools: () => createAgentChatTools(createCommands(workbench), {jobs, worlds, games}),
+    tools: () => createAgentChatTools(createCommands(workbench), {jobs, worlds, games, blockLibrary}),
   });
-  const workbench = {provenanceBackfill, backfillProvenance, sources, games, sessions, worlds, preflight, adventures, exporter, buildingLibrary, buildingImages, itemCatalog, jobs, agentDecisions, agentRepairs, agentChat, createProductionJob, createRunner, createPlayProvider, modelSettings, testModelConnection, listModels, mediaDir,
+  const workbench = {provenanceBackfill, backfillProvenance, sources, games, sessions, worlds, preflight, adventures, exporter, buildingLibrary, buildingImages, itemCatalog, blockLibrary, jobs, agentDecisions, agentRepairs, agentChat, createProductionJob, createWorldFromIdea, createRunner, createPlayProvider, modelSettings, testModelConnection, listModels, mediaDir,
     get providerConfigured() {return modelSettings.get().configured;}};
   return workbench;
 }
+
 export type Workbench = ReturnType<typeof createWorkbench>;
 
 function validationFailure(code: string, prefix: string, errors: string[]): AppError {

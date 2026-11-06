@@ -55,6 +55,7 @@ export {
 } from './world-map.js';
 
 export { validateMapLayers } from './world-map.js';
+export { checkLedgerAssertion, ledgerAssertionsFor, type LedgerIssue, type LedgerState } from './ledger.js';
 export { projectMapFillIcons, mapRouteActionIds } from './map-fill-view.js';
 export {
   describeMapForImagePrompt, describeMapStructured, renderMapSchematicSvg, regionOf, DEFAULT_MAP_STYLE,
@@ -82,3 +83,4 @@ export {
   type FillCompiledAction, type FillGroupView, type FillProjection, type FillProjectOptions, type FillKindHint,
 } from './fill-actions.js';
 export { validateS1References, walkWorldLogic, type S1Issue } from './s1-references.js';
+export { causalDependencyGraph, causalEffectFacts, type CausalDependencyGraph } from './preflight/causality.js';
