@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type {
-  GenerationJob, MapFillPlacement, MapFillProposalItem, ResourceDef, Storylet, WorldCondition, WorldContent, WorldEffect, WorldPatchChange,
+  GenerationJob, MapFillPlacement, MapFillProposalItem, ResourceDef, Storylet, WorldCondition, WorldContent, WorldDraft, WorldEffect, WorldPatchChange,
 } from '@novel-game/contracts';
 import { completeWorldSchemaResult, type ChatTool } from '../modules/agent/index.js';
 import { jobSummary, type JobService } from '../modules/generation/index.js';
@@ -334,6 +334,25 @@ export const agentChatCommandMetadata = {
 } satisfies Record<string, AgentChatCommandMetadata>;
 
 const jobResults = new Set(['create_generation_job', 'create_production_job', 'retry_job', 'cancel_job', 'rewrite_production_unit', 'approve_saved_production_plan']);
+// Explicit command contracts only: never compact READ results or infer a commit from input arguments.
+const worldDraftResults = new Set([
+  'create_world_from_idea', 'edit_world_summary', 'add_world_location', 'update_world_location',
+  'add_world_storylet', 'update_world_storylet', 'add_storylet_condition', 'remove_storylet_condition',
+  'add_storylet_effect', 'remove_storylet_effect', 'add_world_resource_def', 'update_world_resource_def',
+]);
+const wrappedWorldDraftResults = new Set([
+  'apply_world_composition', 'apply_world_patch', 'place_map_fill', 'update_map_fill_placement', 'accept_map_fill',
+]);
+const worldDraftReceipt = (draft: WorldDraft) => ({
+  id: draft.id, sourceId: draft.sourceId, version: draft.version, title: draft.content.title,
+});
+const isWorldDraftResult = (value: unknown): value is WorldDraft => {
+  if (!value || typeof value !== 'object' || 'error' in value || 'status' in value) return false;
+  const draft = value as Partial<WorldDraft>;
+  return typeof draft.id === 'string' && typeof draft.sourceId === 'string'
+    && Number.isSafeInteger(draft.version) && Number(draft.version) > 0
+    && !!draft.content && typeof draft.content.title === 'string';
+};
 
 /** Small author tool surface. Model settings, raw files, exports, player actions and chat-control tools are excluded. */
 export function createAgentChatTools(commands: Command[], state: AgentChatCommandState): ChatTool[] {
@@ -368,7 +387,7 @@ export function createAgentChatTools(commands: Command[], state: AgentChatComman
         // This trusted dispatch never comes from JSON authorization flags or a public command credential.
         if (c.name === 'confirm_world_reshape') {
           if (!state.worlds.confirmAuthorReshape) throw new AppError('RESHAPE_UNAVAILABLE', '重塑服务不可用', 503);
-          return state.worlds.confirmAuthorReshape(c.inputSchema.parse(args) as Parameters<WorldService['confirmAuthorReshape']>[0]);
+          return worldDraftReceipt(state.worlds.confirmAuthorReshape(c.inputSchema.parse(args) as Parameters<WorldService['confirmAuthorReshape']>[0]));
         }
         const result = await c.execute(args);
         if (c.name === 'get_world_schema' && c.readOnly && result && typeof result === 'object') return completeWorldSchemaResult(result);
@@ -377,9 +396,20 @@ export function createAgentChatTools(commands: Command[], state: AgentChatComman
           return result.map(row => ({id: row.id, sourceId: row.sourceId, version: row.version, title: row.content?.title,
             status: row.status, stage: row.stage, draftId: row.draftId, updatedAt: row.updatedAt, failure: row.failure?.code}));
         }
-        if (c.name === 'edit_world_summary' && result && typeof result === 'object' && 'content' in result) {
-          const draft = result as {id: string; version: number; content: {title: string}};
-          return {id: draft.id, version: draft.version, title: draft.content.title, changed: Object.keys(args).filter(k => !['id', 'version'].includes(k))};
+        if (worldDraftResults.has(c.name) && isWorldDraftResult(result)) {
+          const receipt = worldDraftReceipt(result);
+          return c.name === 'edit_world_summary'
+            ? {...receipt, changed: Object.keys(args).filter(k => !['id', 'version'].includes(k))} : receipt;
+        }
+        if (wrappedWorldDraftResults.has(c.name) && result && typeof result === 'object' && !('error' in result) && !('status' in result)
+          && 'draft' in result && isWorldDraftResult(result.draft)) {
+          const written = result as {draft: WorldDraft; applied?: number};
+          return {...worldDraftReceipt(written.draft), ...(written.applied === undefined ? {} : {applied: written.applied})};
+        }
+        if (c.name === 'apply_end_conditions' && result && typeof result === 'object' && !('error' in result) && !('status' in result)
+          && 'draftId' in result && typeof result.draftId === 'string' && 'version' in result && Number.isSafeInteger(result.version)) {
+          const written = result as {draftId: string; version: number; severity: string; severityNote: string};
+          return {id: written.draftId, draftId: written.draftId, version: written.version, severity: written.severity, severityNote: written.severityNote};
         }
         if (['publish_world_draft', 'publish_draft'].includes(c.name)) {
           const revision = result as {id: string; draftId: string; version: number; content: {title: string}};
