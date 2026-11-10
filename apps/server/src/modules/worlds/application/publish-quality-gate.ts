@@ -22,10 +22,10 @@ export function assertWorldPublishQuality(worlds: WorldService, draft: WorldDraf
     throw new AppError('PLAYTEST_BLOCKED', '真实试玩未满足发布质量要求', 422, {failed, evidence});
   }
   const hasAssertions = [...draft.content.actions, ...draft.content.events, ...draft.content.endings].some(item => item.ledgerAssertions?.length);
-  if (hasAssertions && checkWorldLedger(worlds, {worldId: draft.id, expectedVersion: draft.version}).status !== 'pass')
+  if ((hasAssertions || draft.content.ledgerVersion !== undefined) && checkWorldLedger(worlds, {worldId: draft.id, expectedVersion: draft.version}).status !== 'pass')
     throw new AppError('LEDGER_BLOCKED', '声明的账本范围未通过服务端重放', 422);
   const claims = draft.content.causalClaims;
-  const hasClaims = !!claims && ((claims.keyResourceIds?.length ?? 0) + (claims.keyChoiceIds?.length ?? 0) + (claims.commitments?.length ?? 0) > 0);
+  const hasClaims = claims !== undefined;
   if (hasClaims && checkWorldCausality(worlds, {worldId: draft.id, expectedVersion: draft.version, maxStates: 1_000}).status !== 'pass')
     throw new AppError('CAUSALITY_BLOCKED', '声明的因果范围未通过服务端检查', 422);
   if (checkWorldPreservation(worlds, {worldId: draft.id, expectedVersion: draft.version}).status !== 'pass')

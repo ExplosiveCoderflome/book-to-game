@@ -16,6 +16,7 @@ export class WorldService {
     private readonly buildingAssetIds: () => ReadonlySet<string> | readonly string[] | undefined = () => undefined,
     /** S1 ⑦: mock-generated drafts are publishable only in test environments. */
     private readonly policy: {allowMockPublish?: boolean; traceProvenance?: (draftId: string) => DraftProvenance | undefined; playtest?: (draftId: string) => PlaytestReport | undefined;
+      extensionPublishGate?: {review(draft: WorldDraft): Promise<void>; assertAccepted(candidate: WorldDraft | WorldRevision): void};
       publishQualityGate?: (draft: WorldDraft) => void; upgradeQualityContract?: (draft: WorldDraft) => void} = {},
   ) {}
   /** `trusted` = the generation runner. Other callers may mark a draft mock, but cannot claim a non-mock provenance. */
@@ -224,17 +225,37 @@ export class WorldService {
   }
   publish(id: string, input: {version: number}): WorldRevision {
     assertVersion(input.version); const existing = this.repository.findRevision(id, input.version);
-    if (existing) {assertExtensionPublishAvailable(existing.content); return existing;}
+    if (existing) {this.assertExtensionPublish(existing); return existing;}
     const draft = this.get(id);
     if (draft.version !== input.version) throw new AppError('DRAFT_VERSION_CONFLICT', '草稿已更新，请刷新后发布', 409);
-    assertExtensionPublishAvailable(draft.content);
+    this.assertExtensionPublish(draft);
     this.assertPublishFloor(draft);
     this.assertMinimumPlaytest(draft);
-    if (draft.qualityContractVersion === 1) {
+    // Persisted legacy data may predate the stamp, but explicit check claims never get grandfathered.
+    if (draft.qualityContractVersion === 1 || declaresQualityChecks(draft.content)) {
       if (!this.policy.publishQualityGate) throw new AppError('PUBLISH_QUALITY_UNAVAILABLE', '新质量合同的服务端发布检查不可用，已拒绝发布', 503);
       this.policy.publishQualityGate(draft);
     }
     return this.publishRevision(draft);
+  }
+  /** Shared HTTP/MCP/author publish command prepares async, deterministic extension evidence only. */
+  async preparePublish(id: string, input: {version: number}): Promise<void> {
+    assertVersion(input.version);
+    const existing = this.repository.findRevision(id, input.version);
+    if (existing) {this.assertExtensionPublish(existing); return;}
+    const draft = this.get(id);
+    if (draft.version !== input.version) throw new AppError('DRAFT_VERSION_CONFLICT', '草稿已更新，请刷新后发布', 409);
+    if (!hasExtensions(draft.content)) return;
+    if (!this.policy.extensionPublishGate) throw extensionUnavailable();
+    await this.policy.extensionPublishGate.review(draft);
+    const current = this.get(id);
+    if (current.version !== draft.version || canonicalJson(current.content) !== canonicalJson(draft.content))
+      throw new AppError('DRAFT_VERSION_CONFLICT', '扩展审查期间草稿已更新，请重新审查发布', 409);
+  }
+  private assertExtensionPublish(candidate: WorldDraft | WorldRevision): void {
+    if (!hasExtensions(candidate.content)) return;
+    if (!this.policy.extensionPublishGate) throw extensionUnavailable();
+    this.policy.extensionPublishGate.assertAccepted(candidate);
   }
   private assertPublishFloor(draft: WorldDraft): void {
     const validation = validateWorld(draft.content, this.sourceReader.get(draft.sourceId), {buildingAssetIds: this.buildingAssetIds()});
@@ -306,22 +327,26 @@ export class WorldService {
  * Keep this mandatory for legacy drafts, optional policies and idempotent publication alike.
  * Reading existing revisions and saves remains unchanged.
  */
-function assertExtensionPublishAvailable(content: WorldContent): void {
-  const unavailable = () => new AppError('EXTENSION_PUBLISH_UNAVAILABLE', '服务端扩展验收及持久证据尚未接线，已拒绝含扩展的发布', 503);
-  if (Object.hasOwn(content, 'extensions') && (!Array.isArray(content.extensions) || content.extensions.length > 0)) throw unavailable();
+function extensionUnavailable() {return new AppError('EXTENSION_PUBLISH_UNAVAILABLE', '服务端扩展审查不可用，已拒绝含扩展的发布', 503);}
+function hasExtensions(content: WorldContent): boolean {
+  if (Object.hasOwn(content, 'extensions') && (!Array.isArray(content.extensions) || content.extensions.length > 0)) return true;
   const pending: unknown[] = [content];
   const seen = new Set<object>();
   while (pending.length) {
     const value = pending.pop();
     if (!value || typeof value !== 'object' || seen.has(value)) continue;
     seen.add(value);
-    if (!Array.isArray(value) && (value as Record<string, unknown>).kind === 'extension') throw unavailable();
+    if (!Array.isArray(value) && (value as Record<string, unknown>).kind === 'extension') return true;
     for (const child of Object.values(value)) if (child && typeof child === 'object') pending.push(child);
   }
+  return false;
+}
+function declaresQualityChecks(content: WorldContent): boolean {
+  return content.ledgerVersion !== undefined || content.causalClaims !== undefined
+    || [...content.actions, ...content.events, ...content.endings].some(item => !!item.ledgerAssertions?.length);
 }
 function usesQualityComposition(content: WorldContent): boolean {
-  return !!(content.blockSelections?.length || content.ledgerVersion || content.causalClaims || content.actions.some(item => item.ledgerAssertions?.length)
-    || content.events.some(item => item.ledgerAssertions?.length) || content.endings.some(item => item.ledgerAssertions?.length));
+  return !!(content.blockSelections?.length || declaresQualityChecks(content));
 }
 type StoryletConditionEdit = {
   version: number;

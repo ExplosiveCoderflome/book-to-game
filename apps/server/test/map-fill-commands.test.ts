@@ -39,7 +39,17 @@ function agentService(ctx: ReturnType<typeof setup>, replies: ChatReply[]) {
   const state = {worlds: ctx.worlds} as unknown as AgentChatCommandState;
   return new AgentChatService({
     repository: new SqliteChatRepository(ctx.db),
-    model: () => scriptedChat(async () => replies.shift() ?? {text: '完成', calls: []}),
+    model: () => {
+      let selected = false;
+      return scriptedChat(async () => {
+        const next = replies[0];
+        if (!selected && next?.calls.length) {
+          selected = true;
+          return {text: '', calls: [{id: 'focus-map-fill', name: 'select_agent_tools', arguments: {names: [...new Set(next.calls.map(call => call.name))]}}]};
+        }
+        return replies.shift() ?? {text: '完成', calls: []};
+      });
+    },
     tools: () => createAgentChatTools(ctx.commands, state),
   });
 }

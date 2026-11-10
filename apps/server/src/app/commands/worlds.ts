@@ -126,6 +126,7 @@ export function worldCommands(w: Workbench) {
     command('validate_world_draft', '检查世界引用、原文范围和潜在连通；不能保证文学质量或所有策略可解。', idSchema, true, ({id}) => w.worlds.validate(id)),
     command('publish_world_draft', '发布已校验的世界版本，内容不可变；同一草稿版本重复发布幂等。',
       z.object({id: z.string(), version: z.number().int().positive()}), false, async ({id, version}) => {
+        await w.worlds.preparePublish(id, {version});
         try {
           return w.worlds.publish(id, {version});
         } catch (error) {

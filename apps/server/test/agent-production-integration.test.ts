@@ -24,8 +24,18 @@ test('agent production: native tools inspect a saved plan, author confirms via H
   const fn = (name: string, args: unknown) => ({id: `call-${requests.length}-${name}`, type: 'function', function: {name, arguments: JSON.stringify(args)}});
   const provider = createServer(async (req, res) => {
     let raw = ''; for await (const chunk of req) raw += chunk;
-    const input = JSON.parse(raw); requests.push(input);
-    const last = input.messages.at(-1);
+    const input = JSON.parse(raw);
+    const selected = ['read_job', 'check_job_plan', 'approve_saved_production_plan', 'read_world_draft'];
+    if (!selected.every(name => input.tools.some((t: any) => t.function.name === name))) {
+      const discovered = input.messages.some((m: any) => m.role === 'tool' && m.content.includes('bounded-tool-focus'));
+      streamChatReply(res, {tool_calls: [{id: `focus-${input.messages.length}`, type: 'function', function: {
+        name: discovered ? 'select_agent_tools' : 'discover_agent_tools', arguments: JSON.stringify(discovered ? {names: selected} : {}),
+      }}]}); return;
+    }
+    requests.push(input);
+    // Discovery is protocol metadata, not a completed business step.
+    const last = input.messages.filter((m: any) => !(m.role === 'tool' && m.tool_call_id.startsWith('focus-'))
+      && !(m.role === 'assistant' && m.tool_calls?.every((c: any) => c.id.startsWith('focus-')))).at(-1);
     let reply: Parameters<typeof streamChatReply>[1];
     if (last.role === 'user' && last.content === '审阅已有制作规划，然后开始写作') {
       reply = {content: '先读取当前任务。', tool_calls: [fn('read_job', {id: jobId})]};

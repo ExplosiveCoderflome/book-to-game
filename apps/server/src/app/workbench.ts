@@ -21,6 +21,7 @@ import type { Logger } from '../shared/logger.js';
 import { ChatCompletionsProvider } from '../platform/model/chat-completions.js';
 import { ExportService, FsMediaReader, FsPlayerTemplateReader, FsWindowsPlayerReader } from '../modules/exports/index.js';
 import { BlockLibraryService, SqliteBlockCatalogRepository } from '../modules/block-library/index.js';
+import {ExtensionPublishService, SqliteExtensionReviewStore} from '../modules/extensions/index.js';
 import {canonicalJson} from '../shared/canonical-json.js';
 
 export function createWorkbench(db: SqliteDatabase, modelSettings: ModelSettingsService, logger?: Logger, options?: {repairAttempts?: number; dataDir?: string; playerTemplatePath?: string; windowsPlayerPath?: string; exportSecrets?: () => string[]; exportMaxBytes?: number; allowMockPublish?: boolean}) {
@@ -48,6 +49,7 @@ export function createWorkbench(db: SqliteDatabase, modelSettings: ModelSettings
   const worldRepository = new SqliteWorldRepository(db);
   let preflightRef: PreflightService | undefined;
   const worlds = new WorldService(worldRepository, sources, () => buildingLibrary.assetIds(), {allowMockPublish, traceProvenance,
+    extensionPublishGate: new ExtensionPublishService(new SqliteExtensionReviewStore(db)),
     playtest: id => preflightRepository.get('world', id).playtest,
     publishQualityGate: draft => assertWorldPublishQuality(worlds, draft, preflightRepository.get('world', draft.id).playtest),
     upgradeQualityContract: draft => worldRepository.updateQualityContract(draft.id, 1)});

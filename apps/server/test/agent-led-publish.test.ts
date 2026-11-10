@@ -167,12 +167,14 @@ test('legacy report without runtime evidence is stale and never accepted as a ne
   } finally {s.close();}
 });
 
-test('unsupported commitment declarations cannot pass the shared publish gate', async () => {
+for (const legacy of [false, true]) test(`unsupported commitment declarations cannot pass the shared publish gate; legacy=${legacy}`, async () => {
   const s = setup();
   try {
     const content = progressingWorld(s.source.chapters[0]!.id);
     content.causalClaims = {keyResourceIds: [], keyChoiceIds: [], commitments: [{id: 'promise', actionId: 'inspect-0', factId: 'clue-0'}]};
     const draft = s.wb.worlds.create({sourceId: s.source.id, content});
+    if (legacy) {const {qualityContractVersion: _contract, ...persisted} = draft;
+      s.db.prepare('UPDATE world_drafts SET data=? WHERE id=?').run(JSON.stringify(persisted), draft.id);}
     const checked = checkWorldCausality(s.wb.worlds, {worldId: draft.id, expectedVersion: 1, maxStates: 1000});
     assert.notEqual(checked.status, 'pass');
     assert.ok(checked.findings.some(finding => finding.code === 'causality.commitment-unsupported'));
@@ -210,5 +212,21 @@ test('missing gate fails closed; injected stale passing report cannot approve ch
         distribution: {runs: 1, rawSteps: {minimum: 1, average: 1, maximum: 1}, effectiveSteps: {minimum: 1, average: 1, maximum: 1}}, deadEnds: [], cappedRuns: 0, cappedWitnesses: [], repeatedStates: 0, noProgressRuns: 0, prose: {observed: true, repeatedBodies: []}},
       strategies: [], checks: [], endingRates: {}, endings: [], medians: {}, resourceBands: {}, cards: {neverDrawn: [], drawRate: {}, consecutiveRepeatRate: 0}, deadEnds: 0, lockedRatio: 0, pinnedRatio: {}, gatesNeverMet: [], durationMs: 0});
     assert.throws(() => s.wb.worlds.publish(draft.id, {version: 1}), (error: unknown) => error instanceof AppError && ['PUBLISH_QUALITY_STALE', 'PLAYTEST_BLOCKED'].includes(error.code));
+  } finally {s.close();}
+});
+
+
+for (const declared of ['ledger', 'causality'] as const) for (const legacy of [false, true]) test(`declared empty ${declared} scope is unsupported, never silently skipped at publish; legacy=${legacy}`, async () => {
+  const s = setup();
+  try {
+    const content = progressingWorld(s.source.chapters[0]!.id);
+    if (declared === 'ledger') content.ledgerVersion = 1;
+    else content.causalClaims = {keyResourceIds: [], keyChoiceIds: [], commitments: []};
+    const draft = s.wb.worlds.create({sourceId: s.source.id, content});
+    if (legacy) {const {qualityContractVersion: _contract, ...persisted} = draft;
+      s.db.prepare('UPDATE world_drafts SET data=? WHERE id=?').run(JSON.stringify(persisted), draft.id);}
+    const command = createCommands(s.wb).find(c => c.name === 'publish_world_draft')!;
+    await assert.rejects(command.execute({id: draft.id, version: 1}) as Promise<unknown>, codeIs(declared === 'ledger' ? 'LEDGER_BLOCKED' : 'CAUSALITY_BLOCKED'));
+    assert.deepEqual(s.wb.worlds.listRevisions(), []);
   } finally {s.close();}
 });
