@@ -73,26 +73,38 @@ export class AgentChatService {
       } catch (error) {
         const live = c.actions.find(a => a.id === action.id)!;
         const knownFailure = error instanceof AppError && error.status < 500;
-        live.status = knownFailure ? 'failed' : 'uncertain'; live.result = chatError(error); this.receipt(c, live);
+        live.status = knownFailure ? 'failed' : 'uncertain'; live.result = this.toolError(error); this.receipt(c, live);
         const stale = (error as {code?: string})?.code === 'CHAT_ACTION_STALE';
         c.messages.push(chatMessage('assistant', stale ? '目标状态已变化，本次没有执行。请重新查询，再确认新的操作。'
           : knownFailure ? `操作未完成，不会自动重试。${live.result}` : '操作执行结果未确认。请先查询实际任务或草稿状态，此操作不会自动重复执行。'));
         c.status = 'idle'; c.leaseUntil = 0; return this.save(c);
       }
     }
-    try {return await this.run(c, this.deps.model());}
+    let model: ChatModel;
+    try {model = this.deps.model();}
     catch {c.messages.push(chatMessage('assistant', '操作回执已保存，模型总结未完成。请检查模型配置后继续对话。')); c.status = 'idle'; c.leaseUntil = 0; return this.save(c);}
+    return this.run(c, model);
   }
 
   private async run(initial: AgentChatConversation, model: ChatModel): Promise<AgentChatConversation> {
     let c = initial;
+    // Pi bounds each model stream and the number of turns/tools. A shorter
+    // whole-run deadline would also charge discovery time against generation.
+    const controller = new AbortController();
+    let leaseError: unknown;
+    const assertOwned = () => {if (leaseError) throw leaseError;};
+    const heartbeat = setInterval(() => {
+      try {c.leaseUntil = Date.now() + LEASE_MS; c = this.save(c);}
+      catch (error) {leaseError = error; clearInterval(heartbeat); controller.abort();}
+    }, LEASE_MS / 3);
     try {
       const tools = this.deps.tools();
       let assistantId: string | undefined, streamedAt = 0;
-      const result = await model.run(c.messages, tools, AbortSignal.timeout(330_000), {
+      const result = await model.run(c.messages, tools, controller.signal, {
         maxRounds: MAX_TOOL_ROUNDS,
-        startTurn: () => {assistantId = undefined; streamedAt = 0; c.leaseUntil = Date.now() + LEASE_MS; c = this.save(c);},
+        startTurn: () => {assertOwned(); assistantId = undefined; streamedAt = 0; c.leaseUntil = Date.now() + LEASE_MS; c = this.save(c);},
         assistant: (reply, final) => {
+          assertOwned();
           if (!final && Date.now() - streamedAt < 150) return;
           streamedAt = Date.now();
           let message = assistantId ? c.messages.find(item => item.id === assistantId) : undefined;
@@ -103,20 +115,25 @@ export class AgentChatService {
           c = this.save(c);
         },
         execute: async call => {
+          assertOwned();
           const result = await this.useTool(c, tools, call, c.actions.some(a => a.status === 'pending'));
           return {...result, content: this.deps.redact?.(result.content) ?? result.content};
         },
         toolResult: (call, content) => {
+          assertOwned();
           c.messages.push(chatMessage('tool', content, {toolCallId: call.id, toolName: call.name}));
           c = this.save(c);
         },
       });
+      assertOwned();
       if (result.limited) c.messages.push(chatMessage('assistant', '已达到本轮工具调用上限，已完成的结果已保存。请继续说明下一步。'));
     } catch (error) {
+      // Ownership loss must not recover or overwrite the newer owner's state.
+      if (leaseError) throw leaseError;
       // A failed provider response never erases successful tools or exposes upstream bodies/credentials.
       this.pairInterruptedCalls(c);
       c.messages.push(chatMessage('assistant', `这一轮请求未完成。${chatError(error)}`));
-    }
+    } finally {clearInterval(heartbeat);}
     c.status = 'idle'; c.leaseUntil = 0; return this.save(c);
   }
 
@@ -142,8 +159,23 @@ export class AgentChatService {
               && JSON.stringify(previous.arguments ?? null) === fingerprint)));
         return {content: repeated ? chatResult({error: 'CHAT_INVALID_ARGS', message: '参数与上次相同已失败，请修改后重试。'}) : chatValidationError(error as import('zod').ZodError), proposed: false};
       }
-      return {content: chatError(error), proposed: false};
+      return {content: this.toolError(error), proposed: false};
     }
+  }
+  private toolError(error: unknown): string {
+    // Only deterministic local world-validation receipts are safe to expose.
+    // Provider errors and arbitrary details keep the generic/redacted path.
+    if (error instanceof AppError && error.status < 500
+      && ['INVALID_WORLD', 'INVALID_WORLD_COMPOSITION'].includes(error.code)) {
+      const validation = error.details as {valid?: unknown; errors?: unknown; warnings?: unknown} | undefined;
+      if (validation?.valid === false && Array.isArray(validation.errors)
+        && validation.errors.every(item => typeof item === 'string')
+        && Array.isArray(validation.warnings) && validation.warnings.every(item => typeof item === 'string')) {
+        return chatResult({error: error.code, message: '世界规则校验未通过，请按校验结果修正后重新提议；仍需作者确认。',
+          validation: {valid: false, errors: validation.errors, warnings: validation.warnings}});
+      }
+    }
+    return chatError(error);
   }
   private receipt(c: AgentChatConversation, action: AgentChatAction) {
     action.updatedAt = new Date().toISOString();

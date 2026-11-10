@@ -4,6 +4,7 @@ import { z } from 'zod';
 import * as agent from '../src/modules/agent/index.js';
 import { openDatabase } from '../src/platform/database.js';
 import { scriptedChat } from './helpers/agent-pi.js';
+import { AppError } from '../src/shared/errors.js';
 
 function setup() {
   assert.equal(typeof agent.AgentChatService, 'function', 'Agent must expose a conversational service, not only supervisor reports');
@@ -291,4 +292,127 @@ test('agent chat: budget exhaustion saves every receipt and a fresh message can 
     const continued = await send(s, 'continue-request', '继续创建');
     assert.equal(continued.actions[0]!.status, 'pending'); assert.equal(s.counts().writes, 0);
   } finally {s.db.close();}
+});
+
+test('agent chat: long Pi runs keep their lease and do not inherit a shorter whole-run deadline', async t => {
+  const s = setup();
+  t.mock.timers.enable({apis: ['Date', 'setTimeout', 'setInterval'], now: Date.now()});
+  // Node mock timers do not control AbortSignal.timeout's internal timer.
+  t.mock.method(AbortSignal, 'timeout', (ms: number) => {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), ms);
+    return controller.signal;
+  });
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => {release = resolve;});
+  let activeSignal!: AbortSignal;
+  const service = new agent.AgentChatService({...s.deps, model: () => ({
+    async run(_messages, _tools, signal, hooks) {
+      activeSignal = signal; hooks.startTurn();
+      await gate;
+      hooks.assistant({text: '完整回复', calls: []}, true);
+      return {limited: false};
+    },
+  })});
+  try {
+    const running = service.send({id: s.conversation.id, requestId: 'long-run', text: '继续生成'});
+    t.mock.timers.tick(330_001);
+    const prematurelyAborted = activeSignal.aborted;
+    t.mock.timers.tick(300_000);
+    const observed = service.get(s.conversation.id);
+    release();
+    const done = await running;
+    assert.equal(prematurelyAborted, false, 'service must not truncate Pi before its streaming deadline');
+    assert.equal(observed.status, 'running', 'an active model request must not be recovered as interrupted');
+    assert.equal(done.status, 'idle');
+    assert.match(done.messages.at(-1)!.content, /完整回复/);
+    assert.equal(done.messages.some(m => /上一轮已中断/.test(m.content)), false);
+    const version = done.version;
+    t.mock.timers.tick(600_001);
+    assert.equal(service.get(done.id).version, version, 'completed runs must stop renewing');
+  } finally {release(); t.mock.timers.reset(); s.db.close();}
+});
+
+test('agent chat: lease ownership loss aborts Pi without overwriting the newer conversation', async t => {
+  const s = setup();
+  t.mock.timers.enable({apis: ['Date', 'setInterval'], now: Date.now()});
+  let activeSignal!: AbortSignal;
+  const service = new agent.AgentChatService({...s.deps, model: () => ({
+    async run(_messages, _tools, signal, hooks) {
+      activeSignal = signal; hooks.startTurn();
+      await new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), {once: true}));
+      // Even a late callback from an aborted stream cannot use the stale owner.
+      assert.throws(() => hooks.startTurn(), {code: 'CHAT_BUSY'});
+      assert.throws(() => hooks.assistant({text: 'late reply', calls: []}, true), {code: 'CHAT_BUSY'});
+      await assert.rejects(hooks.execute(call('get_world_draft', 'late-read')), {code: 'CHAT_BUSY'});
+      assert.throws(() => hooks.toolResult(call('get_world_draft', 'late-read'), '{}'), {code: 'CHAT_BUSY'});
+      return {limited: false};
+    },
+  })});
+  try {
+    const running = service.send({id: s.conversation.id, requestId: 'lease-loss', text: '检查草稿'});
+    const newer = s.repository.get(s.conversation.id)!;
+    newer.status = 'idle'; newer.leaseUntil = 0;
+    const saved = s.repository.save(newer, newer.version);
+    t.mock.timers.tick(200_001);
+    await assert.rejects(running, {code: 'CHAT_BUSY'});
+    assert.equal(activeSignal.aborted, true);
+    assert.equal(s.counts().reads, 0);
+    assert.deepEqual(s.repository.get(saved.id), saved);
+    t.mock.timers.tick(600_001);
+    assert.deepEqual(s.repository.get(saved.id), saved);
+  } finally {t.mock.timers.reset(); s.db.close();}
+});
+
+test('agent chat: rule feedback is allowlisted and redacted, arbitrary error details remain private', async () => {
+  const s = setup();
+  let reads = 0;
+  const service = new agent.AgentChatService({...s.deps,
+    redact: text => text.replaceAll('test-validation-secret', '[REDACTED]'),
+    tools: () => s.deps.tools().map(tool => ({...tool, execute: () => {
+      if (++reads === 1) throw new AppError('INVALID_WORLD', 'private-message', 422, {
+        valid: false, errors: ['missing location test-validation-secret'], warnings: ['check route'], privateField: 'private-detail',
+      });
+      throw new AppError('PROVIDER_FAILURE', 'private-message', 502, {errors: ['private-detail']});
+    }})),
+  });
+  try {
+    s.replies.push({text: '', calls: [call('get_world_draft', 'rule-error'), call('get_world_draft', 'provider-error')]},
+      {text: '已收到校验反例', calls: []});
+    const result = await service.send({id: s.conversation.id, requestId: 'safe-validation', text: '检查'});
+    const receipts = result.messages.filter(m => m.role === 'tool').map(m => JSON.parse(m.content));
+    assert.deepEqual(receipts[0].validation, {valid: false, errors: ['missing location [REDACTED]'], warnings: ['check route']});
+    assert.equal(receipts[0].privateField, undefined); assert.equal(receipts[1].validation, undefined);
+    assert.equal(/private-message|private-detail|test-validation-secret/.test(JSON.stringify(s.received)), false);
+    assert.equal(/private-message|private-detail|test-validation-secret/.test(JSON.stringify(result)), false);
+  } finally {s.db.close();}
+});
+
+test('agent chat: confirmation summary ownership loss preserves the saved write and newer state', async t => {
+  const s = setup();
+  try {
+    s.replies.push({text: '', calls: [call('update_world_draft')]});
+    const pending = await send(s);
+    t.mock.timers.enable({apis: ['Date', 'setInterval'], now: Date.now()});
+    const service = new agent.AgentChatService({...s.deps, model: () => ({
+      async run(_messages, _tools, signal, hooks) {
+        hooks.startTurn();
+        await new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), {once: true}));
+        return {limited: false};
+      },
+    })});
+    const running = service.decide({id: pending.id, actionId: pending.actions[0]!.id, decision: 'confirm'});
+    // Let the already-confirmed tool finish and the Pi summary acquire its lease.
+    await new Promise<void>(resolve => setImmediate(resolve));
+    const newer = s.repository.get(pending.id)!;
+    assert.equal(newer.actions[0]!.status, 'succeeded');
+    newer.status = 'idle'; newer.leaseUntil = 0;
+    const saved = s.repository.save(newer, newer.version);
+    t.mock.timers.tick(200_001);
+    await assert.rejects(running, {code: 'CHAT_BUSY'});
+    assert.deepEqual(s.repository.get(saved.id), saved);
+    assert.equal(s.counts().writes, 1);
+    await service.decide({id: saved.id, actionId: saved.actions[0]!.id, decision: 'confirm'});
+    assert.equal(s.counts().writes, 1);
+  } finally {t.mock.timers.reset(); s.db.close();}
 });
