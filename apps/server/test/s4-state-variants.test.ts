@@ -58,9 +58,10 @@ test('S4: worlds without textCases keep the old rotation (《寿灯》 batch3 ha
     if (!next) break;
     s = act(s, r, next.id);
   }
-  // Simulator verdicts are unchanged for a world without cases.
+  // Legacy G checks remain for a world without cases; the new safety gate is also reported.
   const a = await simulateWorld(r, {seeds: 10, routes: false, pacing: false, now: NOW});
-  assert.deepEqual(a.checks.map(c => c.id), ['G1', 'G2', 'G4', 'G6', 'G8']);
+  assert.deepEqual(a.checks.map(c => c.id), ['G1', 'G2', 'G4', 'G6', 'G8', 'minimum-run-length']);
+  assert.equal(a.checks.find(c => c.id === 'minimum-run-length')?.pass, true);
 });
 
 test('S4 lint: a body that shows someone after they left, a shadowed case and an unreachable case are flagged', () => {

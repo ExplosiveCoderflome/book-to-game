@@ -19,6 +19,19 @@ const withoutTimingAndProfile = (report: Awaited<ReturnType<typeof simulateWorld
   return rest;
 };
 
+// Count completed decisions independently from the simulator's report aggregation.
+function assertRunLength(report: Awaited<ReturnType<typeof simulateWorld>>, completed: number[]) {
+  assert.ok(completed.length > 0);
+  const minimum = Math.min(...completed);
+  const average = completed.reduce((sum, turns) => sum + turns, 0) / completed.length;
+  assert.deepEqual(report.runLength, {completedRuns: completed.length, minimum, average});
+  assert.deepEqual(report.checks.find(check => check.id === 'minimum-run-length'), {
+    id: 'minimum-run-length', label: '最低局长', line: '已完成局的最短与平均局长均 ≥ 5 次决策',
+    measured: `${completed.length} 局 · 最短 ${minimum} 步 · 平均 ${average.toFixed(1)} 步`,
+    pass: minimum >= 5 && average >= 5,
+  });
+}
+
 test('V0b: FunProfile 契约校验五个内置画像与阈值边界', () => {
   assert.deepEqual(FUN_PROFILES.map(profile => profile.id), ['default', 'pressure', 'healing', 'grinding', 'collection']);
   for (const profile of FUN_PROFILES) assert.deepEqual(funProfileSchema.parse(profile), profile);
@@ -39,7 +52,7 @@ test('V0b: 不传 profile 保持同种子基线，default 的验收与完整报�
   assert.equal(legacy.profileId, undefined);
   assert.equal(namedDefault.profileId, 'default');
   assert.deepEqual(legacy.checks.map(check => [check.id, check.pass]), [
-    ['G1', true], ['G2', true], ['G4', false], ['G6', true], ['G8', true],
+    ['G1', true], ['G2', true], ['G4', false], ['G6', true], ['G8', true], ['minimum-run-length', true],
   ]);
   assert.deepEqual(legacy.medians.random, {decisions: 279, uniqueChars: 18520, months: 353});
   assert.deepEqual(legacy.endingRates.random, {guifan: 1 / 3, liushi: 1 / 6, xuedeng: 1 / 6, tiwen: 1 / 6, rumo: 1 / 6});
@@ -47,32 +60,50 @@ test('V0b: 不传 profile 保持同种子基线，default 的验收与完整报�
   assert.deepEqual(withoutTimingAndProfile(namedDefault), withoutTimingAndProfile(legacy));
 });
 
-test('V0b: healing 饭馆指标可计算并通过，严格阈值使同一指标失败且不改模拟结果', async () => {
-  const options = {seeds: 20, maxSteps: 100, routes: false as const, pacing: false as const, now: NOW};
+test('V0b: healing 饭馆原有指标通过但短局被安全线拒绝，严格画像阈值不改模拟结果', async () => {
+  const completed: number[] = [];
+  const options = {seeds: 20, maxSteps: 100, routes: false as const, pacing: false as const, now: NOW,
+    inspectState: (state: {turn: number; ending?: unknown}) => {if (state.ending) completed.push(state.turn);}};
   const passing = await simulateWorld(rev(diner()), {...options, profile: HEALING_FUN_PROFILE});
   assert.equal(passing.profileId, 'healing');
-  assert.deepEqual(passing.checks.map(check => check.id), ['G1', 'G4', 'G8', 'failure-free-ending-rate']);
-  assert.ok(passing.checks.every(check => check.pass), JSON.stringify(passing.checks));
+  assert.deepEqual(passing.checks.map(check => check.id), ['G1', 'G4', 'G8', 'failure-free-ending-rate', 'minimum-run-length']);
+  assert.deepEqual(passing.checks.map(check => check.pass), [true, true, true, true, false], JSON.stringify(passing.checks));
+  assertRunLength(passing, completed);
+  assert.equal(passing.runLength?.completedRuns, 120);
+  assert.equal(passing.runLength?.minimum, 4, 'the fixture has a real early ending; do not lower the safety floor');
   const metric = passing.checks.find(check => check.id === 'failure-free-ending-rate')!;
   assert.equal(metric.line, '「随机」零失败结局率 ≥ 80%');
   assert.equal(metric.measured, '零失败结局率 85% · 失败结局 15%');
   const strictProfile = funProfileSchema.parse({...HEALING_FUN_PROFILE, id: 'healing-strict',
     thresholds: {...HEALING_FUN_PROFILE.thresholds, minFailureFreeEndingRate: 0.9}});
-  const failing = await simulateWorld(rev(diner()), {...options, profile: strictProfile});
+  const strictCompleted: number[] = [];
+  const failing = await simulateWorld(rev(diner()), {...options, profile: strictProfile,
+    inspectState: state => {if (state.ending) strictCompleted.push(state.turn);}});
   const strictMetric = failing.checks.find(check => check.id === 'failure-free-ending-rate')!;
   assert.equal(strictMetric.pass, false);
   assert.equal(strictMetric.measured, metric.measured);
   assert.deepEqual(failing.endingRates, passing.endingRates, 'acceptance thresholds never change seeded play');
+  assertRunLength(failing, strictCompleted);
+  assert.deepEqual(failing.runLength, passing.runLength, 'a stricter healing threshold cannot hide the short-run failure');
 });
 
 test('V0b: pressure / grinding / collection 均可按各自矩阵运行', async () => {
   const profiles: FunProfile[] = [PRESSURE_FUN_PROFILE, GRINDING_FUN_PROFILE, COLLECTION_FUN_PROFILE];
   for (const profile of profiles) {
+    const completed: number[] = [];
     const report = await simulateWorld(rev(diner()), {seeds: 2, routeSeeds: 2, maxSteps: 100, now: NOW,
-      routes: profile.id === 'collection' ? 'auto' : false, pacing: false, profile});
+      routes: profile.id === 'collection' ? 'auto' : false, pacing: false, profile,
+      inspectState: state => {if (state.ending) completed.push(state.turn);}});
     assert.equal(report.profileId, profile.id);
-    assert.deepEqual(report.checks.map(check => check.id), Object.entries(profile.metricMatrix)
-      .filter(([, enabled]) => enabled).map(([id]) => id));
+    const metrics = Object.entries(profile.metricMatrix).filter(([, enabled]) => enabled).map(([id]) => id);
+    assert.deepEqual(report.checks.map(check => check.id), [
+      ...metrics.filter(id => id !== 'collection-reachable'), 'minimum-run-length',
+      ...metrics.filter(id => id === 'collection-reachable'),
+    ]);
+    assertRunLength(report, completed);
+    assert.deepEqual(report.strategies.map(strategy => strategy.id), profile.id === 'grinding'
+      ? ['random', 'greedy-mood', 'greedy-money', 'modao', 'lazy']
+      : ['random', 'greedy-mood', 'greedy-money', 'modao', 'merchant', 'lazy']);
     if (profile.id === 'grinding') assert.ok(!report.strategies.some(strategy => strategy.id === 'merchant'));
     if (profile.id === 'collection') assert.ok(report.routeCoverage);
   }

@@ -66,8 +66,9 @@ test('S3: a synthetic ~30-step world reports concrete causes with fixes; static 
     assert.ok(row.simulatedMin, `${row.endingId} reached`);
     assert.ok(Math.abs(row.estimateMin - row.simulatedMin!) / row.simulatedMin! <= 0.2, `${row.endingId}: est ${row.estimateMin} vs sim ${row.simulatedMin}`);
   }
-  // The G-contract is unchanged.
-  assert.deepEqual(report.checks.map(c => c.id), ['G1', 'G2', 'G4', 'G6', 'G8']);
+  // Legacy G checks remain, followed by the unconditional minimum-length gate.
+  assert.deepEqual(report.checks.map(c => c.id), ['G1', 'G2', 'G4', 'G6', 'G8', 'minimum-run-length']);
+  assert.equal(report.checks.find(c => c.id === 'minimum-run-length')?.pass, true, 'a pacing shortfall is distinct from the 5-decision safety floor');
 });
 
 test('S3: Wulin-shaped fixture — static minimum within 20% of the simulated minimum for the planned ordinary endings', async () => {

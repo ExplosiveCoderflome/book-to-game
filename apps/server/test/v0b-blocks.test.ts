@@ -12,13 +12,14 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-test('V0b: 20 blocks parse, expose the closed catalog shape, and lint clean', () => {
-  assert.equal(BLOCKS.length, 20);
+test('V0b: 21 blocks parse, expose the closed catalog shape, and lint clean', () => {
+  assert.equal(BLOCKS.length, 21);
   assert.deepEqual(BLOCKS.map(b => b.id), [
     'stat-templates', 'opening-roll', 'world-map', 'building-library', 'item-catalog', 'storylet-pool',
     'endings-recap', 'end-conditions', 'clock', 'encounters',
     'shop-cycle', 'customer-flow', 'ledger',
     'growth-curve', 'loot-table', 'combat-stake',
+    'fact-evidence-ledger',
     'ai-narration', 'ai-npc-dialog', 'ai-slot-template',
     'preflight-sim',
   ]);
@@ -95,7 +96,7 @@ test('V0b: list_blocks is a read-only command providing funTags/requires/params'
     assert.ok(command, 'list_blocks command registered');
     assert.equal(command.readOnly, true);
     const result = command.execute({}) as {blocks: unknown[]; shelves: {id: string; label: string}[]; lint: unknown[]};
-    assert.equal(result.blocks.length, 20);
+    assert.equal(result.blocks.length, 21);
     assert.deepEqual(result.shelves.map(shelf => shelf.id), ['foundation', 'world-content', 'commerce', 'combat-growth', 'ops', 'ai-live']);
     assert.ok(result.shelves.every(shelf => shelf.label.length > 0));
     assert.deepEqual(result.lint, []);

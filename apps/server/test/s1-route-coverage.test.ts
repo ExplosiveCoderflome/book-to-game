@@ -20,8 +20,9 @@ test('route coverage: generic strategies miss endings that goal-directed strateg
   const report = await simulateWorld(rev(world()), {seeds: 60, routes: plan(), routeSeeds: 20, now});
   const rc = report.routeCoverage!;
   assert.ok(rc, 'routeCoverage attached');
-  // The G-contract is unchanged: same checks and the same generic strategies.
-  assert.deepEqual(report.checks.map(c => c.id), ['G1', 'G2', 'G4', 'G6', 'G8']);
+  // Legacy G checks and generic strategies remain; minimum run length is an unconditional safety check.
+  assert.deepEqual(report.checks.map(c => c.id), ['G1', 'G2', 'G4', 'G6', 'G8', 'minimum-run-length']);
+  assert.equal(report.checks.find(c => c.id === 'minimum-run-length')?.pass, true, 'below the 60-decision pacing line does not mean below the 5-decision safety floor');
   assert.deepEqual(report.strategies.map(s => s.id), ['random', 'greedy-trust', 'greedy-money', 'modao', 'merchant', 'lazy']);
   const status = Object.fromEntries(rc.endings.map(e => [e.id, e.status]));
   // Before: no generic strategy reaches 联手破案 / 洞中一战 at ≥5% → they show up as goal-only (random-starved), not unreached.
