@@ -15,13 +15,26 @@ import { createModelSettings } from '../src/platform/create-model-settings.js';
 import { createApp } from '../src/adapters/http/app.js';
 import { streamChatReply } from './helpers/agent-pi.js';
 import { SqliteChatRepository } from '../src/modules/agent/index.js';
+import type { ServerResponse } from 'node:http';
+
+// Script explicit discovery/selection while retaining original business turns.
+function focusReply(input: any, res: ServerResponse, names: string[]) {
+  if (names.every(name => input.tools.some((tool: any) => tool.function.name === name))) return false;
+  const discovered = input.messages.some((m: any) => m.role === 'tool' && m.content.includes('bounded-tool-focus'));
+  streamChatReply(res, {tool_calls: [{id: `focus-${input.messages.length}`, type: 'function', function: {
+    name: discovered ? 'select_agent_tools' : 'discover_agent_tools', arguments: JSON.stringify(discovered ? {names} : {}),
+  }}]});
+  return true;
+}
 
 test('agent conversation: over-limit stored history continues in the same chat through Pi and real confirmation', async t => {
   const bodies: any[] = [];
   let draftId = '';
   const provider = createServer(async (req, res) => {
     let raw = ''; for await (const chunk of req) raw += chunk;
-    const input = JSON.parse(raw); bodies.push(input);
+    const input = JSON.parse(raw);
+    if (focusReply(input, res, ['read_world_draft', 'edit_world_summary'])) return;
+    bodies.push(input);
     streamChatReply(res, bodies.length === 1 ? {tool_calls: [{id: 'recovery-read', type: 'function', function: {name: 'read_world_draft', arguments: JSON.stringify({id: draftId, summary: true})}}]}
       : bodies.length === 2 ? {tool_calls: [{id: 'recovery-edit', type: 'function', function: {name: 'edit_world_summary', arguments: JSON.stringify({id: draftId, version: 1, title: '同会话恢复后的标题'})}}]}
       : {content: '成功写入回执已保存，仍在原对话。'});
@@ -69,7 +82,7 @@ test('agent conversation: over-limit stored history continues in the same chat t
         else {assert.equal(pendingIds.size, 0); for (const call of message.tool_calls ?? []) pendingIds.add(call.id);}
       }
       assert.equal(pendingIds.size, 0);
-      assert.equal(body.tools.length, 78);
+      assert.deepEqual(body.tools.map((t: any) => t.function.name).sort(), ['discover_agent_tools', 'select_agent_tools', 'read_world_draft', 'edit_world_summary'].sort());
       assert.ok(Buffer.byteLength(JSON.stringify(body)) < 512 * 1024);
     }
     t.diagnostic(JSON.stringify({event: 'chat.test.history_recovery', persistedMessages: done.messages.length, requestBytes: bodies.map(body => Buffer.byteLength(JSON.stringify(body))), toolsBytes: Buffer.byteLength(JSON.stringify(bodies[0].tools))}));
@@ -82,10 +95,12 @@ test('agent conversation: real provider protocol, shared tools, author confirmat
   let calls = 0;
   const provider = createServer(async (req, res) => {
     let raw = ''; for await (const chunk of req) raw += chunk;
-    const input = JSON.parse(raw); calls++;
+    const input = JSON.parse(raw);
+    if (focusReply(input, res, ['list_world_drafts', 'edit_world_summary'])) return;
+    calls++;
     const result = calls === 1 ? {content: '先查草稿。', tool_calls: [{id: 'list-1', type: 'function', function: {name: 'list_world_drafts', arguments: '{}'}}]}
       : calls === 2 ? (() => {
-        const rows = JSON.parse(input.messages.at(-1).content);
+        const rows = JSON.parse(input.messages.findLast((m: any) => m.role === 'tool' && m.tool_call_id === 'list-1').content);
         return {content: '找到测试草稿，建议修改标题，请确认。', tool_calls: [{id: 'edit-1', type: 'function', function: {name: 'edit_world_summary', arguments: JSON.stringify({id: rows[0].id, version: rows[0].version, title: '对话修改后的标题'})}}]};
       })() : {content: '已按确认修改标题，草稿为新版本。'};
     assert.equal(input.stream, true); streamChatReply(res, result);
@@ -143,7 +158,11 @@ test('agent conversation: idea discovery reaches real create confirmation beyond
   let calls = 0; const bodies: any[] = [];
   const provider = createServer(async (req, res) => {
     let raw = ''; for await (const chunk of req) raw += chunk;
-    const input = JSON.parse(raw); bodies.push(input); calls++;
+    const input = JSON.parse(raw);
+    const names = calls === 0 ? ['runtime_info', 'list_game_dev_skills', 'list_sources', 'list_blocks', 'list_genre_recipes', 'list_fun_profiles']
+      : calls === 1 ? ['load_game_dev_skill'] : calls < 9 ? ['list_world_drafts'] : calls === 9 ? ['create_world_from_idea'] : ['validate_world_draft'];
+    if (focusReply(input, res, names)) return;
+    bodies.push(input); calls++;
     const call = (name: string, args: unknown, suffix = '') => ({id: `idea-${calls}${suffix}`, type: 'function', function: {name, arguments: JSON.stringify(args)}});
     const result = calls === 1 ? {tool_calls: ['runtime_info', 'list_game_dev_skills', 'list_sources', 'list_blocks', 'list_genre_recipes', 'list_fun_profiles'].map((name, i) => call(name, {}, `-${i}`))}
       : calls === 2 ? {tool_calls: ['project-brief', 'world-building', 'pacing-balance', 'quality-review'].map((skillId, i) => call('load_game_dev_skill', {skillId}, `-${i}`))}
@@ -166,7 +185,7 @@ test('agent conversation: idea discovery reaches real create confirmation beyond
     assert.equal(pending.actions.length, 1); assert.equal(pending.actions[0]!.toolName, 'create_world_from_idea');
     assert.equal(pending.actions[0]!.status, 'pending');
     assert.equal(pending.messages.some(m => m.role === 'tool' && m.content.includes('CHAT_TOOL_DENIED')), false);
-    const advertised = bodies[0].tools.find((tool: any) => tool.function.name === 'create_world_from_idea');
+    const advertised = bodies[9].tools.find((tool: any) => tool.function.name === 'create_world_from_idea');
     assert.deepEqual(advertised.function.parameters, z.toJSONSchema(createWorldFromIdeaInputSchema, {unrepresentable: 'any', reused: 'ref'}));
     const bytes = (value: unknown) => Buffer.byteLength(JSON.stringify(value));
     const ranked = bodies[0].tools.map((tool: any) => ({name: tool.function.name, bytes: bytes(tool)}))
@@ -177,7 +196,7 @@ test('agent conversation: idea discovery reaches real create confirmation beyond
     assert.equal(done.actions[0]!.status, 'succeeded', done.actions[0]!.result);
     assert.equal(w.worlds.list().length, 1); assert.equal(calls, 12);
     assert.ok(done.messages.some(m => m.role === 'tool' && m.toolName === 'validate_world_draft' && JSON.parse(m.content).valid === true));
-    assert.equal(bodies[1].messages.filter((m: any) => m.role === 'tool').length, 6);
+    assert.equal(bodies[1].messages.filter((m: any) => m.role === 'tool' && m.tool_call_id.startsWith('idea-1-')).length, 6);
     await w.agentChat.decide({id: chat.id, actionId: pending.actions[0]!.id, decision: 'confirm'});
     assert.equal(w.worlds.list().length, 1); assert.equal(calls, 12);
     assert.equal(w.worlds.listRevisions().length, 0);
@@ -192,7 +211,9 @@ test('agent conversation: failed real idea validation returns rule findings and 
   let calls = 0; let findingReturned = false;
   const provider = createServer(async (req, res) => {
     let raw = ''; for await (const chunk of req) raw += chunk;
-    const input = JSON.parse(raw); calls++;
+    const input = JSON.parse(raw);
+    if (focusReply(input, res, ['create_world_from_idea'])) return;
+    calls++;
     if (calls === 2) {
       const receipt = input.messages.find((m: any) => m.role === 'tool' && m.tool_call_id === 'invalid-world');
       const result = JSON.parse(receipt.content);

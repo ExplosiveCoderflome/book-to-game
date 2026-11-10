@@ -74,9 +74,9 @@ test('schema tool: commands, HTTP, MCP and product Pi return the same complete r
   const bodies: Array<{tools: Array<{function: {name: string; parameters: unknown}}>; messages: Array<{role: string; tool_call_id?: string; content: string}>}> = [];
   const fetchMock = t.mock.method(globalThis, 'fetch', async (_input: unknown, init?: RequestInit) => {
     const body = JSON.parse(String(init?.body)); bodies.push(body); calls++;
-    const delta = calls === 1 ? {role: 'assistant', tool_calls: [{index: 0, id: 'schema-read', type: 'function',
-      function: {name: 'get_world_schema', arguments: '{}'}}]} : {role: 'assistant', content: '已读取完整世界结构。'};
-    return new Response(`data: ${JSON.stringify({id: 'schema-test', choices: [{index: 0, delta, finish_reason: null}]})}\n\ndata: ${JSON.stringify({id: 'schema-test', choices: [{index: 0, delta: {}, finish_reason: calls === 1 ? 'tool_calls' : 'stop'}]})}\n\ndata: [DONE]\n\n`, {headers: {'Content-Type': 'text/event-stream'}});
+    const delta = calls <= 3 ? {role: 'assistant', tool_calls: [{index: 0, id: calls === 1 ? 'inventory' : calls === 2 ? 'focus' : 'schema-read', type: 'function',
+      function: {name: calls === 1 ? 'discover_agent_tools' : calls === 2 ? 'select_agent_tools' : 'get_world_schema', arguments: calls === 2 ? JSON.stringify({names: ['get_world_schema']}) : '{}'}}]} : {role: 'assistant', content: '已读取完整世界结构。'};
+    return new Response(`data: ${JSON.stringify({id: 'schema-test', choices: [{index: 0, delta, finish_reason: null}]})}\n\ndata: ${JSON.stringify({id: 'schema-test', choices: [{index: 0, delta: {}, finish_reason: calls <= 3 ? 'tool_calls' : 'stop'}]})}\n\ndata: [DONE]\n\n`, {headers: {'Content-Type': 'text/event-stream'}});
   });
   try {
     const http = await request(app, 'GET', '/api/worlds/schema');
@@ -88,13 +88,15 @@ test('schema tool: commands, HTTP, MCP and product Pi return the same complete r
     assert.deepEqual(JSON.parse(mcp.body.result.content[0].text), expected);
     const chat = w.agentChat.create();
     const done = await w.agentChat.send({id: chat.id, requestId: 'schema-only-read', text: '读取世界 JSON Schema，不创建草稿。'});
-    assert.equal(calls, 2, 'Pi must continue after the successful read without a confirmation pause');
-    assert.equal(bodies[0]!.tools.length, 78);
-    assert.deepEqual(bodies[0]!.tools.find(tool => tool.function.name === 'get_world_schema')!.function.parameters, schemaTool.parameters);
-    const returned = bodies[1]!.messages.find(message => message.role === 'tool' && message.tool_call_id === 'schema-read');
+    assert.equal(calls, 4, 'Pi discovers, selects, reads, and continues without a confirmation pause');
+    assert.deepEqual(bodies[0]!.tools.map(tool => tool.function.name), ['discover_agent_tools', 'select_agent_tools']);
+    const inventory = JSON.parse(bodies[1]!.messages.find(message => message.tool_call_id === 'inventory')!.content);
+    assert.equal(inventory.complete, true); assert.deepEqual(inventory.inventory.map((tool: any) => tool.name), tools.map(tool => tool.name));
+    assert.deepEqual(bodies[2]!.tools.find(tool => tool.function.name === 'get_world_schema')!.function.parameters, schemaTool.parameters);
+    const returned = bodies[3]!.messages.find(message => message.role === 'tool' && message.tool_call_id === 'schema-read');
     assert.ok(returned, 'the actual Pi request must carry the schema receipt');
     assert.equal(returned.content, serialized, 'no truncation, summary or substituted schema reaches Pi');
-    const paired = bodies[1]!.messages as Array<{role: string; tool_calls?: Array<{id: string; function: {name: string}}>}>;
+    const paired = bodies[3]!.messages as Array<{role: string; tool_calls?: Array<{id: string; function: {name: string}}>}>;
     assert.ok(paired.some(message => message.role === 'assistant' && message.tool_calls?.some(call => call.id === 'schema-read' && call.function.name === 'get_world_schema')), 'the complete receipt must retain its actual call');
     const requestBytes = bodies.map(body => Buffer.byteLength(JSON.stringify(body)));
     assert.ok(requestBytes.every(bytes => bytes <= CHAT_REQUEST_BYTES), 'every actual product Pi request obeys the hard byte budget');

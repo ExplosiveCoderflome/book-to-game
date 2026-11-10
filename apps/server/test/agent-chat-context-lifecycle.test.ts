@@ -34,9 +34,9 @@ test('context lifecycle: new intent retires old full schema; current reread and 
   const bodies: Payload[] = [];
   const fetchMock = t.mock.method(globalThis, 'fetch', async (_input: unknown, init?: RequestInit) => {
     const body = JSON.parse(String(init?.body)) as Payload; bodies.push(body);
-    const name = bodies.length === 1 ? 'get_world_schema' : 'list_sources';
-    const delta = bodies.length <= 2 ? {role: 'assistant', tool_calls: [{index: 0, id: `current-${bodies.length}`, type: 'function', function: {name, arguments: '{}'}}]} : {role: 'assistant', content: '已读取完整结构与目录。'};
-    const frames = [{id: 'context-test', choices: [{index: 0, delta, finish_reason: null}]}, {id: 'context-test', choices: [{index: 0, delta: {}, finish_reason: bodies.length <= 2 ? 'tool_calls' : 'stop'}]}];
+    const name = bodies.length === 1 ? 'discover_agent_tools' : bodies.length === 2 ? 'select_agent_tools' : bodies.length === 3 ? 'get_world_schema' : 'list_sources';
+    const delta = bodies.length <= 4 ? {role: 'assistant', tool_calls: [{index: 0, id: bodies.length <= 2 ? `focus-${bodies.length}` : `current-${bodies.length - 2}`, type: 'function', function: {name, arguments: bodies.length === 2 ? JSON.stringify({names: ['get_world_schema', 'list_sources']}) : '{}'}}]} : {role: 'assistant', content: '已读取完整结构与目录。'};
+    const frames = [{id: 'context-test', choices: [{index: 0, delta, finish_reason: null}]}, {id: 'context-test', choices: [{index: 0, delta: {}, finish_reason: bodies.length <= 4 ? 'tool_calls' : 'stop'}]}];
     const separator = String.fromCharCode(10, 10);
     return new Response([...frames.map(frame => `data: ${JSON.stringify(frame)}`), 'data: [DONE]', ''].join(separator), {headers: {'Content-Type': 'text/event-stream'}});
   });
@@ -46,16 +46,20 @@ test('context lifecycle: new intent retires old full schema; current reread and 
     await model.run(history, tools, AbortSignal.timeout(10000), {maxRounds: 8, startTurn() {}, assistant() {},
       execute: async call => ({content: call.name === 'get_world_schema' ? schema : '[]', proposed: false}),
       toolResult: (_call, content) => receipts.push(content)});
-    assert.equal(bodies.length, 3); assert.equal(receipts[0], schema);
+    assert.equal(bodies.length, 5); assert.equal(receipts[2], schema);
+    const inventory = JSON.parse(receipts[0]!);
+    assert.equal(inventory.complete, true); assert.deepEqual(inventory.inventory.map((t: any) => t.name), tools.map(t => t.name));
     for (const [index, body] of bodies.entries()) {
-      assert.equal(body.tools.length, 78);
+      assert.equal(body.tools.length, index < 2 ? 2 : 4);
+      if (index >= 2) for (const tool of tools.filter(t => ['get_world_schema', 'list_sources'].includes(t.name)))
+        assert.deepEqual(body.tools.find(t => t.function.name === tool.name)!.function.parameters, tool.parameters);
       assert.equal(body.messages.some(m => m.tool_call_id === 'old-schema'), false);
       assert.ok(body.messages.some(m => m.content === history.at(-1)!.content));
-      if (index > 0) {
+      if (index > 2) {
         assert.equal(body.messages.find(m => m.tool_call_id === 'current-1')?.content, schema);
         assert.ok(body.messages.some(m => m.tool_calls?.some(c => c.id === 'current-1')));
       }
-      if (index === 2) {
+      if (index === 4) {
         assert.equal(body.messages.find(m => m.tool_call_id === 'current-2')?.content, '[]');
         assert.ok(body.messages.some(m => m.tool_calls?.some(c => c.id === 'current-2')));
       }

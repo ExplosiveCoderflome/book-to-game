@@ -18,12 +18,18 @@ import {streamChatReply} from './helpers/agent-pi.js';
 
 test('MCP cannot decide a fresh reshape pending action; trusted author HTTP confirms the same action once', async () => {
   let calls = 0;
+  const advertised: string[][] = [];
   let reshapeArgs: Record<string, unknown>;
   const provider = createServer(async (req, res) => {
-    for await (const _chunk of req) { /* drain the local protocol request */ }
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {tools: {function: {name: string}}[]};
+    advertised.push(body.tools.map(tool => tool.function.name));
     calls++;
-    streamChatReply(res, calls === 1 ? {tool_calls: [{id: 'reshape-pending', type: 'function',
-      function: {name: 'confirm_world_reshape', arguments: JSON.stringify(reshapeArgs)}}]} : {content: '作者确认已完成。'});
+    const name = calls === 1 ? 'discover_agent_tools' : calls === 2 ? 'select_agent_tools' : 'confirm_world_reshape';
+    const args = calls === 1 ? {} : calls === 2 ? {names: ['confirm_world_reshape']} : reshapeArgs;
+    streamChatReply(res, calls <= 3 ? {tool_calls: [{id: calls === 3 ? 'reshape-pending' : `reshape-focus-${calls}`, type: 'function',
+      function: {name, arguments: JSON.stringify(args)}}]} : {content: '作者确认已完成。'});
   }).listen(0, '127.0.0.1');
   await once(provider, 'listening');
   const dir = mkdtempSync(path.join(tmpdir(), 'btg-mcp-author-boundary-'));
@@ -59,7 +65,23 @@ test('MCP cannot decide a fresh reshape pending action; trusted author HTTP conf
     const pending = await response.json() as AgentChatConversation;
     const action = pending.actions[0]!;
     assert.equal(action.toolName, 'confirm_world_reshape'); assert.equal(action.status, 'pending');
-    assert.equal(calls, 1); assert.equal(w.worlds.get(draft.id).version, 1);
+    assert.equal(pending.actions.length, 1);
+    assert.deepEqual(action.arguments, reshapeArgs);
+    assert.equal(action.guard, `${draft.version}:${proposal.diffHash}`);
+    assert.deepEqual(advertised.slice(0, 2), [
+      ['discover_agent_tools', 'select_agent_tools'], ['discover_agent_tools', 'select_agent_tools'],
+    ]);
+    assert.deepEqual(advertised[2], ['discover_agent_tools', 'select_agent_tools', 'confirm_world_reshape']);
+    const metadata = pending.messages.filter(message => message.role === 'tool' &&
+      ['discover_agent_tools', 'select_agent_tools'].includes(message.toolName ?? ''));
+    assert.deepEqual(metadata.map(message => message.toolName), ['discover_agent_tools', 'select_agent_tools']);
+    const inventory = JSON.parse(metadata[0]!.content);
+    assert.equal(inventory.complete, true);
+    assert.ok(inventory.inventory.some((tool: {name: string}) => tool.name === 'confirm_world_reshape'));
+    const selection = JSON.parse(metadata[1]!.content);
+    assert.equal(selection.status, 'selected_for_next_request');
+    assert.deepEqual(selection.focus, ['confirm_world_reshape']);
+    assert.equal(calls, 3); assert.equal(w.worlds.get(draft.id).version, 1);
     const before = snapshot(); assert.equal(before.receipt, undefined);
     await client.connect(new StreamableHTTPClientTransport(new URL(base + '/mcp'), {
       requestInit: {headers: {Authorization: `Bearer ${token}`}},
@@ -84,7 +106,7 @@ test('MCP cannot decide a fresh reshape pending action; trusted author HTTP conf
     }
     const direct = await client.callTool({name: 'confirm_world_reshape', arguments: reshapeArgs});
     assert.equal(direct.isError, true); assert.deepEqual(snapshot(), before);
-    assert.deepEqual(w.agentChat.get(chat.id), pending); assert.equal(calls, 1);
+    assert.deepEqual(w.agentChat.get(chat.id), pending); assert.equal(calls, 3);
     const confirmed = await post(`/api/agent/chats/${chat.id}/actions/${action.id}`, {decision: 'confirm'});
     assert.equal(confirmed.status, 200, await confirmed.clone().text());
     const done = await confirmed.json() as AgentChatConversation;
@@ -93,11 +115,12 @@ test('MCP cannot decide a fresh reshape pending action; trusted author HTTP conf
     assert.equal(w.worlds.get(draft.id).version, 2);
     assert.deepEqual(w.worlds.get(draft.id).content, candidate);
     assert.equal(w.worlds.getPreservationBaseline(draft.id)!.version, 2);
-    assert.ok(repository.getReshapeReceipt(proposal.diffHash)); assert.equal(calls, 2);
+    assert.ok(repository.getReshapeReceipt(proposal.diffHash)); assert.equal(calls, 4);
+    assert.deepEqual(advertised[3], ['discover_agent_tools', 'select_agent_tools']);
     const saved = snapshot();
     const replay = await post(`/api/agent/chats/${chat.id}/actions/${action.id}`, {decision: 'confirm'});
     assert.equal(replay.status, 200); assert.deepEqual(await replay.json(), done);
-    assert.deepEqual(snapshot(), saved); assert.equal(calls, 2);
+    assert.deepEqual(snapshot(), saved); assert.equal(calls, 4);
     const readBack = await client.callTool({name: 'get_agent_chat', arguments: {id: chat.id}});
     assert.equal(readBack.isError, undefined);
     assert.deepEqual((readBack.structuredContent as {result: AgentChatConversation}).result, done);

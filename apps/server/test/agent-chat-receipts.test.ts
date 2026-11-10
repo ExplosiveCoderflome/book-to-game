@@ -43,7 +43,11 @@ async function setup() {
   const input = {requestId: randomUUID(), title: '六站修渠', idea: '六次依序修渠完成引水。', sourceIds: [], content: largeWorld()};
   const create = async () => {await run('create_world_from_idea', input); return w.worlds.list()[0]!;};
   const serviceFor = (name: string, args: Record<string, unknown>) => {
-    const replies = [{text: '', calls: [{id: randomUUID(), name, arguments: args}]}];
+    const replies = [
+      {text: '', calls: [{id: randomUUID(), name: 'discover_agent_tools', arguments: {}}]},
+      {text: '', calls: [{id: randomUUID(), name: 'select_agent_tools', arguments: {names: [name]}}]},
+      {text: '', calls: [{id: randomUUID(), name, arguments: args}]},
+    ];
     return new AgentChatService({repository: new SqliteChatRepository(db), tools: () => tools,
       model: () => scriptedChat(async () => replies.shift() ?? {text: '完成', calls: []})});
   };

@@ -5,6 +5,7 @@ import type { ChatModel, ChatRunHooks, ChatTool } from '../../modules/agent/inde
 import { gameDevSkillPromptIndex } from '../../modules/agent/index.js';
 import { AppError } from '../../shared/errors.js';
 import type { ModelConfig } from './chat-completions.js';
+import { AgentToolFocus } from './agent-tool-focus.js';
 
 const MAX_BATCH_CALLS = 32;
 const MAX_RUN_CALLS = 128;
@@ -12,8 +13,8 @@ const MAX_RUN_CALLS = 128;
 // including intra-run discovery; durable history is never modified.
 export const CHAT_WORKING_BYTES = 384 * 1024;
 const HISTORY_BYTES = 48 * 1024;
-// The product's unchanged 78 tool definitions alone consume ~345 KiB.
-// Reserve room for one complete schema plus bounded current discovery.
+// Preserve room for one complete schema plus bounded current discovery;
+// explicit tool focus reduces advertisements, never these existing hard caps.
 export const CHAT_REQUEST_BYTES = 768 * 1024;
 const PACKET_BYTES = 40 * 1024;
 const RECOVERY_BYTES = 12 * 1024;
@@ -59,6 +60,7 @@ export class AgentChatCompletionsModel implements ChatModel {
       idleTimer = setTimeout(() => deadline?.abort(new DOMException('Model stream idle timeout', 'TimeoutError')), idleMs);
     };
     const calls = new Map<string, AgentChatToolCall>();
+    let focus: AgentToolFocus;
     const secrets = this.config.apiKey ? [this.config.apiKey] : [];
     const execute = async (call: AgentChatToolCall) => {
       if (executedCalls >= MAX_RUN_CALLS) {
@@ -66,14 +68,19 @@ export class AgentChatCompletionsModel implements ChatModel {
         return {content: JSON.stringify({status: 'not_executed', reason: 'CHAT_TOOL_LIMIT', message: '本轮工具预算已用完，请继续；此调用未执行。'}), proposed: false};
       }
       executedCalls++;
+      if (focus.enabled) {
+        if (!focus.available(call.name)) return {content: focus.denied(), proposed: false};
+        if (focus.isMeta(call.name)) return {content: focus.invoke(call.name, call.arguments), proposed: false};
+      }
       return hooks.execute(call);
     };
     const definitions = tools.map(tool => ({name: tool.name,
       description: `${tool.description}${tool.requiresConfirmation ? '【必须由作者确认后才执行】' : ''}`,
       parameters: tool.parameters as AgentTool['parameters']}));
+    focus = new AgentToolFocus(tools, definitions);
     // The advertised schemas remain exact. Runtime arguments go through the existing
     // Zod validator, which also fills requestId, normalizes tier and reports issues.
-    const piTools: AgentTool[] = definitions.map(tool => ({...tool, label: tool.name,
+    const piTools: AgentTool[] = [...definitions, ...(focus.enabled ? focus.meta : [])].map(tool => ({...tool, label: tool.name,
       parameters: {type: 'object', properties: {}} as AgentTool['parameters'],
       prepareArguments: () => ({}),
       execute: async id => {
@@ -130,7 +137,7 @@ export class AgentChatCompletionsModel implements ChatModel {
         } else if (event.message.role === 'toolResult') {
           const call = calls.get(event.message.toolCallId)!;
           // Pi rejects unknown names before execute; retain our stable denial receipt.
-          const content = tools.some(tool => tool.name === call.name)
+          const content = tools.some(tool => tool.name === call.name) || (focus.enabled && focus.isMeta(call.name))
             ? event.message.content.filter(part => part.type === 'text').map(part => part.text).join('')
             : (await execute(call)).content;
           event.message.content = [{type: 'text', text: content}];
@@ -142,8 +149,9 @@ export class AgentChatCompletionsModel implements ChatModel {
       const snapshot = hooks.recovery?.();
       const recovery = recoveryContext(context.messages, snapshot?.actions ?? [], snapshot?.id);
       const working = workingMessages(context.messages);
-      const boundedContext = {...context, systemPrompt: SYSTEM + recovery, messages: working, tools: definitions};
-      // Bound schemas + prompt + history too; never silently drop tools.
+      const advertised = focus.next();
+      const boundedContext = {...context, systemPrompt: SYSTEM + focus.instructions() + recovery, messages: working, tools: advertised};
+      // Bound schemas + prompt + history too; focus mode explicitly discovers all tools.
       if (byteSize(boundedContext) > CHAT_REQUEST_BYTES)
         throw new AppError('CHAT_CONTEXT_BUDGET', '模型请求固定目录或当前意图超过安全预算，请缩小当前步骤后继续；历史与操作回执已保留', 422);
       clearDeadline();
