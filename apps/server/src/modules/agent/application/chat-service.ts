@@ -162,9 +162,19 @@ export class AgentChatService {
       return {content: this.toolError(error), proposed: false};
     }
   }
+  // Static, allowlisted recovery hints. These reference only real tool names and
+  // fixed prerequisites; they never echo user payload, secrets or error details.
+  private preservationRecovery(): string {
+    return chatResult({error: 'WORLD_PRESERVATION_REQUIRED',
+      message: '检测到会损失既有玩法或正文的编辑，已原子拒绝；普通组合写入不会放行。',
+      recovery: '先用 propose_world_reshape({worldId, expectedVersion, content}) 只读提议精确重塑，取得服务器给出的精确差异与 diffHash；再以相同 content、expectedVersion 与 diffHash 调用 confirm_world_reshape，生成专门的作者确认项，只有作者点击确认后才保存并建立新基线。不要重试 apply_world_composition，也不要用普通 confirm 绕过。'});
+  }
   private toolError(error: unknown): string {
-    // Only deterministic local world-validation receipts are safe to expose.
+    // Only deterministic local world-validation/preservation receipts are safe.
     // Provider errors and arbitrary details keep the generic/redacted path.
+    if (error instanceof AppError && error.status < 500 && error.code === 'WORLD_PRESERVATION_REQUIRED') {
+      return this.preservationRecovery();
+    }
     if (error instanceof AppError && error.status < 500
       && ['INVALID_WORLD', 'INVALID_WORLD_COMPOSITION'].includes(error.code)) {
       const validation = error.details as {valid?: unknown; errors?: unknown; warnings?: unknown} | undefined;

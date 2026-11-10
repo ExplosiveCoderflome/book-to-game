@@ -388,6 +388,50 @@ test('agent chat: rule feedback is allowlisted and redacted, arbitrary error det
   } finally {s.db.close();}
 });
 
+test('agent chat: preservation-required returns static recoverable reshape hint without leaking details', async () => {
+  const s = setup();
+  const service = new agent.AgentChatService({...s.deps,
+    redact: text => text.replaceAll('test-preservation-secret', '[REDACTED]'),
+    tools: () => s.deps.tools().map(tool => ({...tool, execute: () => {
+      throw new AppError('WORLD_PRESERVATION_REQUIRED', '检测到会损失既有玩法或正文的编辑，已原子拒绝。', 409,
+        {baselineVersion: 13, baselineHash: '0'.repeat(64), removed: ['actions:dispatch', 'test-preservation-secret'],
+          removedGameplay: ['actions:dispatch'], removedAnchors: ['actions:dispatch:text'], reduced: [], repetitive: []});
+    }})),
+  });
+  try {
+    s.replies.push({text: '', calls: [call('get_world_draft', 'preservation-error')]});
+    const result = await service.send({id: s.conversation.id, requestId: 'safe-preservation', text: '组合写入'});
+    const receipt = JSON.parse(result.messages.find(m => m.role === 'tool')!.content);
+    assert.equal(receipt.error, 'WORLD_PRESERVATION_REQUIRED');
+    assert.equal(typeof receipt.recovery, 'string');
+    assert.match(receipt.recovery, /propose_world_reshape/);
+    assert.match(receipt.recovery, /confirm_world_reshape/);
+    assert.match(receipt.recovery, /diffHash/);
+    assert.equal(receipt.baselineVersion, undefined);
+    assert.equal(receipt.removed, undefined);
+    assert.equal(/test-preservation-secret/.test(JSON.stringify(result)), false);
+  } finally {s.db.close();}
+});
+
+test('agent chat: unknown error codes keep the generic redacted path', async () => {
+  const s = setup();
+  const service = new agent.AgentChatService({...s.deps,
+    redact: text => text.replaceAll('test-unknown-secret', '[REDACTED]'),
+    tools: () => s.deps.tools().map(tool => ({...tool, execute: () => {
+      throw new AppError('UNKNOWN_GUARD', 'private-message test-unknown-secret', 409, {detail: 'private-detail'});
+    }})),
+  });
+  try {
+    s.replies.push({text: '', calls: [call('get_world_draft', 'unknown-error')]});
+    const result = await service.send({id: s.conversation.id, requestId: 'safe-unknown', text: '检查'});
+    const receipt = JSON.parse(result.messages.find(m => m.role === 'tool')!.content);
+    assert.equal(receipt.error, 'UNKNOWN_GUARD');
+    assert.equal(receipt.recovery, undefined);
+    assert.equal(receipt.detail, undefined);
+    assert.equal(/private-message|private-detail|test-unknown-secret/.test(JSON.stringify(result)), false);
+  } finally {s.db.close();}
+});
+
 test('agent chat: confirmation summary ownership loss preserves the saved write and newer state', async t => {
   const s = setup();
   try {
