@@ -15,6 +15,7 @@ const hooks = (): ChatRunHooks => ({maxRounds: 8, startTurn() {}, assistant() {}
   execute: async () => ({content: '[{"title":"测试原作"}]', proposed: false}), toolResult() {}});
 
 test('agent chat model: complete schema survives discovery and required overflow stops before another request or write', async t => {
+  // Deliberate repeated full-schema stress: opt into a larger offline-only run budget.
   const schema = JSON.stringify(z.toJSONSchema(worldContentSchema));
   assert.ok(schema.length >= 206773);
   for (const overflow of [false, true]) {
@@ -27,7 +28,7 @@ test('agent chat model: complete schema survives discovery and required overflow
       streamChatReply(res, bodies.length <= 2 ? {tool_calls: [{id: `required-${bodies.length}`, type: 'function', function: {name, arguments: '{}'}}]} : {content: '完整结构仍可用。'});
     }).listen(0, '127.0.0.1'); await once(server, 'listening');
     try {
-      const adapter = new AgentChatCompletionsModel({baseUrl: `http://127.0.0.1:${(server.address() as {port: number}).port}/v1`, model: 'schema-local', apiKey: '', timeoutMs: 3000});
+      const adapter = new AgentChatCompletionsModel({baseUrl: `http://127.0.0.1:${(server.address() as {port: number}).port}/v1`, model: 'schema-local', apiKey: '', timeoutMs: 3000, chatRunTokenBudget: 1_000_000});
       const tools: ChatTool[] = ['get_world_schema', 'list_sources'].map(name => ({name, description: 'read', parameters: {type: 'object', properties: {}}, requiresConfirmation: false, validate: () => ({}), prepare: () => ({summary: ''}), execute: () => ({})}));
       const run = adapter.run(messages, tools, AbortSignal.timeout(10000), {...hooks(),
         execute: async call => {executed++; return {content: call.name === 'get_world_schema' ? schema : '[]', proposed: false};},
@@ -68,7 +69,7 @@ test('agent chat model: every real Pi request stays bounded with latest intent, 
     streamChatReply(res, bodies.length <= 12 ? {tool_calls: [{id: `growth-${bodies.length}`, type: 'function', function: {name: 'read_world_draft', arguments: '{"id":"draft-current"}'}}]} : {content: '按当前意图继续，等待作者处理卡片。'});
   }).listen(0, '127.0.0.1'); await once(provider, 'listening');
   try {
-    const model = new AgentChatCompletionsModel({baseUrl: `http://127.0.0.1:${(provider.address() as {port: number}).port}/v1`, model: 'bounded-local', apiKey: '', timeoutMs: 3000});
+    const model = new AgentChatCompletionsModel({baseUrl: `http://127.0.0.1:${(provider.address() as {port: number}).port}/v1`, model: 'bounded-local', apiKey: '', timeoutMs: 3000, chatRunTokenBudget: 1_000_000});
     const tool: ChatTool = {name: 'read_world_draft', description: 'read', parameters: {type: 'object', properties: {id: {type: 'string'}}}, requiresConfirmation: false, validate: () => ({}), prepare: () => ({summary: ''}), execute: () => ({})};
     let executed = 0; const receipts: string[] = [];
     await model.run(history, [tool], AbortSignal.timeout(10000), {...hooks(), maxRounds: 24, recovery: () => ({id: 'same-chat', actions}),
@@ -229,7 +230,7 @@ test('agent chat model: real SDK accepts batched catalogs and stops at a bounded
     assert.equal(result.limited, true); assert.equal(executed, 128);
     assert.equal(bodies.length, 7); assert.equal(receipts.length, 140);
     assert.equal(receipts.filter(text => text.includes('not_executed')).length, 12);
-    assert.equal(bodies[0].max_tokens, 32000);
+    assert.equal(bodies[0].max_tokens, 8192);
     assert.equal(bodies[0].max_completion_tokens, undefined);
     assert.equal(bodies[0].thinking, undefined);
     assert.equal(bodies[1].messages.filter((m: any) => m.role === 'tool').length, 20);
@@ -260,7 +261,7 @@ test('agent chat model: Ark-named DeepSeek disables implicit thinking and reject
     assert.equal(executions, 0); assert.equal(finalized.length, 0);
     assert.deepEqual(bodies[0].thinking, {type: 'disabled'});
     assert.equal(bodies[0].reasoning_effort, undefined);
-    assert.equal(bodies[0].max_tokens, 32000);
+    assert.equal(bodies[0].max_tokens, 8192);
     assert.equal((await adapter.run(messages, [tool], AbortSignal.timeout(5000), callbacks)).limited, false);
     assert.equal(bodies.length, 2);
   } finally {await new Promise<void>(resolve => server.close(() => resolve()));}

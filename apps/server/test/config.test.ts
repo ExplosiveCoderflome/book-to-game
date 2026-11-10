@@ -54,24 +54,29 @@ test('KUAIPAO_API_KEY unwraps raw or JSON secret envelope, validates host, prese
   assert.equal(KUAIPAO_BACKUP_MODEL, 'gemini-3.1-pro-preview');
 
   const rawConfig = loadConfig({KUAIPAO_API_KEY: 'test-kuaipao-raw-secret'});
-  assert.equal(rawConfig.provider.baseUrl, 'https://kuaipao.ai/v1');
-  assert.equal(rawConfig.provider.model, 'gemini-4-argon');
-  assert.equal(rawConfig.provider.apiKey, 'test-kuaipao-raw-secret');
-  assert.equal(rawConfig.providerConfigured, true);
+  assert.equal(rawConfig.provider.baseUrl, 'https://api.openai.com/v1');
+  assert.equal(rawConfig.provider.model, '');
+  assert.equal(rawConfig.provider.apiKey, '');
+  assert.equal(rawConfig.providerConfigured, false);
+  assert.equal(loadConfig({KUAIPAO_API_KEY: '{invalid-development-envelope'}).providerConfigured, false, 'development key is not even parsed without opt-in');
+  assert.equal(loadConfig({KUAIPAO_API_KEY: 'dev-key', XFYUN_API_KEY: 'test-xfyun-key'}).provider.model, 'spark-x2.6');
+  assert.throws(() => loadConfig({LLM_BASE_URL: KUAIPAO_BASE_URL, LLM_API_KEY: 'explicit-key', LLM_MODEL: KUAIPAO_MODEL}), /LLM_ALLOW_KUAIPAO_RUNTIME/);
+  assert.equal(loadConfig({KUAIPAO_API_KEY: 'dev-key', LLM_ALLOW_KUAIPAO_RUNTIME: 'true'}).providerConfigured, false, 'opt-in alone still does not select a provider');
 
   const envelopeSecret = 'kp-envelope-secret-do-not-echo';
   const envelopeJson = JSON.stringify({_type: 'secret', key: envelopeSecret, url: 'https://kuaipao.ai/v1/'});
-  const envConfig = loadConfig({KUAIPAO_API_KEY: envelopeJson});
+  const envConfig = loadConfig({LLM_ALLOW_KUAIPAO_RUNTIME: 'true', LLM_BASE_URL: KUAIPAO_BASE_URL, KUAIPAO_API_KEY: envelopeJson});
   assert.equal(envConfig.provider.baseUrl, 'https://kuaipao.ai/v1');
   assert.equal(envConfig.provider.model, 'gemini-4-argon');
   assert.equal(envConfig.provider.apiKey, envelopeSecret);
   assert.equal(envConfig.providerConfigured, true);
 
-  const backupConfig = loadConfig({KUAIPAO_API_KEY: envelopeJson, LLM_MODEL: KUAIPAO_BACKUP_MODEL});
+  const backupConfig = loadConfig({LLM_ALLOW_KUAIPAO_RUNTIME: 'true', LLM_BASE_URL: KUAIPAO_BASE_URL, KUAIPAO_API_KEY: envelopeJson, LLM_MODEL: KUAIPAO_BACKUP_MODEL});
   assert.equal(backupConfig.provider.model, 'gemini-3.1-pro-preview');
   assert.equal(backupConfig.provider.apiKey, envelopeSecret);
 
   const overrideConfig = loadConfig({
+    LLM_ALLOW_KUAIPAO_RUNTIME: 'true',
     KUAIPAO_API_KEY: envelopeJson,
     LLM_BASE_URL: 'https://kuaipao.ai/v1',
     LLM_API_KEY: 'explicit-override-key',
@@ -106,4 +111,17 @@ test('KUAIPAO_API_KEY unwraps raw or JSON secret envelope, validates host, prese
       return true;
     });
   }
+});
+
+test('agent run budgets: environment defaults, tuning and fail-closed validation', () => {
+  const defaults = loadConfig({}).provider;
+  assert.equal(defaults.chatContextTargetBytes, 96 * 1024);
+  assert.equal(defaults.chatRecentTurns, 4);
+  assert.equal(defaults.chatRunTokenBudget, 256000);
+  assert.equal(defaults.chatMaxOutputTokens, 8192);
+  const tuned = loadConfig({CHAT_CONTEXT_TARGET_BYTES: '65536', CHAT_RECENT_TURNS: '2', CHAT_RUN_TOKEN_BUDGET: '80000', CHAT_MAX_OUTPUT_TOKENS: '4096'}).provider;
+  assert.equal(tuned.chatContextTargetBytes, 65536); assert.equal(tuned.chatRecentTurns, 2);
+  assert.equal(tuned.chatRunTokenBudget, 80000); assert.equal(tuned.chatMaxOutputTokens, 4096);
+  for (const [key, value] of Object.entries({CHAT_CONTEXT_TARGET_BYTES: '999999', CHAT_RECENT_TURNS: '0', CHAT_RUN_TOKEN_BUDGET: 'NaN', CHAT_MAX_OUTPUT_TOKENS: '0'}))
+    assert.throws(() => loadConfig({[key]: value}), new RegExp(key));
 });

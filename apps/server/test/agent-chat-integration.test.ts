@@ -154,6 +154,7 @@ test('agent conversation: real provider protocol, shared tools, author confirmat
 });
 
 test('agent conversation: idea discovery reaches real create confirmation beyond eight Pi turns and resumes validation', async t => {
+  // This offline stress test deliberately advertises the large creation schema after 9 discovery rounds.
   const content = worldContentSchema.parse(JSON.parse(readFileSync(new URL('../../../fixtures/s1/route-coverage.engine.json', import.meta.url), 'utf8')));
   let calls = 0; const bodies: any[] = [];
   const provider = createServer(async (req, res) => {
@@ -177,7 +178,7 @@ test('agent conversation: idea discovery reaches real create confirmation beyond
   }).listen(0, '127.0.0.1'); await once(provider, 'listening');
   const dir = mkdtempSync(path.join(tmpdir(), 'btg-agent-chat-test-'));
   const db = openDatabase(':memory:');
-  const w = createWorkbench(db, createModelSettings(db, dir, {baseUrl: `http://127.0.0.1:${(provider.address() as {port: number}).port}/v1`, model: 'local-chat-test', apiKey: '', timeoutMs: 3000}), undefined, {dataDir: dir});
+  const w = createWorkbench(db, createModelSettings(db, dir, {baseUrl: `http://127.0.0.1:${(provider.address() as {port: number}).port}/v1`, model: 'local-chat-test', apiKey: '', timeoutMs: 3000, chatRunTokenBudget: 1_000_000}), undefined, {dataDir: dir});
   try {
     const chat = w.agentChat.create();
     const pending = await w.agentChat.send({id: chat.id, requestId: 'idea-request', text: '从想法搭建三条路线的文字试炼'});

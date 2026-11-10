@@ -18,7 +18,9 @@ export class ModelSettingsService {
     const row = this.repository.get();
     return row ? {baseUrl: row.baseUrl, model: row.model, timeoutMs: row.timeoutMs,
       apiKey: row.encryptedApiKey ? this.secrets.decrypt(row.encryptedApiKey) : '',
-      streamIdleTimeoutMs: this.fallback.streamIdleTimeoutMs, streamTotalTimeoutMs: this.fallback.streamTotalTimeoutMs} : {...this.fallback};
+      streamIdleTimeoutMs: this.fallback.streamIdleTimeoutMs, streamTotalTimeoutMs: this.fallback.streamTotalTimeoutMs,
+      chatContextTargetBytes: this.fallback.chatContextTargetBytes, chatRecentTurns: this.fallback.chatRecentTurns,
+      chatRunTokenBudget: this.fallback.chatRunTokenBudget, chatMaxOutputTokens: this.fallback.chatMaxOutputTokens} : {...this.fallback};
   }
   private prepare(input: ModelSettingsInput): ProviderConfiguration {
     const parsed = modelSettingsInputSchema.parse(input);

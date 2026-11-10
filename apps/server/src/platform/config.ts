@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
+import { CHAT_CONTEXT_TARGET_BYTES, CHAT_RECENT_TURNS, CHAT_RUN_TOKEN_BUDGET, CHAT_MAX_OUTPUT_TOKENS } from './model/agent-chat-budget.js';
 import { DEFAULT_MAX_ATTEMPTS, DEFAULT_REPAIR_ATTEMPTS, DEFAULT_RETRY_BASE_MS, DEFAULT_RETRY_MAX_MS, type ModelConfig } from './model/chat-completions.js';
 
 export const XFYUN_BASE_URL = 'https://maas-api.cn-huabei-1.xf-yun.com/v1';
@@ -42,14 +43,22 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT 必须是 1–65535 的整数');
   const dataDir = path.resolve(env.DATA_DIR || 'data');
   const xfyunApiKey = env.XFYUN_API_KEY?.trim() || '';
-  const kuaipao = resolveKuaipaoApiKey(env.KUAIPAO_API_KEY);
+  // Development credentials must never select a product/test provider implicitly.
+  const allowKuaipao = env.LLM_ALLOW_KUAIPAO_RUNTIME === 'true';
+  const kuaipao = allowKuaipao ? resolveKuaipaoApiKey(env.KUAIPAO_API_KEY) : {apiKey: ''};
   const kuaipaoApiKey = kuaipao.apiKey;
-  const baseUrl = env.LLM_BASE_URL || (kuaipaoApiKey ? (kuaipao.baseUrl || KUAIPAO_BASE_URL) : xfyunApiKey ? XFYUN_BASE_URL : 'https://api.openai.com/v1');
+  const baseUrl = env.LLM_BASE_URL || (xfyunApiKey ? XFYUN_BASE_URL : 'https://api.openai.com/v1');
   let parsed: URL;
   try {parsed = new URL(baseUrl);} catch {throw new Error('LLM_BASE_URL 必须是 HTTP(S) 地址');}
   if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) {
     throw new Error('LLM_BASE_URL 必须是无凭据和查询参数的 HTTP(S) 地址');
   }
+  if ((parsed.hostname === 'kuaipao.ai' || parsed.hostname.endsWith('.kuaipao.ai')) && !allowKuaipao)
+    throw new Error('kuaipao 仅用于开发；项目运行时必须显式设置 LLM_ALLOW_KUAIPAO_RUNTIME=true 才能使用');
+  const chatContextTargetBytes = readInt(env, 'CHAT_CONTEXT_TARGET_BYTES', CHAT_CONTEXT_TARGET_BYTES, 16 * 1024, 384 * 1024);
+  const chatRecentTurns = readInt(env, 'CHAT_RECENT_TURNS', CHAT_RECENT_TURNS, 1, 16);
+  const chatRunTokenBudget = readInt(env, 'CHAT_RUN_TOKEN_BUDGET', CHAT_RUN_TOKEN_BUDGET, 1000, 10_000_000);
+  const chatMaxOutputTokens = readInt(env, 'CHAT_MAX_OUTPUT_TOKENS', CHAT_MAX_OUTPUT_TOKENS, 256, 32768);
   const timeoutMs = Number(env.LLM_TIMEOUT_MS || 90000);
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 300000) throw new Error('LLM_TIMEOUT_MS 必须在 1000–300000 毫秒之间');
   const streamIdleTimeoutMs = readInt(env, 'LLM_STREAM_IDLE_TIMEOUT_MS', 120000, 1000, 300000);
@@ -65,7 +74,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   const provider: ModelConfig = {baseUrl,
     model: env.LLM_MODEL?.trim() || (kuaipaoSelected && kuaipaoApiKey ? KUAIPAO_MODEL : xfyunSelected && xfyunApiKey ? XFYUN_MODEL : ''),
     apiKey: env.LLM_API_KEY?.trim() || (kuaipaoSelected ? kuaipaoApiKey : xfyunSelected ? xfyunApiKey : ''), timeoutMs,
-    maxAttempts, retryBaseMs, retryMaxMs, repairAttempts, streamIdleTimeoutMs, streamTotalTimeoutMs};
+    maxAttempts, retryBaseMs, retryMaxMs, repairAttempts, streamIdleTimeoutMs, streamTotalTimeoutMs,
+    chatContextTargetBytes, chatRecentTurns, chatRunTokenBudget, chatMaxOutputTokens};
   const localProvider = ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname);
   const allowedOrigins = [`http://127.0.0.1:${port}`, `http://localhost:${port}`, 'http://127.0.0.1:5173', 'http://localhost:5173', 'http://127.0.0.1:5174', 'http://localhost:5174'];
   return {port, dataDir, databasePath: path.join(dataDir, 'workbench.sqlite'), allowedOrigins, provider,

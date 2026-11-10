@@ -69,7 +69,7 @@ test('tool focus: every real tool schema reaches actual native SDK advertisement
     return new Response([JSON.stringify({choices: [{index: 0, delta, finish_reason: null}]}), JSON.stringify({choices: [{index: 0, delta: {}, finish_reason: next ? 'tool_calls' : 'stop'}]}), '[DONE]', ''].map(s => s ? `data: ${s}` : '').join(separator), {headers: {'Content-Type': 'text/event-stream'}});
   });
   try {
-    const model = new AgentChatCompletionsModel({baseUrl: 'http://localhost/v1', model: 'focus-all', apiKey: '', timeoutMs: 3000});
+    const model = new AgentChatCompletionsModel({baseUrl: 'http://localhost/v1', model: 'focus-all', apiKey: '', timeoutMs: 3000, chatRunTokenBudget: 1_000_000});
     await model.run([{id: 'all', role: 'user', content: 'Inspect all available tools', createdAt: '2026-11-10T00:00:00Z'}], tools, AbortSignal.timeout(10000), {maxRounds: 24, startTurn() {}, assistant() {},
       execute: async () => {assert.fail('Metadata must not execute any business command');},
       toolResult: (_call, receipt) => {assert.equal(JSON.parse(receipt).status, 'selected_for_next_request'); assert.equal(receipt.includes('parameters'), false);}});

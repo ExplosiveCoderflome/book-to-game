@@ -1,5 +1,5 @@
 import { AppError } from '../../../shared/errors.js';
-export interface ProviderConfiguration {baseUrl: string; model: string; apiKey: string; timeoutMs: number; streamIdleTimeoutMs?: number; streamTotalTimeoutMs?: number}
+export interface ProviderConfiguration {baseUrl: string; model: string; apiKey: string; timeoutMs: number; streamIdleTimeoutMs?: number; streamTotalTimeoutMs?: number; chatContextTargetBytes?: number; chatRecentTurns?: number; chatRunTokenBudget?: number; chatMaxOutputTokens?: number}
 export function normalizeEndpoint(value: string): string {
   let url: URL;
   try {url = new URL(value);} catch {throw new AppError('INVALID_MODEL_ENDPOINT', '模型地址必须是 HTTP(S) 地址');}

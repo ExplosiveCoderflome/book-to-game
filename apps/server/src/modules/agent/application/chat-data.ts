@@ -20,7 +20,9 @@ export function chatResult(value: unknown): string {
 }
 export function chatError(error: unknown): string {
   const code = (error as {code?: unknown} | null)?.code;
-  return JSON.stringify({error: typeof code === 'string' ? code : 'CHAT_OPERATION_FAILED', message: '请求未完成，请检查参数、模型配置或重新读取当前状态。'});
+  return JSON.stringify({error: typeof code === 'string' ? code : 'CHAT_OPERATION_FAILED', message: code === 'CHAT_RUN_TOKEN_BUDGET'
+    ? '本次运行已达到 token 成本预算，后续模型请求和工具执行已停止。完整历史与已完成回执已保存；请缩小步骤后明确继续，不会自动重试。'
+    : '请求未完成，请检查参数、模型配置或重新读取当前状态。'});
 }
 
 const issueText = (issue: z.ZodIssue) => {

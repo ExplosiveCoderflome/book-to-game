@@ -42,7 +42,7 @@ test('context lifecycle: new intent retires old full schema; current reread and 
   });
   try {
     const receipts: string[] = [];
-    const model = new AgentChatCompletionsModel({baseUrl: 'http://localhost/v1', model: 'context-test', apiKey: '', timeoutMs: 3000});
+    const model = new AgentChatCompletionsModel({baseUrl: 'http://localhost/v1', model: 'context-test', apiKey: '', timeoutMs: 3000, chatRunTokenBudget: 1_000_000});
     await model.run(history, tools, AbortSignal.timeout(10000), {maxRounds: 8, startTurn() {}, assistant() {},
       execute: async call => ({content: call.name === 'get_world_schema' ? schema : '[]', proposed: false}),
       toolResult: (_call, content) => receipts.push(content)});

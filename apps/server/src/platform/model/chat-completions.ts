@@ -25,6 +25,7 @@ export const DEFAULT_REPAIR_ATTEMPTS = 3;
 export interface ModelConfig {
   baseUrl: string; model: string; apiKey: string; timeoutMs: number;
   streamIdleTimeoutMs?: number; streamTotalTimeoutMs?: number;
+  chatContextTargetBytes?: number; chatRecentTurns?: number; chatRunTokenBudget?: number; chatMaxOutputTokens?: number;
   maxAttempts?: number; retryBaseMs?: number; retryMaxMs?: number; repairAttempts?: number;
 }
 export interface ModelClientHooks {

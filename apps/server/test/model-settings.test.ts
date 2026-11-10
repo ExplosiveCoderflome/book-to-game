@@ -76,3 +76,15 @@ test('connection probe only lists models, uses credentials without reflecting pr
     });
   } finally {await new Promise<void>(r => server.close(() => r()));}
 });
+
+
+test('workspace settings keep server-owned chat cost limits from environment fallback', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'model-chat-budget-')); const db = openDatabase(':memory:');
+  try {
+    const limits = {chatContextTargetBytes: 65536, chatRecentTurns: 2, chatRunTokenBudget: 80000, chatMaxOutputTokens: 4096};
+    const service = new ModelSettingsService(new SqliteModelSettingsRepository(db), new LocalSecretCodec(dir), {...fallback, ...limits});
+    service.save(input);
+    const resolved = service.resolve();
+    for (const [key, value] of Object.entries(limits)) assert.equal(resolved[key as keyof typeof resolved], value);
+  } finally {db.close(); rmSync(dir, {recursive: true, force: true});}
+});

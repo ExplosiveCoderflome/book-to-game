@@ -6,13 +6,15 @@ import { gameDevSkillPromptIndex } from '../../modules/agent/index.js';
 import { AppError } from '../../shared/errors.js';
 import type { ModelConfig } from './chat-completions.js';
 import { AgentToolFocus } from './agent-tool-focus.js';
+import { CHAT_CONTEXT_TARGET_BYTES, CHAT_RECENT_TURNS, CHAT_RUN_TOKEN_BUDGET, CHAT_MAX_OUTPUT_TOKENS, ChatTokenBudget, chatLimit } from './agent-chat-budget.js';
+export { CHAT_CONTEXT_TARGET_BYTES } from './agent-chat-budget.js';
 
 const MAX_BATCH_CALLS = 32;
 const MAX_RUN_CALLS = 128;
 // UTF-8 serialized bytes, not a message count. Apply at EVERY Pi stream,
 // including intra-run discovery; durable history is never modified.
 export const CHAT_WORKING_BYTES = 384 * 1024;
-const HISTORY_BYTES = 48 * 1024;
+const INTENT_BYTES = 48 * 1024;
 // Preserve room for one complete schema plus bounded current discovery;
 // explicit tool focus reduces advertisements, never these existing hard caps.
 export const CHAT_REQUEST_BYTES = 768 * 1024;
@@ -46,13 +48,19 @@ export class AgentChatCompletionsModel implements ChatModel {
     this.hostSystem = host === 'kuaipao.ai' ? KUAIPAO_HOST_SYSTEM : '';
     this.model = {id: config.model, name: config.model, api: 'openai-completions', provider: 'openai', baseUrl: config.baseUrl,
       reasoning: deepseek, input: ['text'], cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0}, contextWindow: 128_000, maxTokens: 32_768,
-      compat: {supportsStore: false, supportsDeveloperRole: false, supportsUsageInStreaming: false, maxTokensField: 'max_tokens',
+      compat: {supportsStore: false, supportsDeveloperRole: false, supportsUsageInStreaming: true, maxTokensField: 'max_tokens',
         ...(deepseek ? {thinkingFormat: 'deepseek' as const} : {})}};
   }
 
   async run(messages: AgentChatMessage[], tools: ChatTool[], signal: AbortSignal, hooks: ChatRunHooks) {
     let rounds = 0, proposed = false, limited = false;
     let executedCalls = 0;
+    const targetBytes = chatLimit(this.config.chatContextTargetBytes, CHAT_CONTEXT_TARGET_BYTES, 16 * 1024, CHAT_WORKING_BYTES);
+    const recentTurns = chatLimit(this.config.chatRecentTurns, CHAT_RECENT_TURNS, 1, 16);
+    const budget = new ChatTokenBudget(chatLimit(this.config.chatRunTokenBudget, CHAT_RUN_TOKEN_BUDGET, 1000, 10_000_000));
+    const maxOutputTokens = chatLimit(this.config.chatMaxOutputTokens, CHAT_MAX_OUTPUT_TOKENS, 256, 32768);
+    // SDK catches onPayload errors as model errors; retain the original application code.
+    let requestGuardError: AppError | undefined;
     let turnSignal = signal;
     const totalMs = this.config.streamTotalTimeoutMs ?? 600_000;
     const idleMs = this.config.streamIdleTimeoutMs ?? 120_000;
@@ -117,6 +125,13 @@ export class AgentChatCompletionsModel implements ChatModel {
       if (event.type === 'message_end') {
         if (event.message.role === 'assistant') {
           clearDeadline();
+          if (requestGuardError) throw requestGuardError;
+          const usage = budget.settle(event.message);
+          console.info(JSON.stringify({event: 'agent.chat.request_usage', round: rounds, requestBytes: lastRequest.requestBytes,
+            estimatedInputTokens: budget.estimatedInput, ...usage}));
+          // Reject before final tool calls are persisted or executed, even if the provider
+          // reports more tokens than estimated. Already successful receipts stay durable.
+          if (budget.spent > budget.limit) throw budget.error();
           if (turnSignal.aborted || ['error', 'aborted'].includes(event.message.stopReason)) {
             logModelFailure({
               stopReason: event.message.stopReason,
@@ -153,12 +168,20 @@ export class AgentChatCompletionsModel implements ChatModel {
     }, signal, (model, context, options) => {
       const snapshot = hooks.recovery?.();
       const recovery = recoveryContext(context.messages, snapshot?.actions ?? [], snapshot?.id);
-      const working = workingMessages(context.messages);
       const advertised = focus.next();
-      const boundedContext = {...context, systemPrompt: SYSTEM + this.hostSystem + focus.instructions() + recovery, messages: working, tools: advertised};
+      const systemPrompt = SYSTEM + this.hostSystem + focus.instructions() + recovery;
+      const fixedBytes = byteSize({systemPrompt, messages: [], tools: advertised});
+      // Target the whole request, leaving room for the native SDK envelope. Exact selected
+      // tool schemas and a current full world schema are indivisible compatibility exceptions.
+      const working = workingMessages(context.messages, {targetBytes: Math.max(16 * 1024, targetBytes - fixedBytes - 2048), recentTurns});
+      const boundedContext = {...context, systemPrompt, messages: working, tools: advertised};
       // Bound schemas + prompt + history too; focus mode explicitly discovers all tools.
       if (byteSize(boundedContext) > CHAT_REQUEST_BYTES)
         throw new AppError('CHAT_CONTEXT_BUDGET', '模型请求固定目录或当前意图超过安全预算，请缩小当前步骤后继续；历史与操作回执已保留', 422);
+      requestGuardError = undefined;
+      const contextBytes = byteSize(boundedContext);
+      budget.check(contextBytes + 2048, maxOutputTokens);
+      lastRequest = {messageCount: working.length, requestBytes: contextBytes, httpStatus: 0, toolsAfter: []};
       clearDeadline();
       deadline = new AbortController();
       turnSignal = AbortSignal.any([signal, deadline.signal]);
@@ -168,16 +191,25 @@ export class AgentChatCompletionsModel implements ChatModel {
       // The SDK must receive the streaming budget too; changing only signal
       // leaves its own non-stream request timeout in force. Never retry writes.
       ...options, apiKey: this.config.apiKey || 'local-no-key', signal: turnSignal, timeoutMs: totalMs,
-      maxRetries: 0, maxRetryDelayMs: 0, cacheRetention: 'none',
-      onPayload: payload => {
+      maxRetries: 0, maxRetryDelayMs: 0, cacheRetention: 'none', maxTokens: maxOutputTokens,
+      onPayload: async payload => {
         try {
-           const bytes = Buffer.byteLength(typeof payload === 'string' ? payload : JSON.stringify(payload));
-           if (bytes > CHAT_REQUEST_BYTES) throw new AppError('CHAT_CONTEXT_BUDGET', '模型请求超过安全体积预算，历史与操作回执已保留，请缩小当前步骤', 422);
-          const messageCount = Array.isArray((payload as {messages?: unknown[]})?.messages)
-            ? (payload as {messages: unknown[]}).messages.length : (context.messages?.length ?? 0);
+          const transformed = await options?.onPayload?.(payload, model);
+          const request = transformed === undefined ? payload : transformed;
+          const bytes = Buffer.byteLength(typeof request === 'string' ? request : JSON.stringify(request));
+          if (bytes > CHAT_REQUEST_BYTES) throw new AppError('CHAT_CONTEXT_BUDGET', '模型请求超过安全体积预算，历史与操作回执已保留，请缩小当前步骤', 422);
+          budget.check(bytes, maxOutputTokens);
+          console.info(JSON.stringify({event: 'agent.chat.request', round: rounds, requestBytes: bytes,
+            estimatedInputTokens: budget.estimatedInput, maxOutputTokens, runTokens: budget.spent, runTokenBudget: budget.limit,
+            contextTargetBytes: targetBytes, targetExceeded: bytes > targetBytes}));
+          const messageCount = Array.isArray((request as {messages?: unknown[]})?.messages)
+            ? (request as {messages: unknown[]}).messages.length : working.length;
           lastRequest = {...lastRequest, messageCount, requestBytes: bytes, httpStatus: 0};
-         } catch (error) {if (error instanceof AppError) throw error;}
-        return options?.onPayload?.(payload, model);
+          return request;
+        } catch (error) {
+          requestGuardError = error instanceof AppError ? error : new AppError('CHAT_CONTEXT_BUDGET', '无法安全估算模型请求，已停止；历史与回执保留', 422);
+          throw requestGuardError;
+        }
       },
       onResponse: (response, responseModel) => {
         lastRequest.httpStatus = response.status;
@@ -196,13 +228,15 @@ function replyFromPi(message: AssistantMessage) {
 function byteSize(value: unknown) {return Buffer.byteLength(JSON.stringify(value));}
 
 /** Select whole protocol packets. Never splice JSON, world text or call arguments. */
-export function workingMessages(messages: AgentMessage[]): AgentMessage[] {
+export function workingMessages(messages: AgentMessage[], options: {targetBytes?: number; recentTurns?: number} = {}): AgentMessage[] {
+  const targetBytes = Math.max(1024, options.targetBytes ?? CHAT_CONTEXT_TARGET_BYTES);
+  const recentTurns = options.recentTurns ?? CHAT_RECENT_TURNS;
   const packets: {index: number; items: AgentMessage[]}[] = [];
   const latestUser = messages.findLastIndex(message => message.role === 'user');
   const latestIntent = messages.findLastIndex(message => message.role === 'user' && typeof message.content === 'string'
     && !/^(确认执行|拒绝执行)：/.test(message.content));
-  // Everything observed for the current intent is necessary, not optional old
-  // history. In particular schema reads must survive subsequent discovery reads.
+  // The intent boundary validates current protocol pairs, NOT a pin for all
+  // discovery since that intent. A long-running single intent must roll too.
   const currentStart = latestIntent >= 0 ? latestIntent : Math.max(0, latestUser);
   const pairedResults = new Set<number>();
   for (let index = 0; index < messages.length; index++) {
@@ -241,24 +275,31 @@ export function workingMessages(messages: AgentMessage[]): AgentMessage[] {
     if (index < 0) continue;
     const user = messages[index]!;
     intentBytes += byteSize([user]);
-    if (intentBytes > HISTORY_BYTES) throw new AppError('CHAT_CONTEXT_BUDGET', '最新用户意图超过工作上下文预算，请缩小当前步骤；原文已保留', 422);
+    if (intentBytes > INTENT_BYTES) throw new AppError('CHAT_CONTEXT_BUDGET', '最新用户意图超过工作上下文预算，请缩小当前步骤；原文已保留', 422);
     selected.add(index);
   }
-  for (const packet of packets) if (packet.index >= currentStart) selected.add(packet.index);
-  // A new author intent retires prior discovery to optional whole-packet history.
-  // Do not pin an old giant schema forever: it can be reread with the schema tool.
-  // Current-intent receipts (including confirmation continuations) stay exact above.
+  // Preserve the exact current full schema, never a truncated/rephrased schema.
+  // It is the only pinned large read exception; all other world text is read-only
+  // by ID/path via the bounded recovery index and can be reread in smaller pages.
+  let schemaBytes = 0;
+  for (const packet of packets) if (packet.index >= currentStart && packet.items.some(item => item.role === 'toolResult' && item.toolName === 'get_world_schema')) {
+    selected.add(packet.index); schemaBytes += byteSize(packet.items);
+  }
   const selectedItems = () => packets.filter(packet => selected.has(packet.index)).flatMap(packet => packet.items);
   if (byteSize(selectedItems()) > CHAT_WORKING_BYTES - 1024)
     throw new AppError('CHAT_CONTEXT_BUDGET', '当前必需工具调用与完整回执超过硬预算，请拆分当前步骤；未请求模型继续，完整历史与操作回执已保留', 422);
-  let historyBytes = 0;
+  let turns = 0;
   let omitted = false;
+  const windowBytes = Math.min(CHAT_WORKING_BYTES - 1024, targetBytes + schemaBytes - 1024);
+  if (byteSize(selectedItems()) > windowBytes)
+    throw new AppError('CHAT_CONTEXT_BUDGET', '当前意图与固定结构超过上下文目标，请缩小步骤；原文已保留', 422);
   for (const packet of packets.toReversed()) {
+    // A turn is an assistant packet with all matching receipts. Never split a batch.
+    if (packet.items[0]?.role === 'assistant') turns++;
     if (selected.has(packet.index)) continue;
     const size = byteSize(packet.items);
-    if (size > PACKET_BYTES || historyBytes + size > HISTORY_BYTES - 1024
-      || byteSize(selectedItems()) + size > CHAT_WORKING_BYTES - 1024 || selected.size >= 48) {omitted = true; continue;}
-    historyBytes += size; selected.add(packet.index);
+    if (turns > recentTurns || size > PACKET_BYTES || byteSize(selectedItems()) + size > windowBytes) {omitted = true; continue;}
+    selected.add(packet.index);
   }
   const result = packets.filter(packet => selected.has(packet.index)).flatMap(packet => packet.items);
   if (omitted) result.unshift({role: 'user', content: '[系统历史窗口提示，非作者指令] 部分旧记录未放入模型工作上下文；完整历史和操作证据仍持久保存。缺少的世界正文必须按 ID/path 分页重读，不能凭省略内容写回、声称已读完或重复已执行/uncertain 操作。', timestamp: 0});
@@ -287,14 +328,16 @@ function recoveryContext(messages: AgentMessage[], actions: AgentChatAction[], c
     ? [{callId: message.toolCallId, tool: message.toolName, ...parse(message.content.filter(part => part.type === 'text').map(part => part.text).join(''))}] : []);
   const receipts = observed.filter(receipt => 'id' in receipt || 'draftId' in receipt || 'error' in receipt || 'version' in receipt).slice(-6);
   const errors = observed.filter(receipt => 'error' in receipt || ('truncated' in receipt && receipt.truncated)).slice(-2);
-  const latestTarget = observed.findLast(receipt => 'id' in receipt || 'draftId' in receipt || 'version' in receipt);
+  const latestTarget = observed.findLast(receipt => 'id' in receipt || 'draftId' in receipt || 'worldDraftId' in receipt || 'version' in receipt);
+  const currentDraftReference = observed.findLast(receipt => /world|draft/.test(receipt.tool)
+    && ('id' in receipt || 'draftId' in receipt || 'worldDraftId' in receipt));
   const failures = messages.flatMap(message => message.role === 'assistant' ? message.content.flatMap(part => part.type === 'text'
     && /^(这一轮请求未完成。|操作执行结果未确认。|目标状态已变化，本次没有执行。)/.test(part.text)
     && byteSize(part.text) < 800 ? [part.text] : []) : []).slice(-2);
   // Recovery is a bounded index, not another ever-growing transcript. Prefer the
   // newest pending/uncertain/successful evidence; never cut receipt JSON or prose.
   const boundedEvidence: typeof actionEvidence = [];
-  const state = {chatId, actionEvidence: boundedEvidence, latestTarget, receipts, errors, failures, archivedActions: actions.length};
+  const state = {chatId, actionEvidence: boundedEvidence, latestTarget, currentDraftReference, receipts, errors, failures, archivedActions: actions.length};
   for (const evidence of actionEvidence.toReversed()) {
     const compact = byteSize(evidence) <= 2048 ? evidence : {...evidence, target: {}, receipt: {}, summary: '[完整参数、守卫与回执留在持久会话；先按 action/call 来源查询业务状态]'};
     if (byteSize({...state, actionEvidence: [...boundedEvidence, compact]}) > RECOVERY_BYTES - 1024) continue;
