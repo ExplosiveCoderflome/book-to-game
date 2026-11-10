@@ -184,9 +184,11 @@ export class WorldService {
     const draft = this.get(id); return validateWorld(draft.content, this.sourceReader.get(draft.sourceId), { buildingAssetIds: this.buildingAssetIds() });
   }
   publish(id: string, input: {version: number}): WorldRevision {
-    assertVersion(input.version); const existing = this.repository.findRevision(id, input.version); if (existing) return existing;
+    assertVersion(input.version); const existing = this.repository.findRevision(id, input.version);
+    if (existing) {assertExtensionPublishAvailable(existing.content); return existing;}
     const draft = this.get(id);
     if (draft.version !== input.version) throw new AppError('DRAFT_VERSION_CONFLICT', '草稿已更新，请刷新后发布', 409);
+    assertExtensionPublishAvailable(draft.content);
     this.assertPublishFloor(draft);
     this.assertMinimumPlaytest(draft);
     if (draft.qualityContractVersion === 1) {
@@ -259,6 +261,23 @@ export class WorldService {
   getRevision(id: string): WorldRevision {
     const revision = this.repository.getRevision(id);
     if (!revision) throw new AppError('WORLD_REVISION_NOT_FOUND', '已发布世界版本不存在', 404); return revision;
+  }
+}
+/** Temporary product restriction until durable server-owned extension acceptance is wired.
+ * Keep this mandatory for legacy drafts, optional policies and idempotent publication alike.
+ * Reading existing revisions and saves remains unchanged.
+ */
+function assertExtensionPublishAvailable(content: WorldContent): void {
+  const unavailable = () => new AppError('EXTENSION_PUBLISH_UNAVAILABLE', '服务端扩展验收及持久证据尚未接线，已拒绝含扩展的发布', 503);
+  if (Object.hasOwn(content, 'extensions') && (!Array.isArray(content.extensions) || content.extensions.length > 0)) throw unavailable();
+  const pending: unknown[] = [content];
+  const seen = new Set<object>();
+  while (pending.length) {
+    const value = pending.pop();
+    if (!value || typeof value !== 'object' || seen.has(value)) continue;
+    seen.add(value);
+    if (!Array.isArray(value) && (value as Record<string, unknown>).kind === 'extension') throw unavailable();
+    for (const child of Object.values(value)) if (child && typeof child === 'object') pending.push(child);
   }
 }
 function usesQualityComposition(content: WorldContent): boolean {

@@ -8,7 +8,6 @@ import {
   checkWorldCausalityInputSchema,
   checkWorldPreservationInputSchema,
 } from '@novel-game/contracts';
-import {worldQualityContentHash} from '../../modules/preflight/index.js';
 import {
   acceptMapFill, applyEndConditions, applyWorldPatch, extractMapDraft, mockEndConditionsModel, mockMapFillModel, mockWorldPatchModel, placeMapFill,
   proposeClockPatch, proposeEndConditions, proposeMapFill, proposeStoryletPatch, updateMapFillPlacement, validateWorldComposition, applyWorldComposition, checkWorldLedger, checkWorldCausality, checkWorldPreservation,
@@ -122,13 +121,13 @@ export function worldCommands(w: Workbench) {
     command('validate_world_draft', '检查世界引用、原文范围和潜在连通；不能保证文学质量或所有策略可解。', idSchema, true, ({id}) => w.worlds.validate(id)),
     command('publish_world_draft', '发布已校验的世界版本，内容不可变；同一草稿版本重复发布幂等。',
       z.object({id: z.string(), version: z.number().int().positive()}), false, async ({id, version}) => {
-        const draft = w.worlds.get(id);
-        if (draft.version !== version) return w.worlds.publish(id, {version});
-        if (draft.qualityContractVersion === 1 && w.worlds.validate(id).valid) {
-          const report = w.preflight.getWorldPreflight(id).playtest;
-          if (!report || report.draftVersion !== version || report.evidence?.contentHash !== worldQualityContentHash(draft.content))
-            await w.preflight.playtestWorldDraft({id, expectedVersion: version, seeds: 6, strategies: ['random', 'greedy-growth', 'greedy-money', 'merchant', 'lazy'], evidenceRuns: 6, maxSteps: 300});
+        try {
+          return w.worlds.publish(id, {version});
+        } catch (error) {
+          if (!(error instanceof AppError) || error.code !== 'PUBLISH_QUALITY_STALE') throw error;
         }
+        await w.preflight.playtestWorldDraft({id, expectedVersion: version, seeds: 6,
+          strategies: ['random', 'greedy-growth', 'greedy-money', 'merchant', 'lazy'], evidenceRuns: 6, maxSteps: 300});
         return w.worlds.publish(id, {version});
       }),
     command('list_world_revisions', '读取开放世界发布版本（作者视图，包含全部规则和秘密）。', emptySchema, true, () => w.worlds.listRevisions()),

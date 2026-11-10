@@ -232,12 +232,48 @@ export async function executeExtensionEffect(effect: Extract<WorldEffect, {kind:
     return undefined;
   } catch (error) { const issue = extensionIssue(effect.extensionId, error); recordExtensionError(state, issue); return issue; }
 }
-export async function extensionTests(declaration: ExtensionDeclaration): Promise<{passed: number; issues: ExtensionIssue[]}> {
+/** Publish-only policy: never tighten the schema used to read immutable revisions/saves. */
+function publicationTestIssues(d: ExtensionDeclaration, world: WorldContent): ExtensionIssue[] {
+  const issues: ExtensionIssue[] = [];
+  const add = (code: string, message: string) => issues.push({severity: 'error', code, extensionId: d.id, message});
+  try { assertExtensionWorldReferences(d, world); }
+  catch (error) { add('extension.state-reference', messageOf(error)); }
+  let boundary = false;
+  for (const [index, test] of d.tests.entries()) {
+    for (const [key, value] of Object.entries(test.input.state)) {
+      // Parameter min/max and write delta caps are NOT state bounds. Only explicit test state counts.
+      if (key.startsWith('resource:')) {
+        const def = world.resourceDefs?.[key.slice(9)];
+        if (!def) continue; // Legacy resources without definitions have no provable bounds.
+        if (typeof value !== 'number' || value < def.min || (def.max !== undefined && value > def.max)) {
+          add('extension.test-state-bounds', `test ${index + 1}: ${key} is outside world state bounds`);
+        } else if (value === def.min || (def.max !== undefined && value === def.max)) boundary = true;
+      } else if (key === 'elapsed') {
+        if (typeof value !== 'number' || value < 0) add('extension.test-state-bounds', `test ${index + 1}: elapsed is below zero`);
+        else if (value === 0) boundary = true;
+      }
+    }
+  }
+  if (!boundary) add('extension.test-boundary', 'at least one explicit numeric state input must equal its world min/max (or elapsed lower bound 0)');
+  if (d.point === 'effect' && !d.tests.some(test => {
+    const effects = validateOutput(d, test.expected);
+    for (const effect of effects) {
+      if (effect.kind === 'set') {
+        if (test.input.state[`fact:${effect.factId}`] !== effect.value) return false;
+      } else if (effect.delta !== 0) return false;
+    }
+    return true;
+  })) add('extension.test-noop', 'effect needs an empty or state-preserving expected output');
+  return issues;
+}
+
+/** With world supplied, enforce §9.2 before simulation; legacy runtime reads remain unchanged. */
+export async function extensionTests(declaration: ExtensionDeclaration, world?: WorldContent): Promise<{passed: number; issues: ExtensionIssue[]}> {
   await initializeExtensionSandbox();
   const check = checkExtensionDeclaration(declaration);
   if (!check.ok) return {passed: 0, issues: check.issues};
   const d = extensionDeclarationSchema.parse(declaration);
-  const issues: ExtensionIssue[] = []; let passed = 0;
+  const issues: ExtensionIssue[] = world ? publicationTestIssues(d, world) : []; let passed = 0;
   for (const [index, test] of d.tests.entries()) {
     try {
       const resources: Record<string, number> = {}; const facts: Record<string, boolean> = {};

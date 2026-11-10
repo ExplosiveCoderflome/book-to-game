@@ -7,8 +7,11 @@ import {checkWorldPreservation} from './check-world-preservation.js';
 import type {WorldService} from './world-service.js';
 
 export function assertWorldPublishQuality(worlds: WorldService, draft: WorldDraft, report?: PlaytestReport): void {
-  if (!report || report.draftId !== draft.id || report.draftVersion !== draft.version || report.evidence?.contentHash !== worldQualityContentHash(draft.content)) {
-    throw new AppError('PUBLISH_QUALITY_REQUIRED', '缺少绑定当前草稿版本与内容的服务端试玩报告', 422);
+  if (!report || report.draftId !== draft.id || report.draftVersion !== draft.version) {
+    throw new AppError('PUBLISH_QUALITY_STALE', '缺少绑定当前草稿版本的服务端试玩报告', 400);
+  }
+  if (report.evidence?.contentHash !== worldQualityContentHash(draft.content)) {
+    throw new AppError('PUBLISH_QUALITY_STALE', '试玩报告未绑定当前草稿内容', 400);
   }
   const evidence = report.evidence;
   if (!evidence || evidence.status !== 'observed') throw new AppError('PUBLISH_QUALITY_UNSUPPORTED', '试玩证据未能观察到作品正文', 422);

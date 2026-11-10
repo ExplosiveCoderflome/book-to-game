@@ -6,7 +6,7 @@ import type { FunProfile, LintReport, PassCheck, PlaytestReport, WorldContent, W
 import { createHash } from 'node:crypto';
 import { FUN_PROFILE_STRATEGY_IDS, getFunProfile } from '@novel-game/contracts';
 import { lintStory, lintWorld } from '@novel-game/rules/preflight';
-import { simulateWorld, type SimProfile } from '@novel-game/play-runtime/sim';
+import { defaultStrategies, simulateWorld, type SimProfile } from '@novel-game/play-runtime/sim';
 import { AppError } from '../../../shared/errors.js';
 import type { PreflightCatalogReader, PreflightDraftReaders, PreflightRepository, StoredPreflight } from './ports.js';
 
@@ -33,10 +33,6 @@ export class PreflightService {
   async playtestWorldDraft(input: PlaytestInput): Promise<PlaytestReport> {
     const draft = this.drafts.world(input.id);
     if (input.expectedVersion !== undefined && input.expectedVersion !== draft.version) throw new AppError('DRAFT_VERSION_CONFLICT', '草稿已更新，请基于最新版本重新试玩', 409);
-    const content = draft.content;
-    if (!content.storylets?.length && !content.resourceDefs && !content.clock) {
-      throw new AppError('PLAYTEST_UNSUPPORTED', '试玩模拟只支持使用新系统（资源上下限 / 时钟 / 卡池）的世界', 400);
-    }
     const seeds = input.seeds ?? 200;
     if (!Number.isInteger(seeds) || seeds < 1 || seeds > PLAYTEST_MAX_SEEDS) throw new AppError('INVALID_SEEDS', `seeds 需在 1–${PLAYTEST_MAX_SEEDS}`, 400);
     const evidence = {runs: input.evidenceRuns ?? Math.min(seeds, 3), seed: input.evidenceSeed ?? 1, maxSteps: input.maxSteps ?? 200};
@@ -64,10 +60,16 @@ export class PreflightService {
       || !Number.isInteger(options.evidence.maxSteps) || options.evidence.maxSteps < 1 || options.evidence.maxSteps > 300)) {
       throw new AppError('INVALID_EVIDENCE_BOUNDS', '试玩证据边界超出允许范围', 400);
     }
+    const profile = options.profile ? this.resolveProfile(options.profile) : undefined;
+    // Catalog ids name strategy roles; the runtime exposes resource-specific execution ids.
+    const strategies = options.strategies?.length
+      ? defaultStrategies(draft.content, {...profile, strategyIds: options.strategies}).map(strategy => strategy.id)
+      : undefined;
+    if (strategies && !strategies.length) throw new AppError('INVALID_STRATEGY', '没有匹配的模拟策略', 400);
     const report = await simulateWorld({id: `preflight-${draft.id}`, draftId: draft.id, sourceId: draft.sourceId,
       version: draft.version, content: draft.content, createdAt: new Date().toISOString()},
-    {seeds: options.seeds, ...(options.strategies?.length ? {strategies: options.strategies} : {}),
-      ...(options.profile ? {profile: this.resolveProfile(options.profile)} : {}),
+    {seeds: options.seeds, ...(strategies ? {strategies} : {}),
+      ...(profile ? {profile} : {}),
       draftId: draft.id, draftVersion: draft.version, yieldEvery: this.yieldFn, guidance: options.guidance,
       evidence: options.evidence ?? {runs: Math.min(options.seeds, 3), seed: 1, maxSteps: 200}});
     const lint = lintWorld(draft.content, {draftId: draft.id, draftVersion: draft.version});
