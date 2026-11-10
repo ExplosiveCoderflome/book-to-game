@@ -1,16 +1,17 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { worldContentSchema, type AgentRepairCandidate } from '@novel-game/contracts';
+import type { AgentRepairCandidate } from '@novel-game/contracts';
 import { openDatabase } from '../src/platform/database.js';
 import { createModelSettings } from '../src/platform/create-model-settings.js';
 import { createWorkbench } from '../src/app/workbench.js';
 import { createApp } from '../src/adapters/http/app.js';
+import { repairWeightWorld } from './helpers/repair-weight-fixture.js';
 
 test('agent repair HTTP/MCP: persisted preview, confirmation, reports, replay and conflict share one use case', async () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'btg-agent-repair-test-'));
@@ -25,7 +26,7 @@ test('agent repair HTTP/MCP: persisted preview, confirmation, reports, replay an
     headers: {'Content-Type': 'application/json'}, ...(body ? {body: JSON.stringify(body)} : {})});
   try {
     const source = w.sources.importFile({title: '三路测试', filename: 'test.txt', bytes: Buffer.from('第一章\n旧识与账簿。')});
-    const content = worldContentSchema.parse(JSON.parse(readFileSync(new URL('../../../fixtures/s1/route-coverage.engine.json', import.meta.url), 'utf8')));
+    const content = repairWeightWorld();
     content.sourceChapterIds = [source.chapters[0]!.id];
     const draft = w.worlds.create({sourceId: source.id, content});
     await w.preflight.playtestWorldDraft({id: draft.id, seeds: 40});
@@ -33,6 +34,9 @@ test('agent repair HTTP/MCP: persisted preview, confirmation, reports, replay an
     assert.equal(response.status, 200, await response.clone().text());
     const candidate = await response.json() as AgentRepairCandidate;
     assert.equal(candidate.preview.allowed, true); assert.equal(w.worlds.get(draft.id).version, 1);
+    assert.ok(candidate.edits.length && candidate.edits.every(edit => edit.kind === 'weight'));
+    assert.ok(candidate.preview.afterRate > candidate.preview.beforeRate);
+    assert.equal(w.worlds.validate(draft.id).valid, true);
     await client.connect(new StreamableHTTPClientTransport(new URL(base + '/mcp'), {requestInit: {headers: {Authorization: `Bearer ${token}`}}}));
     const tools = (await client.listTools()).tools;
     for (const name of ['create_agent_repair', 'list_agent_repairs', 'apply_agent_repair', 'reject_agent_repair']) assert.ok(tools.some(t => t.name === name));

@@ -110,3 +110,46 @@ test('V1 apply world patch rejects bad paths, whole replacements and oversized a
     assert.equal(ctx.worlds.get(ctx.draft.id).version, before.version);
   } finally { ctx.db.close(); }
 });
+
+test('V1 confirmation does not allow deleting a storylet gameplay effect', () => {
+  const ctx = setup();
+  try {
+    const world = structuredClone(ctx.draft.content);
+    world.storylets![0]!.choices[0]!.effects = [{kind: 'set', factId: 'noticed', value: true}];
+    const draft = ctx.worlds.create({sourceId: source.id, content: world});
+    const before = ctx.worlds.get(draft.id);
+    assert.equal(ctx.command('apply_world_patch').confirmation, 'confirm');
+    assert.throws(() => ctx.command('apply_world_patch').execute({worldDraftId: draft.id, version: 1,
+      changes: [{path: 'storylets.rain.choices', op: 'replace', after: [{...world.storylets![0]!.choices[0]!, effects: []}]}]}),
+      {code: 'WORLD_PRESERVATION_REQUIRED'});
+    assert.deepEqual(ctx.worlds.get(draft.id), before);
+  } finally {ctx.db.close();}
+});
+
+test('V1 dangling move repair changes only its same-kind target; invalid worlds retain protection', () => {
+  const ctx = setup();
+  try {
+    const world = structuredClone(ctx.draft.content);
+    world.actions.find(action => action.id === 'to_market')!.effects = [{kind: 'move', locationId: 'missing'}];
+    const draft = ctx.worlds.create({sourceId: source.id, content: world});
+    const baseline = ctx.worlds.getPreservationBaseline(draft.id);
+    const swap = structuredClone(world);
+    swap.actions.find(action => action.id === 'to_market')!.effects = [{kind: 'set', factId: 'noticed', value: true}];
+    assert.throws(() => ctx.worlds.update(draft.id, {version: 1, content: swap}), {code: 'WORLD_PRESERVATION_REQUIRED'});
+    const destructive = structuredClone(world);
+    destructive.actions.find(action => action.id === 'search')!.effects = [{kind: 'set', factId: 'noticed', value: true}];
+    assert.throws(() => ctx.worlds.update(draft.id, {version: 1, content: destructive}), {code: 'WORLD_PRESERVATION_REQUIRED'});
+    const fixed = structuredClone(world);
+    fixed.actions.find(action => action.id === 'to_market')!.effects = [{kind: 'move', locationId: 'market'}];
+    const mixed = structuredClone(fixed);
+    mixed.title += '混入编辑';
+    assert.throws(() => ctx.worlds.update(draft.id, {version: 1, content: mixed}), {code: 'WORLD_PRESERVATION_REQUIRED'});
+    assert.equal(ctx.worlds.get(draft.id).version, 1);
+    assert.deepEqual(ctx.worlds.get(draft.id).content, world);
+    assert.deepEqual(ctx.worlds.getPreservationBaseline(draft.id), baseline);
+    const saved = ctx.worlds.update(draft.id, {version: 1, content: fixed});
+    assert.equal(saved.version, 2);
+    assert.deepEqual(saved.content, fixed);
+    assert.equal(ctx.worlds.validate(draft.id).valid, true);
+  } finally {ctx.db.close();}
+});

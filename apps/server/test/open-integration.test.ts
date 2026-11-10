@@ -14,6 +14,7 @@ import { createWorkbench } from '../src/app/workbench.js';
 import { createApp } from '../src/adapters/http/app.js';
 import { ChatCompletionsProvider } from '../src/platform/model/chat-completions.js';
 import { ferryWorld } from '../../../examples/ferry-world.js';
+import { publishFerryWorld } from './helpers/publish-ferry-fixture.js';
 
 const token = 'open-adventure-integration-token';
 const sourceBytes = readFileSync(new URL('../../../examples/sealed-harbor.txt', import.meta.url));
@@ -21,7 +22,7 @@ async function fixture() {
   const dir = mkdtempSync(path.join(tmpdir(), 'open-adventure-integration-'));
   const db = openDatabase(path.join(dir, 'workbench.sqlite'));
   const settings = createModelSettings(db, dir, {baseUrl: 'https://api.example.test/v1', model: '', apiKey: '', timeoutMs: 2000});
-  const w = createWorkbench(db, settings);
+  const w = createWorkbench(db, settings, undefined, {dataDir: dir});
   const server = createApp(w, {token, allowedOrigins: []}).listen(0, '127.0.0.1'); await once(server, 'listening');
   const url = `http://127.0.0.1:${(server.address() as {port: number}).port}`;
   async function request(route: string, method = 'GET', body?: unknown) {
@@ -37,12 +38,19 @@ test('real MCP and HTTP publish selected novel slice and play three persistent s
     const source: SourceDocument = await f.request('/api/sources', 'POST', {title: '封港前', filename: 'harbor.txt', contentBase64: sourceBytes.toString('base64')});
     await client.connect(new StreamableHTTPClientTransport(new URL(f.url + '/mcp'), {requestInit: {headers: {Authorization: `Bearer ${token}`}}}));
     const tools = await client.listTools(); assert.ok(tools.tools.some(t => t.name === 'act_adventure'));
-    const content = ferryWorld({...source, chapters: source.chapters.slice(0, 2)});
+    const content = publishFerryWorld({...source, chapters: source.chapters.slice(0, 2)});
     const created = await client.callTool({name: 'create_world_draft', arguments: {sourceId: source.id, content}});
     assert.notEqual(created.isError, true, JSON.stringify(created)); const draft = (created.structuredContent as any).result;
     assert.equal((await f.request(`/api/worlds/drafts/${draft.id}/validate`, 'POST', {})).valid, true);
     const published = await client.callTool({name: 'publish_world_draft', arguments: {id: draft.id, version: draft.version}});
     assert.notEqual(published.isError, true, JSON.stringify(published)); const revision = (published.structuredContent as any).result as WorldRevision;
+    const evidence = f.w.preflight.getWorldPreflight(draft.id).playtest!.evidence!;
+    assert.deepEqual(evidence.strategies, ['random', 'greedy-growth-', 'greedy-', 'merchant', 'lazy']);
+    assert.equal(evidence.samples.length, 30);
+    assert.ok(evidence.distribution.effectiveSteps.minimum >= 5);
+    assert.ok(evidence.endingReachability.every(row => row.status === 'observed'));
+    assert.equal(evidence.deadEnds.length, 0);
+    assert.equal(evidence.cappedRuns, 0);
     const routes = [
       {ids: ['visit-warehouse', 'collect-timber', 'return-dock', 'repair-boat', 'boat-cross'], ending: 'quiet-crossing', consequence: 'trusted'},
       {ids: ['visit-warehouse', 'read-ledger', 'return-dock', 'visit-gate', 'negotiate'], ending: 'named-crossing', consequence: 'exposed'},
@@ -52,7 +60,7 @@ test('real MCP and HTTP publish selected novel slice and play three persistent s
       let session: AdventureView = await f.request('/api/adventures', 'POST', {worldRevisionId: revision.id});
       assert.doesNotMatch(JSON.stringify(session), /北城管事|knownFactIds|initialValue|availableWhen|targetSceneId/);
       let firstInput: any; let firstResult: AdventureView | undefined;
-      for (const actionId of route.ids) {
+      for (const actionId of ['witness-ready', 'cargo-secured', 'route-planned', ...route.ids]) {
         const input = {actionId, expectedTurn: session.turn, requestId: crypto.randomUUID()};
         const result = await client.callTool({name: 'act_adventure', arguments: {id: session.id, ...input}});
         assert.notEqual(result.isError, true, JSON.stringify(result)); session = (result.structuredContent as any).result;
@@ -62,7 +70,7 @@ test('real MCP and HTTP publish selected novel slice and play three persistent s
       assert.ok(session.facts.some(fact => fact.id === route.consequence && fact.value));
       assert.deepEqual(await f.request(`/api/adventures/${session.id}`), session);
       assert.deepEqual(await f.request(`/api/adventures/${session.id}/actions`, 'POST', firstInput), firstResult);
-      assert.equal(session.history.filter(entry => entry.text.includes('第一次钟声')).length, route.ids.length >= 5 ? 1 : 0);
+      assert.equal(session.history.filter(entry => entry.text.includes('第一次钟声')).length, 1);
     }
   } finally {await client.close(); await f.close();}
 });

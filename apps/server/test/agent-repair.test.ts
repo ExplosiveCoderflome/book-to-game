@@ -7,22 +7,27 @@ import { lintWorld } from '@novel-game/rules/preflight';
 import * as agent from '../src/modules/agent/index.js';
 import { WorldService, SqliteWorldRepository } from '../src/modules/worlds/index.js';
 import { openDatabase } from '../src/platform/database.js';
+import { repairWeightWorld } from './helpers/repair-weight-fixture.js';
 
-const world = worldContentSchema.parse(JSON.parse(readFileSync(new URL('../../../fixtures/s1/route-coverage.engine.json', import.meta.url), 'utf8')));
+const world = repairWeightWorld();
 const revision = {id: 'rev', draftId: 'draft', sourceId: 'source', version: 1, content: world, createdAt: '2026-10-29T00:00:00Z'};
 const before = await simulateWorld(revision, {seeds: 40, guidance: true});
 const hint = before.routeCoverage!.guidance!.find(h => h.endingId === 'coop')!;
 const edits = hint.edits.filter(e => e.kind !== 'nudge-card');
 const patched = applyGuidance(world, edits);
 const after = await simulateWorld({...revision, content: patched}, {seeds: 40});
+const original = worldContentSchema.parse(JSON.parse(readFileSync(new URL('../../../fixtures/s1/route-coverage.engine.json', import.meta.url), 'utf8')));
+const originalBefore = await simulateWorld({...revision, content: original}, {seeds: 40, guidance: true});
+const originalEdits = originalBefore.routeCoverage!.guidance!.find(h => h.endingId === 'coop')!.edits.filter(e => e.kind !== 'nudge-card');
+const originalAfter = await simulateWorld({...revision, content: applyGuidance(original, originalEdits)}, {seeds: 40});
 
-function setup() {
+function setup(initial = world, baseline = before, repairedReport = after) {
   assert.equal(typeof agent.AgentRepairService, 'function', 'public AgentRepairService must implement the author-confirmed repair flow');
   const db = openDatabase(':memory:');
   const source = {id: 'source', chapters: [], title: '修复测试'};
   const worlds = new WorldService(new SqliteWorldRepository(db), {get: () => source as never});
-  const draft = worlds.create({sourceId: source.id, content: structuredClone(world)});
-  let report: PlaytestReport | undefined = structuredClone({...before, draftId: draft.id, draftVersion: 1});
+  const draft = worlds.create({sourceId: source.id, content: structuredClone(initial)});
+  let report: PlaytestReport | undefined = structuredClone({...baseline, draftId: draft.id, draftVersion: 1});
   let failSave = false;
   let newLintError = false;
   let hook: (() => void) | undefined;
@@ -33,8 +38,8 @@ function setup() {
     getWorldPreflight: () => ({playtest: report}),
     inspectWorldDraft: async (d: WorldDraft) => {
       inspections.push(d.version);
-      const changed = d.content.actions.find(a => a.id === 'sell_out')!.requires.length > world.actions.find(a => a.id === 'sell_out')!.requires.length;
-      const playtest = structuredClone({...changed ? after : before, draftId: d.id, draftVersion: d.version});
+      const changed = JSON.stringify(d.content) !== JSON.stringify(initial);
+      const playtest = structuredClone({...changed ? repairedReport : baseline, draftId: d.id, draftVersion: d.version});
       override?.(playtest, d);
       hook?.(); hook = undefined;
       const lint = lintWorld(d.content, {draftId: d.id, draftVersion: d.version});
@@ -99,8 +104,25 @@ test('agent repair: parallel create/apply calls produce one candidate and one ne
 });
 
 test('agent repair: placeholder-card-only hints require manual work', async () => {
-  const s = setup(); try {
+  const s = setup(original, originalBefore, originalAfter); try {
+    const hint = originalBefore.routeCoverage!.guidance!.find(h => h.endingId === 'duel')!;
+    assert.ok(hint.edits.length && hint.edits.every(edit => edit.kind === 'nudge-card'));
     await assert.rejects(s.service.create({draftId: s.draft.id, version: 1, endingId: 'duel'}), {code: 'AGENT_REPAIR_UNSUPPORTED'});
+  } finally {s.db.close();}
+});
+
+test('agent repair: author confirmation cannot authorize a destructive gate reshape', async () => {
+  const s = setup(original, originalBefore, originalAfter); try {
+    const candidate = await s.create();
+    assert.equal(candidate.preview.allowed, true, 'measured improvement alone is not reshape permission');
+    assert.ok(candidate.edits.some(edit => edit.kind === 'gate-trap'));
+    const baseline = s.worlds.getPreservationBaseline(s.draft.id);
+    await assert.rejects(s.service.apply(candidate.id), {code: 'WORLD_PRESERVATION_REQUIRED'});
+    assert.equal(s.worlds.get(s.draft.id).version, 1);
+    assert.deepEqual(s.worlds.get(s.draft.id).content, original);
+    assert.deepEqual(s.worlds.getPreservationBaseline(s.draft.id), baseline);
+    assert.equal(s.service.list(s.draft.id)[0]!.status, 'pending');
+    assert.equal(s.worlds.listRevisions().length, 0);
   } finally {s.db.close();}
 });
 

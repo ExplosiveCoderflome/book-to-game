@@ -117,8 +117,14 @@ test('HTTP: lint / playtest / preflight round trip, reports stored per draft and
     await s.request(`/api/worlds/drafts/${id}`, 'PUT', {version: 1, content: s.goldFor()});
     assert.deepEqual((await s.request(`/api/worlds/drafts/${id}/preflight`)).body.stale, {lint: true, playtest: true});
     const published = await s.request(`/api/worlds/drafts/${id}/publish`, 'POST', {version: 2});
-    assert.equal(published.status, 400, JSON.stringify(published.body));
-    assert.equal(published.body.error.code, 'PUBLISH_QUALITY_STALE');
+    assert.equal(published.status, 422, JSON.stringify(published.body));
+    assert.equal(published.body.error.code, 'PLAYTEST_BLOCKED');
+    assert.ok(published.body.error.details.evidence.endingReachability.some((row: any) => row.status !== 'observed'), 'unchanged sample has a real ending-coverage blocker');
+    const refreshed = (await s.request(`/api/worlds/drafts/${id}/preflight`)).body;
+    assert.equal(refreshed.playtest.draftVersion, 2, 'publish reruns and stores current-version evidence');
+    assert.equal(refreshed.stale.playtest, false);
+    assert.deepEqual(refreshed.playtest.strategies.map((row: any) => row.id), ['random', 'greedy-xiuwei', 'greedy-lingshi', 'merchant', 'lazy']);
+    assert.equal(s.workbench.worlds.listRevisions().length, 0);
     // Story lint over HTTP.
     const story = await s.request('/api/drafts', 'POST', {sourceId: s.sourceId, content: fixture('wudu.story-draft.json')});
     if (story.status === 200) {
@@ -146,11 +152,11 @@ test('⑦ mock-generated drafts cannot be published outside tests; provenance su
     const { provenance: _drop, ...laundered } = content;
     await s.request(`/api/worlds/drafts/${id}`, 'PUT', {version: 1, content: laundered});
     const res = await s.request(`/api/worlds/drafts/${id}/publish`, 'POST', {version: 2});
-    assert.equal(res.status, 400); assert.equal(res.body.error.code, 'INVALID_STRATEGY');
+    assert.equal(res.status, 403); assert.equal(res.body.error.code, 'MOCK_DRAFT_UNPUBLISHABLE');
     // A byte-identical copy (client drops the stamp) inherits the mark; a different world publishes.
     const copy = await s.request('/api/worlds/drafts', 'POST', {sourceId: s.sourceId, content: laundered});
     assert.equal(copy.body.content.provenance?.copiedFrom, id);
-    assert.equal((await s.request(`/api/worlds/drafts/${copy.body.id}/publish`, 'POST', {version: 1})).body.error.code, 'INVALID_STRATEGY');
+    assert.equal((await s.request(`/api/worlds/drafts/${copy.body.id}/publish`, 'POST', {version: 1})).body.error.code, 'MOCK_DRAFT_UNPUBLISHABLE');
     const spoofed = await s.request('/api/worlds/drafts', 'POST', {sourceId: s.sourceId, content: {...s.goldFor(), title: '寿灯（手写）', provenance: {generator: 'llm'}}});
     assert.equal(spoofed.body.content.provenance, undefined, 'clients cannot claim a non-mock provenance');
     assert.equal((await s.request(`/api/worlds/drafts/${spoofed.body.id}/publish`, 'POST', {version: 1})).status, 422);
@@ -180,12 +186,12 @@ test('⑦ mock-generated STORY drafts (e.g. 雾渡) cannot be published outside 
     assert.deepEqual(spoof.body.provenance, {generator: 'mock', model: 'mock-btg', source: 'copy', copiedFrom: original.id});
     assert.equal((await s.request(`/api/drafts/${spoof.body.id}/publish`, 'POST', {version: 1})).body.error.code, 'MOCK_DRAFT_UNPUBLISHABLE');
     const real = s.workbench.games.create({sourceId: s.sourceId, content: wudu, provenance: generationProvenance('deepseek-chat')});
-    assert.equal((await s.request(`/api/drafts/${real.id}/publish`, 'POST', {version: 1})).status, 422);
+    assert.equal((await s.request(`/api/drafts/${real.id}/publish`, 'POST', {version: 1})).status, 200);
   } finally { await s.close(); }
   const t = await server({allowMockPublish: true});
   try {
     const mock = t.workbench.games.create({sourceId: t.sourceId, content: wudu, provenance: generationProvenance('mock')});
-    assert.equal((await t.request(`/api/drafts/${mock.id}/publish`, 'POST', {version: 1})).status, 422);
+    assert.equal((await t.request(`/api/drafts/${mock.id}/publish`, 'POST', {version: 1})).status, 200);
   } finally { await t.close(); }
 });
 
@@ -346,6 +352,9 @@ test('minimum run length: normal publish runs missing quick play and blocks earl
     assert.equal(s.workbench.preflight.getWorldPreflight(draft.body.id).playtest, undefined);
     const publish = await s.request(`/api/worlds/drafts/${draft.body.id}/publish`, 'POST', {version: 1});
     assert.equal(publish.status, 422); assert.equal(publish.body.error.code, 'PLAYTEST_BLOCKED');
-    assert.equal(s.workbench.preflight.getWorldPreflight(draft.body.id).playtest, undefined);
+    const saved = s.workbench.preflight.getWorldPreflight(draft.body.id);
+    assert.equal(saved.playtest?.draftVersion, 1);
+    assert.equal(saved.playtest?.checks.find(check => check.id === 'minimum-run-length')?.pass, false);
+    assert.equal(saved.stale.playtest, false);
   } finally {await s.close();}
 });
