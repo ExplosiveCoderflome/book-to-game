@@ -123,6 +123,87 @@ test('tool focus: real SDK freezes each stream, denies hidden/stale/author-only 
   } finally {mock.mock.restore(); db.close();}
 });
 
+test('tool focus contract: selection takes effect next model turn within the same run, not next user message', async t => {
+  const db = openDatabase(':memory:');
+  try {
+    const w = createWorkbench(db, createModelSettings(db, '/tmp/opencode', {baseUrl: 'http://localhost/v1', model: 'focus-contract', apiKey: '', timeoutMs: 3000}), undefined, {dataDir: '/tmp/opencode'});
+    const tools = createAgentChatTools(createCommands(w), w);
+    const definitions = tools.map(t => ({name: t.name, description: t.description + (t.requiresConfirmation ? '【必须由作者确认后才执行】' : ''), parameters: t.parameters as any}));
+    const focus = new AgentToolFocus(tools, definitions);
+    // Selection is a single instance mutation: applying it then calling next()
+    // immediately within the same run must advertise the selected tool — the
+    // decisive same-run counterexample seen in the real trace (select -> read).
+    const receipt = JSON.parse(focus.invoke(FOCUS_SELECT, {names: ['read_world_draft']}));
+    assert.equal(receipt.status, 'selected_for_next_request');
+    assert.deepEqual(receipt.focus, ['read_world_draft']);
+    assert.match(receipt.message, /next model turn/);
+    assert.match(receipt.message, /same run/);
+    assert.match(receipt.message, /do not end your turn or wait for a new user message/);
+    const advertised = focus.next();
+    assert.deepEqual(advertised.map(d => d.name).slice(2), ['read_world_draft']);
+    assert.equal(focus.available('read_world_draft'), true);
+    // Discovery is read-only and must not clear the selection.
+    assert.equal(JSON.parse(focus.invoke(FOCUS_CATALOG, {})).nextFocus[0], 'read_world_draft');
+    assert.equal(focus.available('read_world_draft'), true);
+    assert.equal(focus.enabled, true);
+    assert.equal(focus.next().find(d => d.name === 'read_world_draft')!.parameters, definitions.find(d => d.name === 'read_world_draft')!.parameters, 'exact original schema, not a summary');
+    // A new AgentToolFocus instance (a new run/user message) is a fresh empty selection.
+    const fresh = new AgentToolFocus(tools, definitions);
+    assert.equal(fresh.available('read_world_draft'), false);
+    assert.deepEqual(fresh.next().map(d => d.name), [FOCUS_CATALOG, FOCUS_SELECT]);
+    assert.match(fresh.instructions(), /same run/);
+    assert.match(fresh.instructions(), /do not wait for a new user message/);
+    assert.match(fresh.instructions(), /after each new user message/);
+    assert.match(fresh.meta.find(m => m.name === FOCUS_SELECT)!.description, /same run/);
+    assert.match(fresh.denied(), /same run/);
+  } finally {db.close();}
+});
+
+test('tool focus contract: real SDK continues tool work after select in one run and resets on new author continuation', async t => {
+  const db = openDatabase(':memory:');
+  const bodies: any[] = []; const executed: string[] = []; const denied: string[] = [];
+  // Mirrors trace 437->439: select, then the business read on the NEXT model turn
+  // of the SAME run (no user message in between). Must NOT be denied.
+  const responses = [
+    // run A: select -> read -> read -> done
+    [{name: FOCUS_SELECT, arguments: {names: ['read_world_draft']}}],
+    [{name: 'read_world_draft', arguments: {path: 'locations'}}],
+    [{name: 'read_world_draft', arguments: {path: 'endings'}}],
+    [],
+    // run B (continuation): business read on a fresh (empty) focus -> must be denied, then done
+    [{name: 'read_world_draft', arguments: {path: 'locations'}}],
+    [],
+  ];
+  let responseIndex = 0;
+  const mock = t.mock.method(globalThis, 'fetch', async (_input: unknown, init?: RequestInit) => {
+    bodies.push(JSON.parse(String(init?.body)));
+    const calls = responses[responseIndex++] ?? [];
+    const delta = calls.length ? {role: 'assistant', tool_calls: calls.map((c, i) => ({index: i, id: `contract-${responseIndex}-${i}`, type: 'function', function: {name: c.name, arguments: JSON.stringify(c.arguments)}}))} : {role: 'assistant', content: 'Done'};
+    const separator = String.fromCharCode(10, 10);
+    return new Response([JSON.stringify({choices: [{index: 0, delta, finish_reason: null}]}), JSON.stringify({choices: [{index: 0, delta: {}, finish_reason: calls.length ? 'tool_calls' : 'stop'}]}), '[DONE]', ''].map(s => s ? `data: ${s}` : '').join(separator), {headers: {'Content-Type': 'text/event-stream'}});
+  });
+  try {
+    const w = createWorkbench(db, createModelSettings(db, '/tmp/opencode', {baseUrl: 'http://localhost/v1', model: 'focus-contract', apiKey: '', timeoutMs: 3000}), undefined, {dataDir: '/tmp/opencode'});
+    const tools = createAgentChatTools(createCommands(w), w);
+    const model = new AgentChatCompletionsModel({baseUrl: 'http://localhost/v1', model: 'focus-contract', apiKey: '', timeoutMs: 3000});
+    const hooks = {maxRounds: 16, startTurn() {}, assistant() {}, execute: async (call: any) => {executed.push(call.name); return {content: '[]', proposed: false};}, toolResult: (_call: any, content: string) => {if (content.includes('CHAT_TOOL_UNAVAILABLE')) denied.push(content);}};
+    const history = [{id: 'intent', role: 'user' as const, content: 'Read world draft', createdAt: '2026-11-10T00:00:00Z'}];
+    await model.run(history, tools, AbortSignal.timeout(10000), hooks);
+    assert.deepEqual(executed, ['read_world_draft', 'read_world_draft'], 'selection must apply to the next model turn in the SAME run without a user message');
+    assert.equal(denied.length, 0);
+    assert.deepEqual(bodies[0].tools.map((t: any) => t.function.name), [FOCUS_CATALOG, FOCUS_SELECT]);
+    assert.equal(bodies[1].tools.at(-1).function.name, 'read_world_draft');
+    // A new user/author continuation is a fresh run: focus resets, select is gone,
+    // so the business read is denied (same-turn denial preserved).
+    const beforeExecuted = executed.length;
+    await model.run([...history, {id: 'continuation', role: 'user', content: '确认执行：已执行卡', createdAt: history[0]!.createdAt}], tools, AbortSignal.timeout(10000), hooks);
+    assert.equal(executed.length, beforeExecuted, 'no history replay of the previous run selection');
+    assert.deepEqual(bodies[4].tools.map((t: any) => t.function.name), [FOCUS_CATALOG, FOCUS_SELECT], 'focus resets to meta-only on a new run');
+    assert.equal(denied.length, 1, 'unselected business tool is denied on the fresh run');
+    t.diagnostic(JSON.stringify({sameRunSelectThenRead: true, resetOnContinuation: true, executed, denied, requests: bodies.length}));
+  } finally {mock.mock.restore(); db.close();}
+});
+
 test('tool focus: metadata shares original 128-call budget and model turn limits without business execution', async t => {
   const db = openDatabase(':memory:');
   const w = createWorkbench(db, createModelSettings(db, '/tmp/opencode', {baseUrl: 'http://localhost/v1', model: 'focus-budget', apiKey: '', timeoutMs: 3000}), undefined, {dataDir: '/tmp/opencode'});

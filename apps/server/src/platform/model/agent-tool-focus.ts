@@ -20,7 +20,7 @@ export class AgentToolFocus {
     this.meta = [
       {name: FOCUS_CATALOG, description: 'Read the complete available tool inventory (compact capability summaries and author-confirmation flags). Does not execute or authorize any command. No schemas in this receipt.',
         parameters: {type: 'object', properties: {}, additionalProperties: false} as AgentTool['parameters']},
-      {name: FOCUS_SELECT, description: 'Replace the focused native tool set for the NEXT model request. Select exact inventory names, at most 8 and 128 KiB of original definitions. Empty names clears focus. No business execution or authorization; original schemas appear only in next native tools.',
+      {name: FOCUS_SELECT, description: 'Replace the focused native tool set for the NEXT model turn within THIS same run (not the next user message). Select exact inventory names, at most 8 and 128 KiB of original definitions. Empty names clears focus. Takes effect only on the next model turn of the current run; continuing to call tool results in this run requires no new user message. No business execution or authorization; original schemas appear only in next native tools.',
         parameters: {type: 'object', properties: {names: {type: 'array', items: {type: 'string'}, maxItems: MAX_FOCUS_TOOLS, uniqueItems: true}}, required: ['names'], additionalProperties: false} as AgentTool['parameters']},
     ];
   }
@@ -33,9 +33,9 @@ export class AgentToolFocus {
     return definitions;
   }
   instructions() {
-    return this.enabled ? `\n[Explicit bounded tool-focus mode] All ${this.tools.length} registered capabilities remain discoverable via ${FOCUS_CATALOG}({}). Call ${FOCUS_SELECT}({names:[exact inventory names]}) to replace focus (max ${MAX_FOCUS_TOOLS} tools, ${MAX_FOCUS_BYTES} definition bytes); exact original schemas become native tools on the NEXT request only. Never call an unadvertised tool, including in the selection batch. Discovery/selection are read-only metadata and never author approval. Current available business tools: ${JSON.stringify([...this.advertised].filter(n => !this.isMeta(n)))}. Focus resets at every run, including confirmation continuation and new intent; historical selections are not authority. Rediscover/reselect as needed. Existing budgets and author confirmations still apply.\n` : '';
+    return this.enabled ? `\n[Explicit bounded tool-focus mode] All ${this.tools.length} registered capabilities remain discoverable via ${FOCUS_CATALOG}({}). Call ${FOCUS_SELECT}({names:[exact inventory names]}) to replace focus (max ${MAX_FOCUS_TOOLS} tools, ${MAX_FOCUS_BYTES} definition bytes); exact original schemas become native tools on your NEXT model turn within THIS same run, so continue issuing the business tool call immediately in this run — do not end your turn and do not wait for a new user message. Never call an unadvertised tool, including in the selection batch. Discovery/selection are read-only metadata and never author approval. Current available business tools: ${JSON.stringify([...this.advertised].filter(n => !this.isMeta(n)))}. Focus resets at every run, including confirmation continuation and new intent; historical selections are not authority. Rediscover/reselect as needed after each new user message. Existing budgets and author confirmations still apply.\n` : '';
   }
-  denied() {return JSON.stringify({error: 'CHAT_TOOL_UNAVAILABLE', status: 'not_executed', message: 'Tool is not advertised for this request. Discover the inventory and select supported names for the next request.'});}
+  denied() {return JSON.stringify({error: 'CHAT_TOOL_UNAVAILABLE', status: 'not_executed', message: 'Tool is not advertised for this request. Discover the inventory and select supported names, then call the business tool on the next model turn of this same run without waiting for a new user message.'});}
   invoke(name: string, args: unknown): string {
     const fail = (reason: string) => JSON.stringify({error: 'CHAT_TOOL_FOCUS_INVALID', status: 'not_executed', reason, focus: this.selected});
     if (!args || typeof args !== 'object' || Array.isArray(args)) return fail('Expected an object');
@@ -51,6 +51,6 @@ export class AgentToolFocus {
     const selected = this.definitions.filter(t => names.includes(t.name));
     if (bytes(selected) > MAX_FOCUS_BYTES) return fail('Focus definition byte bound exceeded');
     this.selected = [...names];
-    return JSON.stringify({status: 'selected_for_next_request', focus: this.selected, definitionBytes: bytes(selected), message: 'Original schemas are advertised next request; this receipt grants no execution or author approval.'});
+    return JSON.stringify({status: 'selected_for_next_request', focus: this.selected, definitionBytes: bytes(selected), message: 'Original schemas are advertised on your next model turn of this same run. Immediately continue with the business tool call in this run; do not end your turn or wait for a new user message. This receipt grants no execution or author approval.'});
   }
 }
