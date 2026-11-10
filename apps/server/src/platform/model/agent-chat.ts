@@ -6,6 +6,9 @@ import { gameDevSkillPromptIndex } from '../../modules/agent/index.js';
 import { AppError } from '../../shared/errors.js';
 import type { ModelConfig } from './chat-completions.js';
 
+const MAX_BATCH_CALLS = 32;
+const MAX_RUN_CALLS = 128;
+
 const SYSTEM = `你是故事工坊的游戏开发助手，帮助用户把想法和可选素材转成可玩的文字游戏。使用用户的语言交流，清楚区分已执行、建议和未完成。
 用户的想法是一等输入，小说、设定和其他资料均可选。先理解目标并查看相关目录/当前草稿，再按需载入内置技能；自行选择现有小步工具、检查和修复顺序，不要求先创建 production job。不要捏造不存在的工具或能力。
 使用 list_game_dev_skills 查看技能目录，使用 load_game_dev_skill({skillId}) 读取指定技能全文。核心技能索引：
@@ -25,17 +28,37 @@ export class AgentChatCompletionsModel implements ChatModel {
   private readonly model: Model<'openai-completions'>;
   constructor(private readonly config: ModelConfig, private readonly stream: StreamFn = streamSimple) {
     const host = new URL(config.baseUrl).hostname;
+    const deepseek = host === 'api.deepseek.com' || /deepseek/i.test(config.model);
     this.model = {id: config.model, name: config.model, api: 'openai-completions', provider: 'openai', baseUrl: config.baseUrl,
-      reasoning: false, input: ['text'], cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0}, contextWindow: 128_000, maxTokens: 8192,
+      reasoning: deepseek, input: ['text'], cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0}, contextWindow: 128_000, maxTokens: 32_768,
       compat: {supportsStore: false, supportsDeveloperRole: false, supportsUsageInStreaming: false, maxTokensField: 'max_tokens',
-        ...(host === 'api.deepseek.com' ? {thinkingFormat: 'deepseek' as const} : {})}};
+        ...(deepseek ? {thinkingFormat: 'deepseek' as const} : {})}};
   }
 
   async run(messages: AgentChatMessage[], tools: ChatTool[], signal: AbortSignal, hooks: ChatRunHooks) {
     let rounds = 0, proposed = false, limited = false;
+    let executedCalls = 0;
     let turnSignal = signal;
+    const totalMs = this.config.streamTotalTimeoutMs ?? 600_000;
+    const idleMs = this.config.streamIdleTimeoutMs ?? 120_000;
+    let deadline: AbortController | undefined;
+    let idleTimer: ReturnType<typeof setTimeout> | undefined;
+    let totalTimer: ReturnType<typeof setTimeout> | undefined;
+    const clearDeadline = () => {clearTimeout(idleTimer); clearTimeout(totalTimer);};
+    const refreshIdle = () => {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => deadline?.abort(new DOMException('Model stream idle timeout', 'TimeoutError')), idleMs);
+    };
     const calls = new Map<string, AgentChatToolCall>();
-    const secrets = collectSecrets(this.config.apiKey);
+    const secrets = this.config.apiKey ? [this.config.apiKey] : [];
+    const execute = async (call: AgentChatToolCall) => {
+      if (executedCalls >= MAX_RUN_CALLS) {
+        limited = true;
+        return {content: JSON.stringify({status: 'not_executed', reason: 'CHAT_TOOL_LIMIT', message: '本轮工具预算已用完，请继续；此调用未执行。'}), proposed: false};
+      }
+      executedCalls++;
+      return hooks.execute(call);
+    };
     const definitions = tools.map(tool => ({name: tool.name,
       description: `${tool.description}${tool.requiresConfirmation ? '【必须由作者确认后才执行】' : ''}`,
       parameters: tool.parameters as AgentTool['parameters']}));
@@ -47,31 +70,36 @@ export class AgentChatCompletionsModel implements ChatModel {
       execute: async id => {
         const call = calls.get(id);
         if (!call) throw new Error('CHAT_TOOL_CALL_MISSING');
-        const result = await hooks.execute(call);
+        const result = await execute(call);
         proposed ||= result.proposed;
         return {content: [{type: 'text', text: result.content}], details: null};
       },
     }));
     let lastRequest = {messageCount: 0, requestBytes: 0, httpStatus: 0, toolsAfter: [] as string[]};
-    await runAgentLoopContinue({systemPrompt: SYSTEM, messages: recentMessages(messages).map(toPiMessage), tools: piTools}, {
+    try {await runAgentLoopContinue({systemPrompt: SYSTEM, messages: recentMessages(messages).map(toPiMessage), tools: piTools}, {
       model: this.model, toolExecution: 'sequential', convertToLlm: items => items as Message[],
       shouldStopAfterTurn: ({message}) => {
-        limited = !proposed && rounds >= hooks.maxRounds && message.role === 'assistant' && message.content.some(part => part.type === 'toolCall');
+        limited ||= !proposed && (rounds >= hooks.maxRounds || executedCalls >= MAX_RUN_CALLS) && message.role === 'assistant' && message.content.some(part => part.type === 'toolCall');
         return proposed || limited;
       },
     }, async event => {
       if (event.type === 'turn_start') {
-        rounds++; turnSignal = AbortSignal.any([signal, AbortSignal.timeout(this.config.timeoutMs)]); hooks.startTurn();
+        rounds++; hooks.startTurn();
       }
       if (event.type === 'message_update' && event.message.role === 'assistant') {
+        const delta = event.assistantMessageEvent;
+        // Only generated content advances the idle deadline, not SSE comments,
+        // usage/role frames, block boundaries or empty tool-call deltas.
+        if ((delta.type === 'text_delta' || delta.type === 'thinking_delta' || delta.type === 'toolcall_delta') && delta.delta.length > 0) refreshIdle();
         hooks.assistant(replyFromPi(event.message), false);
       }
       if (event.type === 'message_end') {
         if (event.message.role === 'assistant') {
-          if (['error', 'aborted'].includes(event.message.stopReason)) {
+          clearDeadline();
+          if (turnSignal.aborted || ['error', 'aborted'].includes(event.message.stopReason)) {
             logModelFailure({
               stopReason: event.message.stopReason,
-              errorMessage: event.message.errorMessage,
+              errorMessage: turnSignal.aborted ? 'Model stream aborted or timeout' : event.message.errorMessage,
               round: rounds,
               messageCount: lastRequest.messageCount,
               requestBytes: lastRequest.requestBytes,
@@ -82,8 +110,11 @@ export class AgentChatCompletionsModel implements ChatModel {
             throw new AppError('CHAT_MODEL_HTTP_ERROR', 'Agent模型请求失败或超时，请检查模型配置与工具调用支持', 502);
           }
           const reply = replyFromPi(event.message);
-          if (reply.calls.length > 4) throw new AppError('CHAT_TOOL_LIMIT', '单轮工具数量超限', 422);
-          if ((!reply.text.trim() && !reply.calls.length) || new Set(reply.calls.map(call => call.id)).size !== reply.calls.length)
+          // Pi parses partial JSON permissively. Never execute a token-truncated call.
+          if (event.message.stopReason === 'length')
+            throw new AppError('CHAT_MODEL_OUTPUT_LIMIT', '模型输出已截断，工具未执行；请缩小当前步骤后继续', 422);
+          if (reply.calls.length > MAX_BATCH_CALLS) throw new AppError('CHAT_TOOL_LIMIT', '单轮工具数量超限，请分批调用后继续', 422);
+          if ((!reply.text.trim() && !reply.calls.length) || reply.calls.some(call => !call.id || !call.name) || new Set(reply.calls.map(call => call.id)).size !== reply.calls.length)
             throw new AppError('CHAT_MODEL_INVALID_RESPONSE', 'Agent模型未返回可用的对话或工具调用，请检查模型兼容性', 502);
           for (const call of reply.calls) calls.set(call.id, call);
           hooks.assistant(reply, true);
@@ -92,14 +123,22 @@ export class AgentChatCompletionsModel implements ChatModel {
           // Pi rejects unknown names before execute; retain our stable denial receipt.
           const content = tools.some(tool => tool.name === call.name)
             ? event.message.content.filter(part => part.type === 'text').map(part => part.text).join('')
-            : (await hooks.execute(call)).content;
+            : (await execute(call)).content;
           event.message.content = [{type: 'text', text: content}];
           lastRequest.toolsAfter = [...lastRequest.toolsAfter, call.name];
           hooks.toolResult(call, content);
         }
       }
-    }, signal, (model, context, options) => this.stream(model, {...context, tools: definitions}, {
-      ...options, apiKey: this.config.apiKey || 'local-no-key', signal: turnSignal, timeoutMs: this.config.timeoutMs,
+    }, signal, (model, context, options) => {
+      clearDeadline();
+      deadline = new AbortController();
+      turnSignal = AbortSignal.any([signal, deadline.signal]);
+      totalTimer = setTimeout(() => deadline?.abort(new DOMException('Model stream total timeout', 'TimeoutError')), totalMs);
+      refreshIdle();
+      return this.stream(model, {...context, tools: definitions}, {
+      // The SDK must receive the streaming budget too; changing only signal
+      // leaves its own non-stream request timeout in force. Never retry writes.
+      ...options, apiKey: this.config.apiKey || 'local-no-key', signal: turnSignal, timeoutMs: totalMs,
       maxRetries: 0, maxRetryDelayMs: 0, cacheRetention: 'none',
       onPayload: payload => {
         try {
@@ -114,7 +153,8 @@ export class AgentChatCompletionsModel implements ChatModel {
         lastRequest.httpStatus = response.status;
         return options?.onResponse?.(response, responseModel);
       },
-    }));
+    });});
+    } finally {clearDeadline();}
     return {limited};
   }
 }
@@ -143,12 +183,6 @@ export function toPiMessage(message: AgentChatMessage): AgentMessage {
     content: [{type: 'text', text: message.content}], details: null, isError: false, timestamp};
 }
 export function emptyUsage() {return {input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0}};}
-
-function collectSecrets(apiKey: string | undefined): string[] {
-  const values = [apiKey, process.env.LLM_API_KEY, process.env.RELAY4_API_KEY, process.env.RELAY3_API_KEY, process.env.RELAY2_API_KEY]
-    .filter((value): value is string => Boolean(value && value.length >= 8));
-  return [...new Set(values)];
-}
 
 /** Strip credentials before any diagnostic write. Never throw secrets into AppError. */
 export function redactProviderText(text: string, secrets: string[] = []): string {

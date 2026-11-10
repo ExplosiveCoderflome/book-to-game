@@ -5,7 +5,7 @@ import type { ChatDeps, ChatModel, ChatTool } from './chat-ports.js';
 import { chatError, chatMessage, chatResult, chatValidationError } from './chat-data.js';
 
 const LEASE_MS = 600_000;
-const DEFAULT_TOOL_ROUNDS = 8;
+const DEFAULT_TOOL_ROUNDS = 24;
 const configuredRounds = Number(process.env.AGENT_CHAT_MAX_TOOL_ROUNDS);
 export const MAX_TOOL_ROUNDS = Number.isInteger(configuredRounds) && configuredRounds > 0 ? Math.min(configuredRounds, 32) : DEFAULT_TOOL_ROUNDS;
 
@@ -25,10 +25,7 @@ export class AgentChatService {
       for (const action of c.actions.filter(a => a.status === 'executing')) {
         action.status = 'uncertain'; action.result = '执行结果未确认，请先查询业务状态；不会自动重复执行。';
       }
-      const paired = new Set(c.messages.filter(m => m.role === 'tool').map(m => m.toolCallId));
-      for (const call of c.messages.flatMap(m => m.toolCalls ?? [])) {
-        if (!paired.has(call.id)) c.messages.push(chatMessage('tool', chatResult({error: 'CHAT_INTERRUPTED'}), {toolCallId: call.id, toolName: call.name}));
-      }
+      this.pairInterruptedCalls(c);
       c.messages.push(chatMessage('assistant', '上一轮已中断。执行结果未确认的操作不会自动重做，请先查询实际任务或草稿状态。'));
       c.status = 'idle'; c.leaseUntil = 0; c = this.save(c);
     }
@@ -117,6 +114,7 @@ export class AgentChatService {
       if (result.limited) c.messages.push(chatMessage('assistant', '已达到本轮工具调用上限，已完成的结果已保存。请继续说明下一步。'));
     } catch (error) {
       // A failed provider response never erases successful tools or exposes upstream bodies/credentials.
+      this.pairInterruptedCalls(c);
       c.messages.push(chatMessage('assistant', `这一轮请求未完成。${chatError(error)}`));
     }
     c.status = 'idle'; c.leaseUntil = 0; return this.save(c);
@@ -151,6 +149,18 @@ export class AgentChatService {
     action.updatedAt = new Date().toISOString();
     const result = c.messages.find(m => m.role === 'tool' && m.toolCallId === action.callId);
     if (result) result.content = action.result ?? chatResult({status: action.status});
+  }
+  private pairInterruptedCalls(c: AgentChatConversation) {
+    const paired = new Set(c.messages.filter(m => m.role === 'tool').map(m => m.toolCallId));
+    for (const call of c.messages.flatMap(m => m.toolCalls ?? [])) {
+      if (paired.has(call.id)) continue;
+      const action = c.actions.find(a => a.callId === call.id);
+      const content = action?.result ?? chatResult(action?.status === 'pending'
+        ? {status: 'awaiting_author_confirmation', actionId: action.id, summary: action.summary}
+        : {error: 'CHAT_INTERRUPTED', status: 'interrupted', message: '工具回执未完成，请先查询实际状态；不会自动重做写操作。'});
+      c.messages.push(chatMessage('tool', content, {toolCallId: call.id, toolName: call.name}));
+      paired.add(call.id);
+    }
   }
   private claim(c: AgentChatConversation) {c.status = 'running'; c.leaseUntil = Date.now() + LEASE_MS; return this.save(c);}
   private idle(c: AgentChatConversation) {if (c.status === 'running') throw new AppError('CHAT_BUSY', '这一轮仍在执行，请稍候或重新读取状态', 409);}

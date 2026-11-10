@@ -65,3 +65,44 @@ test('agent conversation: real provider protocol, shared tools, author confirmat
     assert.ok(path.resolve(dir).startsWith(path.resolve(tmpdir()) + path.sep + 'btg-agent-chat-test-')); rmSync(dir, {recursive: true, force: true});
   }
 });
+
+test('agent conversation: idea discovery reaches real create confirmation beyond eight Pi turns and resumes validation', async () => {
+  const content = worldContentSchema.parse(JSON.parse(readFileSync(new URL('../../../fixtures/s1/route-coverage.engine.json', import.meta.url), 'utf8')));
+  let calls = 0; const bodies: any[] = [];
+  const provider = createServer(async (req, res) => {
+    let raw = ''; for await (const chunk of req) raw += chunk;
+    const input = JSON.parse(raw); bodies.push(input); calls++;
+    const call = (name: string, args: unknown, suffix = '') => ({id: `idea-${calls}${suffix}`, type: 'function', function: {name, arguments: JSON.stringify(args)}});
+    const result = calls === 1 ? {tool_calls: ['runtime_info', 'list_game_dev_skills', 'list_sources', 'list_blocks', 'list_genre_recipes', 'list_fun_profiles'].map((name, i) => call(name, {}, `-${i}`))}
+      : calls === 2 ? {tool_calls: ['project-brief', 'world-building', 'pacing-balance', 'quality-review'].map((skillId, i) => call('load_game_dev_skill', {skillId}, `-${i}`))}
+      : calls < 10 ? {tool_calls: [call('get_world_schema', {})]}
+      : calls === 10 ? {tool_calls: [call('create_world_from_idea', {requestId: '52ec36d8-3c91-41f6-9b59-1b7c5057647c', title: '本地协议验收想法', idea: '三条路线的文字试炼', content})]}
+      : calls === 11 ? (() => {
+        const receipt = input.messages.find((m: any) => m.role === 'tool' && m.tool_call_id === 'idea-10');
+        const draft = JSON.parse(receipt.content);
+        return {tool_calls: [call('validate_world_draft', {id: draft.id})]};
+      })() : {content: '创建回执与校验结果已保存。'};
+    streamChatReply(res, result);
+  }).listen(0, '127.0.0.1'); await once(provider, 'listening');
+  const dir = mkdtempSync(path.join(tmpdir(), 'btg-agent-chat-test-'));
+  const db = openDatabase(':memory:');
+  const w = createWorkbench(db, createModelSettings(db, dir, {baseUrl: `http://127.0.0.1:${(provider.address() as {port: number}).port}/v1`, model: 'local-chat-test', apiKey: '', timeoutMs: 3000}), undefined, {dataDir: dir});
+  try {
+    const chat = w.agentChat.create();
+    const pending = await w.agentChat.send({id: chat.id, requestId: 'idea-request', text: '从想法搭建三条路线的文字试炼'});
+    assert.equal(calls, 10); assert.equal(w.worlds.list().length, 0);
+    assert.equal(pending.actions.length, 1); assert.equal(pending.actions[0]!.toolName, 'create_world_from_idea');
+    assert.equal(pending.actions[0]!.status, 'pending');
+    const done = await w.agentChat.decide({id: chat.id, actionId: pending.actions[0]!.id, decision: 'confirm'});
+    assert.equal(done.actions[0]!.status, 'succeeded', done.actions[0]!.result);
+    assert.equal(w.worlds.list().length, 1); assert.equal(calls, 12);
+    assert.ok(done.messages.some(m => m.role === 'tool' && m.toolName === 'validate_world_draft' && JSON.parse(m.content).valid === true));
+    assert.equal(bodies[1].messages.filter((m: any) => m.role === 'tool').length, 6);
+    await w.agentChat.decide({id: chat.id, actionId: pending.actions[0]!.id, decision: 'confirm'});
+    assert.equal(w.worlds.list().length, 1); assert.equal(calls, 12);
+    assert.equal(w.worlds.listRevisions().length, 0);
+  } finally {
+    await new Promise<void>(resolve => provider.close(() => resolve())); db.close();
+    rmSync(dir, {recursive: true, force: true});
+  }
+});

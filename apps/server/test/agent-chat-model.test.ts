@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { test } from 'node:test';
+import { streamSimple } from '@mariozechner/pi-ai';
 import { AgentChatCompletionsModel } from '../src/platform/model/agent-chat.js';
 import type { ChatRunHooks, ChatTool } from '../src/modules/agent/index.js';
 import { scriptedChat, streamChatReply } from './helpers/agent-pi.js';
@@ -97,4 +98,167 @@ test('agent chat model: failed provider responses log safely without leaking int
     console.error = original;
     await new Promise<void>(r => server.close(() => r()));
   }
+});
+
+test('agent chat model: real SDK accepts batched catalogs and stops at a bounded run budget with paired receipts', async () => {
+  const bodies: any[] = [];
+  const server = createServer(async (req, res) => {
+    let raw = ''; for await (const chunk of req) raw += chunk;
+    bodies.push(JSON.parse(raw));
+    streamChatReply(res, {tool_calls: Array.from({length: 20}, (_, i) => ({
+      id: `batch-${bodies.length}-${i}`, type: 'function', function: {name: 'list_sources', arguments: '{}'},
+    }))});
+  }).listen(0, '127.0.0.1'); await once(server, 'listening');
+  try {
+    const adapter = new AgentChatCompletionsModel({baseUrl: `http://127.0.0.1:${(server.address() as {port: number}).port}/v1`, model: 'relay-sol-test', apiKey: 'test-agent-key', timeoutMs: 2000});
+    const tool: ChatTool = {name: 'list_sources', description: 'list', parameters: {type: 'object', properties: {}},
+      requiresConfirmation: false, validate: () => ({}), prepare: () => ({summary: ''}), execute: () => []};
+    let executed = 0; const receipts: string[] = [];
+    const result = await adapter.run(messages, [tool], AbortSignal.timeout(10000), {...hooks(), maxRounds: 24,
+      execute: async () => {executed++; return {content: '[]', proposed: false};},
+      toolResult: (_call, content) => {receipts.push(content);}});
+    assert.equal(result.limited, true); assert.equal(executed, 128);
+    assert.equal(bodies.length, 7); assert.equal(receipts.length, 140);
+    assert.equal(receipts.filter(text => text.includes('not_executed')).length, 12);
+    assert.equal(bodies[0].max_tokens, 32000);
+    assert.equal(bodies[0].max_completion_tokens, undefined);
+    assert.equal(bodies[0].thinking, undefined);
+    assert.equal(bodies[1].messages.filter((m: any) => m.role === 'tool').length, 20);
+  } finally {await new Promise<void>(resolve => server.close(() => resolve()));}
+});
+
+test('agent chat model: Ark-named DeepSeek disables implicit thinking and rejects SDK-repaired truncated tool JSON', async () => {
+  const bodies: any[] = []; let round = 0; let executions = 0;
+  const server = createServer(async (req, res) => {
+    let raw = ''; for await (const chunk of req) raw += chunk;
+    bodies.push(JSON.parse(raw)); round++;
+    res.setHeader('Content-Type', 'text/event-stream');
+    const delta = round === 1 ? {role: 'assistant', reasoning_content: 'internal thought', tool_calls: [
+      {index: 0, id: 'partial-write', type: 'function', function: {name: 'create_world', arguments: '{"title":"partial'}},
+    ]} : {role: 'assistant', content: '已恢复，可继续。'};
+    res.write(`data: ${JSON.stringify({choices: [{index: 0, delta, finish_reason: null}]})}\n\n`);
+    res.write(`data: ${JSON.stringify({choices: [{index: 0, delta: {}, finish_reason: round === 1 ? 'length' : 'stop'}]})}\n\n`);
+    res.end('data: [DONE]\n\n');
+  }).listen(0, '127.0.0.1'); await once(server, 'listening');
+  try {
+    const adapter = new AgentChatCompletionsModel({baseUrl: `http://127.0.0.1:${(server.address() as {port: number}).port}/v1`, model: 'deepseek-v4-pro', apiKey: 'test-agent-key', timeoutMs: 2000});
+    const tool: ChatTool = {name: 'create_world', description: 'write', parameters: {type: 'object', properties: {title: {type: 'string'}}},
+      requiresConfirmation: true, validate: () => ({}), prepare: () => ({summary: ''}), execute: () => ({})};
+    const finalized: unknown[] = [];
+    const callbacks = {...hooks(), assistant: (reply: unknown, final: boolean) => {if (final) finalized.push(reply);},
+      execute: async () => {executions++; return {content: '{}', proposed: true};}};
+    await assert.rejects(adapter.run(messages, [tool], AbortSignal.timeout(5000), callbacks), {code: 'CHAT_MODEL_OUTPUT_LIMIT'});
+    assert.equal(executions, 0); assert.equal(finalized.length, 0);
+    assert.deepEqual(bodies[0].thinking, {type: 'disabled'});
+    assert.equal(bodies[0].reasoning_effort, undefined);
+    assert.equal(bodies[0].max_tokens, 32000);
+    assert.equal((await adapter.run(messages, [tool], AbortSignal.timeout(5000), callbacks)).limited, false);
+    assert.equal(bodies.length, 2);
+  } finally {await new Promise<void>(resolve => server.close(() => resolve()));}
+});
+
+test('agent chat model: excessive batches still fail closed before execution', async () => {
+  let executed = 0;
+  const adapter = scriptedChat(async () => ({text: '', calls: Array.from({length: 33}, (_, i) => ({id: `excess-${i}`, name: 'list_sources', arguments: {}}))}));
+  await assert.rejects(adapter.run(messages, [], AbortSignal.timeout(5000), {...hooks(),
+    execute: async () => {executed++; return {content: '[]', proposed: false};}}), {code: 'CHAT_TOOL_LIMIT'});
+  assert.equal(executed, 0);
+});
+
+test('agent chat model: real SDK text and tool argument deltas outlive the ordinary deadline', async t => {
+  for (const kind of ['text', 'tool'] as const) await t.test(kind, async () => {
+    let requests = 0;
+    const server = createServer(async (req, res) => {
+      for await (const _ of req) { /* consume local request */ }
+      requests++;
+      // Headers arrive after the ordinary deadline: the SDK timeout must also
+      // use the stream budget, independently of the outer AbortSignal.
+      const start = setTimeout(() => {
+        res.setHeader('Content-Type', 'text/event-stream');
+        let index = 0;
+        const args = ['{"title":"', '长', '流', '标', '题', '"}'];
+        const timer = setInterval(() => {
+          const delta = kind === 'text' ? {content: String(index)} : {tool_calls: [{index: 0,
+            ...(index === 0 ? {id: 'long-write', type: 'function'} : {}),
+            function: {...(index === 0 ? {name: 'create_world'} : {}), arguments: args[index]}}]};
+          res.write(`data: ${JSON.stringify({choices: [{index: 0, delta, finish_reason: null}]})}\n\n`);
+          if (++index === args.length) {
+            clearInterval(timer);
+            res.write(`data: ${JSON.stringify({choices: [{index: 0, delta: {}, finish_reason: kind === 'tool' ? 'tool_calls' : 'stop'}]})}\n\n`);
+            res.end('data: [DONE]\n\n');
+          }
+        }, 60);
+        res.once('close', () => clearInterval(timer));
+      }, 120);
+      res.once('close', () => clearTimeout(start));
+    }).listen(0, '127.0.0.1'); await once(server, 'listening');
+    try {
+      let executed = 0; let finalText = ''; let sdkCalls = 0;
+      const adapter = new AgentChatCompletionsModel({baseUrl: `http://127.0.0.1:${(server.address() as {port: number}).port}/v1`,
+        model: 'local-stream-test', apiKey: 'test-agent-key', timeoutMs: 60, streamIdleTimeoutMs: 300, streamTotalTimeoutMs: 1500},
+      (model, context, options) => {
+        sdkCalls++; assert.equal(options?.timeoutMs, 1500); assert.equal(options?.maxRetries, 0);
+        return streamSimple(model, context, options);
+      });
+      const tool: ChatTool = {name: 'create_world', description: 'write', parameters: {type: 'object', properties: {title: {type: 'string'}}},
+        requiresConfirmation: true, validate: () => ({}), prepare: () => ({summary: ''}), execute: () => ({})};
+      await adapter.run(messages, [tool], AbortSignal.timeout(3000), {...hooks(),
+        assistant: (reply, final) => {if (final) finalText = reply.text;},
+        execute: async call => {executed++; assert.deepEqual(call.arguments, {title: '长流标题'}); return {content: '{}', proposed: true};}});
+      assert.equal(executed, kind === 'tool' ? 1 : 0);
+      if (kind === 'text') assert.equal(finalText, '012345');
+      assert.equal(requests, 1); assert.equal(sdkCalls, 1);
+    } finally {server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));}
+  });
+});
+
+test('agent chat model: real SDK idle, hard total and cancellation reject partial writes without retry', async t => {
+  for (const kind of ['idle', 'total', 'cancel'] as const) await t.test(kind, async () => {
+    let requests = 0; let closed = false; let sent = 0; let executed = 0; let finalized = 0;
+    let resolveClosed!: () => void;
+    const connectionClosed = new Promise<void>(resolve => {resolveClosed = resolve;});
+    const controller = new AbortController();
+    const server = createServer(async (req, res) => {
+      for await (const _ of req) { /* consume local request */ }
+      requests++; res.setHeader('Content-Type', 'text/event-stream');
+      const frame = (delta: unknown) => res.write(`data: ${JSON.stringify({choices: [{index: 0, delta, finish_reason: null}]})}\n\n`);
+      frame({tool_calls: [{index: 0, id: 'partial-write', type: 'function', function: {name: 'create_world', arguments: '{"title":"'}}]});
+      const timer = setInterval(() => {
+        sent++;
+        res.write(': heartbeat\n\n');
+        // Empty text/tool frames are not progress. Continuous non-empty tool
+        // arguments must still lose to total timeout and caller cancellation.
+        frame(kind === 'idle' ? {role: 'assistant', content: '', tool_calls: [{index: 0, function: {arguments: ''}}]}
+          : {tool_calls: [{index: 0, function: {arguments: 'x'}}]});
+      }, 35);
+      res.once('close', () => {closed = true; clearInterval(timer); resolveClosed();});
+    }).listen(0, '127.0.0.1'); await once(server, 'listening');
+    const cancelTimer = kind === 'cancel' ? setTimeout(() => controller.abort(), 160) : undefined;
+    const watchdog = setTimeout(() => controller.abort(), 2000);
+    try {
+      const adapter = new AgentChatCompletionsModel({baseUrl: `http://127.0.0.1:${(server.address() as {port: number}).port}/v1`,
+        model: 'local-stream-test', apiKey: 'test-agent-key', timeoutMs: 60, streamIdleTimeoutMs: kind === 'cancel' ? 500 : 200, streamTotalTimeoutMs: 450});
+      const tool: ChatTool = {name: 'create_world', description: 'write', parameters: {type: 'object', properties: {title: {type: 'string'}}},
+        requiresConfirmation: true, validate: () => ({}), prepare: () => ({summary: ''}), execute: () => ({})};
+      const started = Date.now();
+      await assert.rejects(adapter.run(messages, [tool], controller.signal, {...hooks(),
+        assistant: (_reply, final) => {if (final) finalized++;},
+        execute: async () => {executed++; return {content: '{}', proposed: true};}}), {code: 'CHAT_MODEL_HTTP_ERROR'});
+      const elapsed = Date.now() - started;
+      assert.ok(elapsed < 1200, `deadline failed: ${elapsed}ms`);
+      if (kind === 'total') assert.ok(elapsed >= 400, `total ended too early: ${elapsed}ms`);
+      if (kind === 'idle') assert.ok(elapsed >= 180 && elapsed < 400, `idle was extended by heartbeat: ${elapsed}ms`);
+      if (kind === 'cancel') assert.ok(elapsed >= 130 && elapsed < 350, `caller cancellation was ignored: ${elapsed}ms`);
+      assert.equal(controller.signal.aborted, kind === 'cancel');
+      assert.ok(sent >= 2); assert.equal(requests, 1); assert.equal(executed, 0); assert.equal(finalized, 0);
+      let closeTimer: ReturnType<typeof setTimeout> | undefined;
+      try {await Promise.race([connectionClosed, new Promise<never>((_resolve, reject) => {
+        closeTimer = setTimeout(() => reject(new Error('SDK did not close aborted stream')), 500);
+      })]);} finally {clearTimeout(closeTimer);}
+    } finally {
+      clearTimeout(cancelTimer); clearTimeout(watchdog); server.closeAllConnections();
+      await new Promise<void>(resolve => server.close(() => resolve()));
+    }
+    assert.equal(closed, true);
+  });
 });

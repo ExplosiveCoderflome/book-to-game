@@ -71,13 +71,13 @@ test('agent chat: writes wait for author confirmation, execute once and continue
 test('agent chat: a confirmation stops the next turn and pairs every call in its batch', async () => {
   const s = setup(); try {
     s.replies.push({text: '先读取，再建议修改。', calls: [call('get_world_draft', 'read-first'), call('update_world_draft', 'write-first'),
-      call('get_world_draft', 'read-after'), call('update_world_draft', 'write-after')]});
+      call('get_world_draft', 'read-after'), call('update_world_draft', 'write-after'), call('get_world_draft', 'read-last')]});
     const pending = await send(s);
     assert.deepEqual(s.counts(), {writes: 0, reads: 1, modelCalls: 1});
     assert.equal(pending.actions.length, 1);
     assert.equal(pending.actions[0]!.callId, 'write-first');
     const results = pending.messages.filter(message => message.role === 'tool');
-    assert.deepEqual(results.map(message => message.toolCallId), ['read-first', 'write-first', 'read-after', 'write-after']);
+    assert.deepEqual(results.map(message => message.toolCallId), ['read-first', 'write-first', 'read-after', 'write-after', 'read-last']);
     assert.match(results[2]!.content, /not_executed/);
     const restarted = new agent.AgentChatService(s.deps);
     const done = await restarted.decide({id: pending.id, actionId: pending.actions[0]!.id, decision: 'confirm'});
@@ -85,11 +85,11 @@ test('agent chat: a confirmation stops the next turn and pairs every call in its
   } finally {s.db.close();}
 });
 
-test('agent chat: more than four calls are refused before any tool executes', async () => {
+test('agent chat: skill and catalog sized batches execute beyond four calls', async () => {
   const s = setup(); try {
     s.replies.push({text: '', calls: Array.from({length: 5}, (_, i) => call('get_world_draft', `excess-${i}`))});
     const result = await send(s);
-    assert.equal(s.counts().reads, 0); assert.match(result.messages.at(-1)!.content, /CHAT_TOOL_LIMIT/);
+    assert.equal(s.counts().reads, 5); assert.equal(result.messages.filter(m => m.role === 'tool').length, 5);
   } finally {s.db.close();}
 });
 
@@ -152,7 +152,7 @@ test('agent chat: invalid schema arguments return safe field guidance and flag i
     assert.ok(toolResults[0]!.content.includes('CHAT_INVALID_ARGS'));
     assert.ok(toolResults[0]!.content.includes('id'));
     assert.ok(toolResults[1]!.content.includes('参数与上次相同已失败'));
-    assert.equal(s.counts().modelCalls, 8);
+    assert.equal(s.counts().modelCalls, 24);
   } finally {s.db.close();}
 });
 
@@ -197,7 +197,7 @@ test('agent chat: expired execution becomes uncertain and is never replayed', as
 test('agent chat: a tool loop stops at the per-turn model round limit', async () => {
   const s = setup(); try {
     s.respond(async () => ({text: '', calls: [call('get_world_draft', `loop-${s.counts().modelCalls}`)]}));
-    const c = await send(s); assert.equal(c.status, 'idle'); assert.equal(s.counts().modelCalls, 8);
+    const c = await send(s); assert.equal(c.status, 'idle'); assert.equal(s.counts().modelCalls, 24);
     assert.match(c.messages.at(-1)!.content, /上限/);
   } finally {s.db.close();}
 });
@@ -232,5 +232,63 @@ test('agent chat: a failed model summary does not misreport or repeat an already
     const result = await s.service.decide({id: c.id, actionId: c.actions[0]!.id, decision: 'confirm'});
     assert.equal(result.actions[0]!.status, 'succeeded'); assert.equal(s.counts().writes, 1);
     assert.match(result.messages.at(-1)!.content, /未完成/);
+  } finally {s.db.close();}
+});
+
+test('agent chat: discovery beyond eight rounds reaches confirmation and resumes the next guarded proposal', async () => {
+  const s = setup(); try {
+    s.respond(async () => s.counts().modelCalls <= 11
+      ? {text: '', calls: [call('get_world_draft', `discovery-${s.counts().modelCalls}`)]}
+      : {text: '', calls: [call('update_world_draft', `proposal-${s.counts().modelCalls}`)]});
+    const pending = await send(s);
+    assert.equal(s.counts().reads, 11); assert.equal(s.counts().writes, 0);
+    assert.equal(pending.actions[0]!.status, 'pending');
+    s.replies.push({text: '', calls: [call('get_world_draft', 'quality-check')]},
+      {text: '', calls: [call('update_world_draft', 'publish-proposal')]});
+    s.respond(async () => s.replies.shift() ?? {text: '回执已保存', calls: []});
+    const next = await s.service.decide({id: pending.id, actionId: pending.actions[0]!.id, decision: 'confirm'});
+    assert.equal(s.counts().writes, 1); assert.equal(s.counts().reads, 12);
+    assert.deepEqual(next.actions.map(a => a.status), ['succeeded', 'pending']);
+    await s.service.decide({id: next.id, actionId: next.actions[1]!.id, decision: 'confirm'});
+    await s.service.decide({id: next.id, actionId: next.actions[1]!.id, decision: 'confirm'});
+    assert.equal(s.counts().writes, 2);
+  } finally {s.db.close();}
+});
+
+test('agent chat: interrupted confirmation receipt is recovered without replaying the write', async () => {
+  const s = setup(); try {
+    const model = s.deps.model(); let interrupted = false;
+    const service = new agent.AgentChatService({...s.deps, model: () => ({
+      run: (messages, tools, signal, hooks) => model.run(messages, tools, signal, {...hooks, toolResult: (call, content) => {
+        if (!interrupted) {interrupted = true; throw new Error('receipt interrupted');}
+        hooks.toolResult(call, content);
+      }}),
+    })});
+    s.replies.push({text: '', calls: [call('update_world_draft', 'recover-write'), call('get_world_draft', 'recover-read')]});
+    const pending = await service.send({id: s.conversation.id, requestId: 'interrupted', text: '修改草稿'});
+    assert.equal(pending.status, 'idle'); assert.equal(pending.actions[0]!.status, 'pending');
+    const receipts = pending.messages.filter(m => m.role === 'tool');
+    assert.deepEqual(receipts.map(m => m.toolCallId), ['recover-write', 'recover-read']);
+    assert.match(receipts[0]!.content, /awaiting_author_confirmation/);
+    assert.match(receipts[1]!.content, /CHAT_INTERRUPTED/);
+    const restarted = new agent.AgentChatService(s.deps);
+    const done = await restarted.decide({id: pending.id, actionId: pending.actions[0]!.id, decision: 'confirm'});
+    assert.equal(done.actions[0]!.status, 'succeeded');
+    assert.ok(s.received.at(-1).some((m: any) => m.role === 'tool' && m.toolCallId === 'recover-write' && m.content.includes('真实标题')));
+    await restarted.decide({id: done.id, actionId: done.actions[0]!.id, decision: 'confirm'});
+    assert.equal(s.counts().writes, 1);
+  } finally {s.db.close();}
+});
+
+test('agent chat: budget exhaustion saves every receipt and a fresh message can continue', async () => {
+  const s = setup(); try {
+    s.respond(async () => ({text: '', calls: Array.from({length: 20}, (_, i) => call('get_world_draft', `budget-${s.counts().modelCalls}-${i}`))}));
+    const limited = await send(s);
+    assert.equal(s.counts().reads, 128); assert.equal(limited.status, 'idle');
+    assert.equal(limited.messages.filter(m => m.role === 'tool').length, 140);
+    assert.match(limited.messages.at(-1)!.content, /上限/);
+    s.respond(async () => ({text: '', calls: [call('update_world_draft', 'continue-write')]}));
+    const continued = await send(s, 'continue-request', '继续创建');
+    assert.equal(continued.actions[0]!.status, 'pending'); assert.equal(s.counts().writes, 0);
   } finally {s.db.close();}
 });
