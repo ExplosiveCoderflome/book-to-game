@@ -32,7 +32,7 @@ create_world_from_idea 会将想法登记为来源并直接创建草稿，不调
       'add_world_location', 'update_world_location', 'add_world_storylet', 'update_world_storylet',
       'add_storylet_condition', 'remove_storylet_condition', 'add_storylet_effect', 'remove_storylet_effect',
       'add_world_resource_def', 'update_world_resource_def', 'apply_world_patch', 'apply_end_conditions',
-      'validate_world_draft', 'lint_world_draft', 'playtest_world_draft', 'validate_world_composition', 'apply_world_composition', 'check_world_ledger', 'check_world_causality', 'check_world_preservation'],
+      'validate_world_draft', 'lint_world_draft', 'playtest_world_draft', 'validate_world_composition', 'apply_world_composition', 'check_world_ledger', 'check_world_causality', 'check_world_preservation', 'propose_world_reshape', 'confirm_world_reshape'],
     body: `## 步骤
 1. 先调用 read_world_draft 并查看 list_blocks；按需调用 get_block、list_genre_recipes 与 list_fun_profiles。组合工具会检查所选积木版本、参数、依赖、冲突及 requires；这里只验证声明式契约，不是通用代码生成器。
 2. 先搭一条小而完整的可玩循环，再按需要扩展地点、剧情卡和规则。避免以模块数量衡量完成度。
@@ -40,7 +40,7 @@ create_world_from_idea 会将想法登记为来源并直接创建草稿，不调
 4. 根据工具反馈定位到相关对象，小步修改并重新调用相应检查命令；不把失败时的大范围重写当作默认修复。
 
 ## 边界
-每项写入仍需作者确认并遵守版本守卫。现有 patch 仅支持声明的有限路径，不是任意 WorldContent 编辑器。使用 check_world_ledger 检查账本断言、check_world_causality 检查有限结构化因果见证；使用 check_world_preservation 查看服务器基线与结构化正文差异。内容保留检查不证明自然语言剧情语义；明确破坏性编辑当前会拒绝，需专门作者确认流程。`,
+每项写入仍需作者确认并遵守版本守卫。现有 patch 仅支持声明的有限路径，不是任意 WorldContent 编辑器。使用 check_world_ledger 检查账本断言、check_world_causality 检查有限结构化因果见证；使用 check_world_preservation 查看服务器基线与结构化正文差异。内容保留检查不证明自然语言剧情语义。必要重塑先 propose_world_reshape({worldId, expectedVersion, content}) 获取服务器精确差异和 diffHash，再 confirm_world_reshape 使用同一候选、版本及 diffHash 生成专门作者确认项；只有作者确认后保存并建立新基线。不能用普通confirm、allowDestructive或模型提供的凭据绕过保护；过大差异须拆分。`,
   },
   {
     id: 'pacing-balance', version: '1.0.0', title: '数值节奏',

@@ -15,7 +15,7 @@ import type { Command } from './commands/definition.js';
 type Args = Record<string, unknown>;
 export interface AgentChatCommandState {
   jobs: Pick<JobService, 'get'>;
-  worlds: Pick<WorldService, 'get'>;
+  worlds: Pick<WorldService, 'get'> & Partial<Pick<WorldService, 'proposeReshape' | 'confirmAuthorReshape'>>;
   games: Pick<GameService, 'get'>;
   blockLibrary?: Pick<BlockLibraryService, 'getVersion'>;
   createWorldFromIdea?: (input: import('@novel-game/contracts').CreateWorldFromIdeaInput) => unknown;
@@ -146,6 +146,13 @@ const mapFillFields = {label: '名称', localOverrides: '本地覆盖'};
 
 /** Adding a chat command requires a complete entry here; missing metadata is a TypeScript error. */
 export const agentChatCommandMetadata = {
+  propose_world_reshape: {versionCheck: 'none', summarize: argsSummary('只读提议精确世界重塑')},
+  confirm_world_reshape: {confirmation: 'confirm', versionCheck: 'version', readVersion: (args, state) => {
+    if (!state.worlds.proposeReshape) throw new AppError('RESHAPE_UNAVAILABLE', '重塑服务不可用', 503);
+    const proposal = state.worlds.proposeReshape({worldId: String(args.worldId), expectedVersion: Number(args.expectedVersion), content: args.content as WorldContent});
+    if (proposal.diffHash !== args.diffHash) throw new AppError('CHAT_ACTION_STALE', '重塑精确差异已变化，请重新提议', 409);
+    return proposal.expectedVersion;
+  }, summarize: (args, state) => state.worlds.proposeReshape!({worldId: String(args.worldId), expectedVersion: Number(args.expectedVersion), content: args.content as WorldContent}).summary},
   create_world_from_idea: {versionCheck: 'none', summarize: args => `按想法「${clipped(args.title, 80) ?? '未命名'}」创建世界；${String(args.idea ?? '').length}字想法；确认后写入来源与草稿。`},
   validate_world_composition: {versionCheck: 'none', summarize: argsSummary('只读预演世界积木组合')},
   apply_world_composition: {versionCheck: 'version', readVersion: (args, state) => {
@@ -353,9 +360,16 @@ export function createAgentChatTools(commands: Command[], state: AgentChatComman
       },
       prepare: args => {
         const guard = metadata.versionCheck === 'none' ? undefined : String(metadata.readVersion(args, state));
+        if (c.name === 'confirm_world_reshape') return {summary: metadata.summarize(args, state), guard: `${guard}:${String(args.diffHash)}`};
         return {summary: metadata.summarize(args, state), ...(guard === undefined ? {} : {guard})};
       },
       execute: async args => {
+        // AgentChatService invokes a confirmation tool's execute only after author decide + guard recheck.
+        // This trusted dispatch never comes from JSON authorization flags or a public command credential.
+        if (c.name === 'confirm_world_reshape') {
+          if (!state.worlds.confirmAuthorReshape) throw new AppError('RESHAPE_UNAVAILABLE', '重塑服务不可用', 503);
+          return state.worlds.confirmAuthorReshape(c.inputSchema.parse(args) as Parameters<WorldService['confirmAuthorReshape']>[0]);
+        }
         const result = await c.execute(args);
         if (c.name === 'get_world_schema' && c.readOnly && result && typeof result === 'object') return completeWorldSchemaResult(result);
         if (jobResults.has(c.name)) return jobSummary(result as GenerationJob);

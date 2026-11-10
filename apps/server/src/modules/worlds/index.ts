@@ -19,6 +19,7 @@ export {validateWorldComposition, applyWorldComposition, validateSelectedBlocks}
 export {checkWorldLedger} from './application/check-world-ledger.js';
 export {checkWorldCausality} from './application/check-world-causality.js';
 export {checkWorldPreservation} from './application/check-world-preservation.js';
+export {proposeWorldReshapeSchema, confirmWorldReshapeSchema} from './application/world-reshape.js';
 export {assertWorldPublishQuality} from './application/publish-quality-gate.js';
 export {
   proposeFunProfile, recommendBlocksForProfile, resolveProfileBlocks, mockFunProfileModel,

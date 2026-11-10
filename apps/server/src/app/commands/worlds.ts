@@ -10,6 +10,7 @@ import {
 } from '@novel-game/contracts';
 import {
   acceptMapFill, applyEndConditions, applyWorldPatch, extractMapDraft, mockEndConditionsModel, mockMapFillModel, mockWorldPatchModel, placeMapFill,
+  proposeWorldReshapeSchema, confirmWorldReshapeSchema,
   proposeClockPatch, proposeEndConditions, proposeMapFill, proposeStoryletPatch, updateMapFillPlacement, validateWorldComposition, applyWorldComposition, checkWorldLedger, checkWorldCausality, checkWorldPreservation,
 } from '../../modules/worlds/index.js';
 import { AppError } from '../../shared/errors.js';
@@ -27,6 +28,10 @@ const conditionTarget = z.object({
 
 export function worldCommands(w: Workbench) {
   return [
+    command('propose_world_reshape', '只读提议世界重塑：完整schema及规则校验，服务器绑定目标、版本、before/after和基线hash，返回精确差异及损失；不授予写入权限。',
+      proposeWorldReshapeSchema, true, input => w.worlds.proposeReshape(input)),
+    command('confirm_world_reshape', '专门确认服务器精确差异绑定的重塑；仅作者pending action确认通道可保存，新基线与草稿同版本原子更新。普通命令执行拒绝，模型无权授权。',
+      confirmWorldReshapeSchema, false, () => {throw new AppError('RESHAPE_AUTHOR_CONFIRMATION_REQUIRED', '仅允许作者专门确认待处理重塑操作', 403);}),
     command('create_world_from_idea', '按作者想法创建开放世界小版本；Pi须提交完整合法WorldContent，想法会成为来源，sourceIds只作参考关联。不启动制作任务/worker。requestId相同输入幂等。',
       createWorldFromIdeaInputSchema, false, input => w.createWorldFromIdea(input)),
     command('validate_world_composition', '只读预演受限的实体级积木组合；返回经世界引用与积木依赖契约验证的候选内容，不写数据库。',

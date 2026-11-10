@@ -14,7 +14,7 @@ const automaticCommands = [
   'propose_end_conditions', 'propose_fun_profile', 'recommend_blocks_for_profile',
   'agent_status', 'list_agent_decisions', 'list_agent_repairs', 'create_agent_repair', 'list_drafts', 'get_draft',
   'validate_draft', 'lint_draft', 'list_world_revisions', 'list_games', 'list_blocks', 'list_fun_profiles',
-    'list_genre_recipes', 'get_block', 'get_block_library', 'list_game_dev_skills', 'load_game_dev_skill', 'validate_world_composition', 'check_world_ledger', 'check_world_causality', 'check_world_preservation',
+    'list_genre_recipes', 'get_block', 'get_block_library', 'list_game_dev_skills', 'load_game_dev_skill', 'validate_world_composition', 'check_world_ledger', 'check_world_causality', 'check_world_preservation', 'propose_world_reshape',
 ];
 
 const confirmationCases: Array<{
@@ -168,10 +168,10 @@ const state = {
   blockLibrary: {getVersion: () => 1},
 } as unknown as AgentChatCommandState;
 
-test('agent chat tools: confirmation levels and metadata registry cover all 76 commands', () => {
+test('agent chat tools: confirmation levels and metadata registry cover all 78 commands', () => {
   const allNames = [
     ...automaticCommands, ...confirmationCases.map(item => item.name),
-    ...fineGrainedConfirmationCases.map(item => item.name), ...mapFillConfirmationCases.map(item => item.name),
+    ...fineGrainedConfirmationCases.map(item => item.name), ...mapFillConfirmationCases.map(item => item.name), 'confirm_world_reshape',
   ];
   const tools = createAgentChatTools(commandsFor(allNames), state);
   const expected = Object.fromEntries([
@@ -179,11 +179,12 @@ test('agent chat tools: confirmation levels and metadata registry cover all 76 c
     ...confirmationCases.map(item => [item.name, true]),
     ...fineGrainedConfirmationCases.map(item => [item.name, true]),
     ...mapFillConfirmationCases.map(item => [item.name, true]),
+    ['confirm_world_reshape', true],
   ]);
 
-  assert.equal(automaticCommands.length, 40);
+  assert.equal(automaticCommands.length, 41);
   assert.equal(confirmationCases.length, 23);
-  assert.equal(allNames.length, 76);
+  assert.equal(allNames.length, 78);
   assert.deepEqual(Object.keys(agentChatCommandMetadata).sort(), allNames.slice().sort());
   assert.deepEqual(Object.fromEntries(tools.map(tool => [tool.name, tool.requiresConfirmation])), expected);
   for (const name of automaticCommands) {

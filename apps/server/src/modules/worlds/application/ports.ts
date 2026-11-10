@@ -8,6 +8,9 @@ export interface WorldRepository {
   /** Soft-archive: hidden from listDrafts; published revisions (immutable) are kept. */
   archiveDraft(id: string): boolean;
   updateDraft(draft: WorldDraft, expectedVersion: number, baseline: PreservationBaseline): void;
+  /** Dedicated author-dispatch only: binding CAS, baseline reset and receipt share one transaction. */
+  reshapeDraft(draft: WorldDraft, expectedVersion: number, baseline: PreservationBaseline, binding: {diffHash: string; beforeHash: string; baselineHash: string; baselinePresent: boolean}): WorldDraft;
+  getReshapeReceipt(diffHash: string): WorldDraft | undefined;
   getPreservationBaseline(id: string): PreservationBaseline | undefined;
   capturePreservationBaseline(id: string, baseline: PreservationBaseline): PreservationBaseline;
   updateQualityContract(id: string, version: number): void;

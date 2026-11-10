@@ -7,6 +7,8 @@ import { errorResponse } from '../errors.js';
 function createServer(commands: Command[]) {
   const server = new McpServer({name: 'novel-game-workbench', version: '0.1.0'});
   for (const command of commands) {
+    // Author decisions use the trusted author HTTP entry point, never model-supplied authorization flags.
+    if (command.access === 'author-only') continue;
     server.registerTool(command.name, {
       description: command.description, inputSchema: command.inputSchema,
       annotations: {readOnlyHint: command.readOnly, destructiveHint: false,

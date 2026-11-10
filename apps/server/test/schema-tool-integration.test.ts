@@ -57,10 +57,10 @@ test('schema tool: commands, HTTP, MCP and product Pi return the same complete r
   assert.ok(schemaTool);
   assert.equal(schemaTool.requiresConfirmation, false);
   assert.equal(agentChatCommandMetadata.get_world_schema.versionCheck, 'none');
-  assert.equal(tools.length, 76);
-  assert.equal(tools.filter(tool => !tool.requiresConfirmation).length, 40);
-  assert.equal(tools.filter(tool => tool.requiresConfirmation).length, 36);
-  assert.equal(new Set(tools.map(tool => tool.name)).size, 76);
+  assert.equal(tools.length, 78);
+  assert.equal(tools.filter(tool => !tool.requiresConfirmation).length, 41);
+  assert.equal(tools.filter(tool => tool.requiresConfirmation).length, 37);
+  assert.equal(new Set(tools.map(tool => tool.name)).size, 78);
   assert.deepEqual(schemaTool.parameters, z.toJSONSchema(schemaCommand.inputSchema, {unrepresentable: 'any', reused: 'ref'}));
   const registered = await schemaTool.execute(schemaTool.validate({}));
   assert.deepEqual(registered, expected);
@@ -88,7 +88,7 @@ test('schema tool: commands, HTTP, MCP and product Pi return the same complete r
     const chat = w.agentChat.create();
     const done = await w.agentChat.send({id: chat.id, requestId: 'schema-only-read', text: '读取世界 JSON Schema，不创建草稿。'});
     assert.equal(calls, 2, 'Pi must continue after the successful read without a confirmation pause');
-    assert.equal(bodies[0]!.tools.length, 76);
+    assert.equal(bodies[0]!.tools.length, 78);
     assert.deepEqual(bodies[0]!.tools.find(tool => tool.function.name === 'get_world_schema')!.function.parameters, schemaTool.parameters);
     const returned = bodies[1]!.messages.find(message => message.role === 'tool' && message.tool_call_id === 'schema-read');
     assert.ok(returned, 'the actual Pi request must carry the schema receipt');
@@ -100,7 +100,7 @@ test('schema tool: commands, HTTP, MCP and product Pi return the same complete r
     assert.equal(done.status, 'idle');
     assert.equal(w.sources.list().length, 0); assert.equal(w.worlds.list().length, 0);
     assert.equal(w.worlds.listRevisions().length, 0); assert.equal(w.jobs.list().length, 0);
-    t.diagnostic(JSON.stringify({schemaChars: serialized.length, schemaBytes: Buffer.byteLength(serialized), tools: 76, automatic: 40, confirmed: 36, piRequests: calls, pendingCards: done.actions.length}));
+    t.diagnostic(JSON.stringify({schemaChars: serialized.length, schemaBytes: Buffer.byteLength(serialized), tools: 78, automatic: 41, confirmed: 37, piRequests: calls, pendingCards: done.actions.length}));
   } finally {fetchMock.mock.restore(); db.close();}
 });
 

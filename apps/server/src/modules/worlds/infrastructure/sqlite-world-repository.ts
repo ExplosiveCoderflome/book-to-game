@@ -3,6 +3,8 @@ import type { DraftProvenance, WorldDraft, WorldRevision } from '@novel-game/con
 import { AppError } from '../../../shared/errors.js';
 import type { WorldRepository } from '../application/ports.js';
 import type { PreservationBaseline } from '../application/check-world-preservation.js';
+import {reshapeHash} from '../application/world-reshape.js';
+import {makePreservationBaseline} from '../application/check-world-preservation.js';
 export class SqliteWorldRepository implements WorldRepository {
   constructor(private readonly db: SqliteDatabase) {
     db.exec(`
@@ -16,6 +18,9 @@ export class SqliteWorldRepository implements WorldRepository {
       );
       CREATE TABLE IF NOT EXISTS world_preservation_baselines (
         draft_id TEXT PRIMARY KEY REFERENCES world_drafts(id), data TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS world_reshape_receipts (
+        diff_hash TEXT PRIMARY KEY, draft_id TEXT NOT NULL REFERENCES world_drafts(id), data TEXT NOT NULL
       );
       CREATE TRIGGER IF NOT EXISTS world_revisions_immutable_update BEFORE UPDATE ON world_revisions
       BEGIN SELECT RAISE(ABORT, 'Published world revisions are immutable'); END;
@@ -50,6 +55,25 @@ export class SqliteWorldRepository implements WorldRepository {
   }
   getPreservationBaseline(id: string): PreservationBaseline | undefined {
     return parse<PreservationBaseline>(this.db.prepare('SELECT data FROM world_preservation_baselines WHERE draft_id=?').get(id));
+  }
+  getReshapeReceipt(diffHash: string): WorldDraft | undefined {
+    return parse<WorldDraft>(this.db.prepare('SELECT data FROM world_reshape_receipts WHERE diff_hash=?').get(diffHash));
+  }
+  reshapeDraft(draft: WorldDraft, expectedVersion: number, baseline: PreservationBaseline, binding: {diffHash: string; beforeHash: string; baselineHash: string; baselinePresent: boolean}): WorldDraft {
+    return this.db.transaction(() => {
+      const previous = this.getDraft(draft.id);
+      const storedBaseline = this.getPreservationBaseline(draft.id);
+      const effectiveBaseline = storedBaseline ?? (previous ? {...makePreservationBaseline(previous.id, previous.version, previous.content), capturedAt: previous.updatedAt} : undefined);
+      if (!previous || previous.version !== expectedVersion || reshapeHash(previous.content) !== binding.beforeHash
+        || (storedBaseline !== undefined) !== binding.baselinePresent
+        || reshapeHash(effectiveBaseline ?? null) !== binding.baselineHash) {
+        throw new AppError('DRAFT_VERSION_CONFLICT', '重塑目标、版本或保留基线已变化，请重新提议并确认', 409);
+      }
+      this.updateDraft(draft, expectedVersion, baseline);
+      const persisted = this.getDraft(draft.id)!;
+      this.db.prepare('INSERT INTO world_reshape_receipts(diff_hash,draft_id,data) VALUES(?,?,?)').run(binding.diffHash, draft.id, JSON.stringify(persisted));
+      return persisted;
+    }).immediate();
   }
   capturePreservationBaseline(id: string, baseline: PreservationBaseline): PreservationBaseline {
     this.db.prepare('INSERT OR IGNORE INTO world_preservation_baselines(draft_id,data) VALUES(?,?)').run(id, JSON.stringify(baseline));

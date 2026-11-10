@@ -5,6 +5,8 @@ export interface Command {
   confirmation: 'auto' | 'confirm';
   /** Coarse risk label. Defaults to `read` for readOnly commands and `write` otherwise. */
   risk: 'read' | 'write';
+  /** Server-owned transport policy; author decisions must not be exposed to model MCP clients. */
+  access?: 'author-only';
   execute(input: unknown): unknown;
 }
 export interface CommandOptions {
@@ -12,6 +14,7 @@ export interface CommandOptions {
   confirmation?: 'auto' | 'confirm';
   /** Override the default risk derived from readOnly. */
   risk?: 'read' | 'write';
+  access?: 'author-only';
 }
 export function command<T extends z.ZodRawShape>(name: string, description: string, schema: z.ZodObject<T>,
   readOnly: boolean, run: (input: z.infer<z.ZodObject<T>>) => unknown, options: CommandOptions = {}): Command {
@@ -19,6 +22,7 @@ export function command<T extends z.ZodRawShape>(name: string, description: stri
     name, description, inputSchema: schema, readOnly,
     confirmation: options.confirmation ?? (readOnly ? 'auto' : 'confirm'),
     risk: options.risk ?? (readOnly ? 'read' : 'write'),
+    access: options.access,
     execute: input => run(schema.parse(input)),
   };
 }

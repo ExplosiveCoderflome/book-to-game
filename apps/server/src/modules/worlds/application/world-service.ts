@@ -7,6 +7,7 @@ import { validateWorld } from '../domain/validate-world.js';
 import type { SourceReader, WorldRepository } from './ports.js';
 import { readAuthorValue } from '../../../shared/author-read.js';
 import {assertWorldPreservation, extendPreservationBaseline, makePreservationBaseline, normalizePreservationBaseline, repairDanglingMoveBaseline, type PreservationBaseline} from './check-world-preservation.js';
+import {confirmWorldReshapeSchema, describeWorldReshape, proposeWorldReshapeSchema, reshapeHash, type WorldReshapeInput} from './world-reshape.js';
 export class WorldService {
   constructor(
     private readonly repository: WorldRepository,
@@ -164,6 +165,44 @@ export class WorldService {
     const draft = this.repository.getDraft(id); if (!draft) throw new AppError('DRAFT_NOT_FOUND', '世界草稿不存在', 404); return draft;
   }
   getPreservationBaseline(id: string): PreservationBaseline | undefined {return this.repository.getPreservationBaseline(id);}
+  proposeReshape(input: WorldReshapeInput) {
+    const parsed = proposeWorldReshapeSchema.parse(input), previous = this.get(parsed.worldId);
+    if (previous.version !== parsed.expectedVersion) throw new AppError('DRAFT_VERSION_CONFLICT', '草稿已更新，请重新提议重塑', 409);
+    const content = this.reshapeContent(previous, parsed.content);
+    // No capture here: proposal and pending-action preparation perform zero writes.
+    const storedBaseline = this.getPreservationBaseline(previous.id);
+    const baseline = storedBaseline ?? this.legacyReshapeBaseline(previous);
+    return describeWorldReshape(previous.id, previous.version, previous.content, content, baseline, storedBaseline !== undefined);
+  }
+  /** Trusted author pending-action dispatch only; never wire this to Command.execute / HTTP / MCP. */
+  confirmAuthorReshape(input: WorldReshapeInput & {diffHash: string}): WorldDraft {
+    const parsed = confirmWorldReshapeSchema.parse(input), previous = this.get(parsed.worldId);
+    const content = this.reshapeContent(previous, parsed.content);
+    const receipt = this.repository.getReshapeReceipt(parsed.diffHash);
+    if (receipt) {
+      if (receipt.id !== previous.id || receipt.version !== parsed.expectedVersion + 1 || previous.version !== receipt.version
+        || reshapeHash(receipt.content) !== reshapeHash(content) || reshapeHash(previous) !== reshapeHash(receipt))
+        throw new AppError('RESHAPE_AUTHORIZATION_STALE', '重塑回执不能用于其他候选或新版本', 409);
+      return receipt;
+    }
+    const proposal = this.proposeReshape({worldId: parsed.worldId, expectedVersion: parsed.expectedVersion, content: parsed.content});
+    if (proposal.diffHash !== parsed.diffHash) throw new AppError('RESHAPE_DIFF_MISMATCH', '精确重塑差异已变化，请重新提议并确认', 409);
+    const draft: WorldDraft = {...previous, content, version: previous.version + 1, updatedAt: new Date().toISOString(),
+      ...(previous.qualityContractVersion === undefined && usesQualityComposition(content) ? {qualityContractVersion: 1} : {})};
+    return this.repository.reshapeDraft(draft, previous.version, makePreservationBaseline(draft.id, draft.version, content), proposal);
+  }
+  private reshapeContent(previous: WorldDraft, candidate: WorldContent): WorldContent {
+    const parsed = worldContentSchema.parse(candidate);
+    const {provenance: _claimed, ...rest} = parsed;
+    const content: WorldContent = previous.content.provenance ? {...rest, provenance: previous.content.provenance} : rest;
+    const validation = this.validateContent(previous.id, content);
+    if (!validation.valid) throw new AppError('INVALID_WORLD', '重塑候选未通过完整世界规则校验', 400, validation);
+    return content;
+  }
+  private legacyReshapeBaseline(draft: WorldDraft): PreservationBaseline {
+    // Stable fallback fingerprint without persisting an unconfirmed legacy baseline.
+    return {...makePreservationBaseline(draft.id, draft.version, draft.content), capturedAt: draft.updatedAt};
+  }
   private getOrCapturePreservationBaseline(draft: WorldDraft): PreservationBaseline {
     // An uncaptured legacy draft is captured only by the successful update CAS.
     return this.getPreservationBaseline(draft.id) ?? makePreservationBaseline(draft.id, draft.version, draft.content);

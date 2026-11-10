@@ -51,14 +51,22 @@ test('agent conversation: real provider protocol, shared tools, author confirmat
     await client.connect(new StreamableHTTPClientTransport(new URL(base + '/mcp'), {requestInit: {headers: {Authorization: `Bearer ${token}`}}}));
     const tools = (await client.listTools()).tools;
     assert.ok(tools.some(t => t.name === 'get_agent_chat'));
+    assert.equal(tools.some(t => t.name === 'decide_agent_action'), false);
     const observed = await client.callTool({name: 'get_agent_chat', arguments: {id: chat.id}});
     assert.equal(observed.isError, undefined);
+    const denied = await client.callTool({name: 'decide_agent_action', arguments: {id: chat.id, actionId: pending.actions[0]!.id, decision: 'confirm'}});
+    assert.equal(denied.isError, true);
+    assert.match(JSON.stringify(denied.content), /Tool decide_agent_action not found/);
+    assert.equal(w.worlds.get(draft.id).version, 1); assert.equal(calls, 2);
+    assert.deepEqual(w.agentChat.get(chat.id), pending);
     const confirmed = await post(`/api/agent/chats/${chat.id}/actions/${pending.actions[0]!.id}`, {decision: 'confirm'});
     assert.equal(confirmed.status, 200);
     const done = await confirmed.json() as AgentChatConversation;
     assert.equal(done.actions[0]!.status, 'succeeded'); assert.equal(w.worlds.get(draft.id).version, 2);
     assert.equal(w.worlds.get(draft.id).content.title, '对话修改后的标题');
-    await client.callTool({name: 'decide_agent_action', arguments: {id: chat.id, actionId: pending.actions[0]!.id, decision: 'confirm'}});
+    const replay = await post(`/api/agent/chats/${chat.id}/actions/${pending.actions[0]!.id}`, {decision: 'confirm'});
+    assert.equal(replay.status, 200);
+    assert.deepEqual(await replay.json(), done);
     assert.equal(calls, 3); assert.equal(w.worlds.get(draft.id).version, 2);
     assert.equal(w.worlds.listRevisions().length, 0);
   } finally {
