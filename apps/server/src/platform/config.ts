@@ -5,13 +5,46 @@ import { DEFAULT_MAX_ATTEMPTS, DEFAULT_REPAIR_ATTEMPTS, DEFAULT_RETRY_BASE_MS, D
 
 export const XFYUN_BASE_URL = 'https://maas-api.cn-huabei-1.xf-yun.com/v1';
 export const XFYUN_MODEL = 'spark-x2.6';
+export const KUAIPAO_BASE_URL = 'https://kuaipao.ai/v1';
+export const KUAIPAO_MODEL = 'gemini-4-argon';
+export const KUAIPAO_BACKUP_MODEL = 'gemini-3.1-pro-preview';
+
+export function resolveKuaipaoApiKey(raw: string | undefined): {apiKey: string; baseUrl?: string} {
+  const trimmed = raw?.trim() || '';
+  if (!trimmed) return {apiKey: ''};
+  if (trimmed.startsWith('{') || trimmed.endsWith('}')) {
+    let parsed: unknown;
+    try {parsed = JSON.parse(trimmed);}
+    catch {throw new Error('KUAIPAO_API_KEY 信封格式无效，必须提供有效的 JSON 密钥信封或原始密钥');}
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('KUAIPAO_API_KEY 信封格式无效，必须为对象');
+    }
+    const envelope = parsed as Record<string, unknown>;
+    const key = typeof envelope.key === 'string' ? envelope.key.trim() : '';
+    if (!key || key.startsWith('{')) throw new Error('KUAIPAO_API_KEY 信封缺少有效的 key 字段');
+    let baseUrl: string | undefined;
+    if (envelope.url !== undefined) {
+      if (typeof envelope.url !== 'string' || !envelope.url.trim()) throw new Error('KUAIPAO_API_KEY 信封中的 url 字段无效');
+      let parsedUrl: URL;
+      try {parsedUrl = new URL(envelope.url.trim());} catch {throw new Error('KUAIPAO_API_KEY 信封中的 url 必须是 HTTP(S) 地址');}
+      if (!['http:', 'https:'].includes(parsedUrl.protocol) || parsedUrl.username || parsedUrl.password || parsedUrl.search || parsedUrl.hash || parsedUrl.hostname !== 'kuaipao.ai') {
+        throw new Error('KUAIPAO_API_KEY 信封中的 url 必须指向 kuaipao.ai');
+      }
+      baseUrl = envelope.url.trim().replace(/\/+$/, '');
+    }
+    return {apiKey: key, baseUrl};
+  }
+  return {apiKey: trimmed};
+}
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   const port = Number(env.PORT || 4317);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT 必须是 1–65535 的整数');
   const dataDir = path.resolve(env.DATA_DIR || 'data');
   const xfyunApiKey = env.XFYUN_API_KEY?.trim() || '';
-  const baseUrl = env.LLM_BASE_URL || (xfyunApiKey ? XFYUN_BASE_URL : 'https://api.openai.com/v1');
+  const kuaipao = resolveKuaipaoApiKey(env.KUAIPAO_API_KEY);
+  const kuaipaoApiKey = kuaipao.apiKey;
+  const baseUrl = env.LLM_BASE_URL || (kuaipaoApiKey ? (kuaipao.baseUrl || KUAIPAO_BASE_URL) : xfyunApiKey ? XFYUN_BASE_URL : 'https://api.openai.com/v1');
   let parsed: URL;
   try {parsed = new URL(baseUrl);} catch {throw new Error('LLM_BASE_URL 必须是 HTTP(S) 地址');}
   if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) {
@@ -26,10 +59,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   const retryMaxMs = readInt(env, 'LLM_RETRY_MAX_MS', DEFAULT_RETRY_MAX_MS, 0, 120_000);
   if (retryMaxMs < retryBaseMs) throw new Error('LLM_RETRY_MAX_MS 不能小于 LLM_RETRY_BASE_MS');
   const repairAttempts = readInt(env, 'LLM_REPAIR_ATTEMPTS', DEFAULT_REPAIR_ATTEMPTS, 1, 6);
-  const xfyunSelected = baseUrl.replace(/\/+$/, '') === XFYUN_BASE_URL;
+  const normalizedBaseUrl = baseUrl.replace(/\/+$/, '');
+  const xfyunSelected = normalizedBaseUrl === XFYUN_BASE_URL;
+  const kuaipaoSelected = parsed.hostname === 'kuaipao.ai' && normalizedBaseUrl === (kuaipao.baseUrl || KUAIPAO_BASE_URL);
   const provider: ModelConfig = {baseUrl,
-    model: env.LLM_MODEL?.trim() || (xfyunSelected && xfyunApiKey ? XFYUN_MODEL : ''),
-    apiKey: env.LLM_API_KEY?.trim() || (xfyunSelected ? xfyunApiKey : ''), timeoutMs,
+    model: env.LLM_MODEL?.trim() || (kuaipaoSelected && kuaipaoApiKey ? KUAIPAO_MODEL : xfyunSelected && xfyunApiKey ? XFYUN_MODEL : ''),
+    apiKey: env.LLM_API_KEY?.trim() || (kuaipaoSelected ? kuaipaoApiKey : xfyunSelected ? xfyunApiKey : ''), timeoutMs,
     maxAttempts, retryBaseMs, retryMaxMs, repairAttempts, streamIdleTimeoutMs, streamTotalTimeoutMs};
   const localProvider = ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname);
   const allowedOrigins = [`http://127.0.0.1:${port}`, `http://localhost:${port}`, 'http://127.0.0.1:5173', 'http://localhost:5173', 'http://127.0.0.1:5174', 'http://localhost:5174'];

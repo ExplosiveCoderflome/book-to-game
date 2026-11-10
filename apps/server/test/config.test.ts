@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { loadConfig, loadAccessToken } from '../src/platform/config.js';
+import { loadConfig, loadAccessToken, KUAIPAO_BASE_URL, KUAIPAO_MODEL, KUAIPAO_BACKUP_MODEL, resolveKuaipaoApiKey } from '../src/platform/config.js';
 test('local access token survives restart and absent provider stays disabled', () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'novel-config-'));
   try {
@@ -46,4 +46,64 @@ test('XFYUN_API_KEY selects only the XFYUN chat-completions provider by default'
 
   const other = loadConfig({XFYUN_API_KEY: 'test-xfyun-key', LLM_BASE_URL: 'https://api.example.test/v1', LLM_MODEL: 'other'});
   assert.equal(other.provider.apiKey, '', 'XFYUN key must never be sent to another provider');
+});
+
+test('KUAIPAO_API_KEY unwraps raw or JSON secret envelope, validates host, preserves LLM_API_KEY override and never echoes secret values in errors', () => {
+  assert.equal(KUAIPAO_BASE_URL, 'https://kuaipao.ai/v1');
+  assert.equal(KUAIPAO_MODEL, 'gemini-4-argon');
+  assert.equal(KUAIPAO_BACKUP_MODEL, 'gemini-3.1-pro-preview');
+
+  const rawConfig = loadConfig({KUAIPAO_API_KEY: 'test-kuaipao-raw-secret'});
+  assert.equal(rawConfig.provider.baseUrl, 'https://kuaipao.ai/v1');
+  assert.equal(rawConfig.provider.model, 'gemini-4-argon');
+  assert.equal(rawConfig.provider.apiKey, 'test-kuaipao-raw-secret');
+  assert.equal(rawConfig.providerConfigured, true);
+
+  const envelopeSecret = 'kp-envelope-secret-do-not-echo';
+  const envelopeJson = JSON.stringify({_type: 'secret', key: envelopeSecret, url: 'https://kuaipao.ai/v1/'});
+  const envConfig = loadConfig({KUAIPAO_API_KEY: envelopeJson});
+  assert.equal(envConfig.provider.baseUrl, 'https://kuaipao.ai/v1');
+  assert.equal(envConfig.provider.model, 'gemini-4-argon');
+  assert.equal(envConfig.provider.apiKey, envelopeSecret);
+  assert.equal(envConfig.providerConfigured, true);
+
+  const backupConfig = loadConfig({KUAIPAO_API_KEY: envelopeJson, LLM_MODEL: KUAIPAO_BACKUP_MODEL});
+  assert.equal(backupConfig.provider.model, 'gemini-3.1-pro-preview');
+  assert.equal(backupConfig.provider.apiKey, envelopeSecret);
+
+  const overrideConfig = loadConfig({
+    KUAIPAO_API_KEY: envelopeJson,
+    LLM_BASE_URL: 'https://kuaipao.ai/v1',
+    LLM_API_KEY: 'explicit-override-key',
+  });
+  assert.equal(overrideConfig.provider.apiKey, 'explicit-override-key');
+
+  const otherHost = loadConfig({
+    KUAIPAO_API_KEY: envelopeJson,
+    LLM_BASE_URL: 'https://api.example.test/v1',
+    LLM_MODEL: 'other-model',
+  });
+  assert.equal(otherHost.provider.apiKey, '', 'KUAIPAO_API_KEY must never leak to non-kuaipao host');
+
+  const otherHostWithExplicit = loadConfig({
+    KUAIPAO_API_KEY: envelopeJson,
+    LLM_BASE_URL: 'https://api.example.test/v1',
+    LLM_MODEL: 'other-model',
+    LLM_API_KEY: 'other-host-explicit-key',
+  });
+  assert.equal(otherHostWithExplicit.provider.apiKey, 'other-host-explicit-key');
+
+  for (const bad of [
+    `{"_type":"secret","key":"${envelopeSecret}`,
+    JSON.stringify({_type: 'secret', key: '', url: 'https://kuaipao.ai/v1'}),
+    JSON.stringify({_type: 'secret', key: `{"nested":"${envelopeSecret}"}`, url: 'https://kuaipao.ai/v1'}),
+    JSON.stringify({_type: 'secret', key: envelopeSecret, url: 'https://evil.example.test/v1'}),
+    JSON.stringify({_type: 'secret', key: envelopeSecret, url: 'file:///etc/passwd'}),
+  ]) {
+    assert.throws(() => resolveKuaipaoApiKey(bad), (err: unknown) => {
+      const msg = String(err);
+      assert.equal(msg.includes(envelopeSecret), false, 'error message must never echo secret value');
+      return true;
+    });
+  }
 });
