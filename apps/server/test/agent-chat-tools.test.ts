@@ -9,7 +9,7 @@ import { openDatabase } from '../src/platform/database.js';
 
 const automaticCommands = [
   'runtime_info', 'list_sources', 'read_source', 'list_jobs', 'read_job', 'check_job_plan',
-  'list_world_drafts', 'read_world_draft', 'get_world_preflight', 'validate_world_draft',
+  'list_world_drafts', 'get_world_schema', 'read_world_draft', 'get_world_preflight', 'validate_world_draft',
   'lint_world_draft', 'playtest_world_draft', 'propose_map_fill', 'propose_clock_patch', 'propose_storylet_patch',
   'propose_end_conditions', 'propose_fun_profile', 'recommend_blocks_for_profile',
   'agent_status', 'list_agent_decisions', 'list_agent_repairs', 'create_agent_repair', 'list_drafts', 'get_draft',
@@ -168,7 +168,7 @@ const state = {
   blockLibrary: {getVersion: () => 1},
 } as unknown as AgentChatCommandState;
 
-test('agent chat tools: confirmation levels and metadata registry cover all 74 commands', () => {
+test('agent chat tools: confirmation levels and metadata registry cover all 76 commands', () => {
   const allNames = [
     ...automaticCommands, ...confirmationCases.map(item => item.name),
     ...fineGrainedConfirmationCases.map(item => item.name), ...mapFillConfirmationCases.map(item => item.name),
@@ -181,9 +181,9 @@ test('agent chat tools: confirmation levels and metadata registry cover all 74 c
     ...mapFillConfirmationCases.map(item => [item.name, true]),
   ]);
 
-  assert.equal(automaticCommands.length, 39);
+  assert.equal(automaticCommands.length, 40);
   assert.equal(confirmationCases.length, 23);
-  assert.equal(allNames.length, 75);
+  assert.equal(allNames.length, 76);
   assert.deepEqual(Object.keys(agentChatCommandMetadata).sort(), allNames.slice().sort());
   assert.deepEqual(Object.fromEntries(tools.map(tool => [tool.name, tool.requiresConfirmation])), expected);
   for (const name of automaticCommands) {

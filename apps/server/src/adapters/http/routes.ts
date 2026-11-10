@@ -53,6 +53,7 @@ const routes = [
   ['get', '/sessions/:id', 'get_session'], ['post', '/sessions/:id/actions', 'act_session'],
   ['post', '/sessions/:id/propose-act', 'propose_act_session'],
   ['post', '/sessions/:id/narrate', 'narrate_session'],
+  ['get', '/worlds/schema', 'get_world_schema'],
   ['get', '/worlds/drafts', 'list_world_drafts'], ['post', '/worlds/drafts', 'create_world_draft'],
   ['get', '/worlds/drafts/:id', 'get_world_draft'], ['put', '/worlds/drafts/:id', 'update_world_draft'],
   ['post', '/worlds/drafts/:id/read', 'read_world_draft'],

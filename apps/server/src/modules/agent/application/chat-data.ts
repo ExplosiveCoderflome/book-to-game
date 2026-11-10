@@ -2,11 +2,20 @@ import { randomUUID } from 'node:crypto';
 import type { AgentChatMessage } from '@novel-game/contracts';
 import { z } from 'zod';
 
+// Only the registered, server-owned schema result may bypass the ordinary preview.
+// Identity registration cannot be forged by JSON tool arguments or schema-looking data.
+const completeWorldSchemas = new WeakSet<object>();
+export function completeWorldSchemaResult<T extends object>(schema: T): T {
+  completeWorldSchemas.add(schema);
+  return schema;
+}
+
 export function chatMessage(role: AgentChatMessage['role'], content: string, extra: Partial<AgentChatMessage> = {}): AgentChatMessage {
   return {id: randomUUID(), role, content, createdAt: new Date().toISOString(), ...extra};
 }
 export function chatResult(value: unknown): string {
   const text = JSON.stringify(value ?? null);
+  if (value && typeof value === 'object' && completeWorldSchemas.has(value)) return text;
   return text.length <= 16000 ? text : JSON.stringify({truncated: true, notice: '结果过大，以下仅为预览。必须缩小读取范围，不能把截断预览作为完整草稿写回。', preview: text.slice(0, 16000)});
 }
 export function chatError(error: unknown): string {

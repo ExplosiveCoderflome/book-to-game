@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type {
   GenerationJob, MapFillPlacement, MapFillProposalItem, ResourceDef, Storylet, WorldCondition, WorldContent, WorldEffect, WorldPatchChange,
 } from '@novel-game/contracts';
-import type { ChatTool } from '../modules/agent/index.js';
+import { completeWorldSchemaResult, type ChatTool } from '../modules/agent/index.js';
 import { jobSummary, type JobService } from '../modules/generation/index.js';
 import type { WorldService } from '../modules/worlds/index.js';
 import type { GameService } from '../modules/games/index.js';
@@ -171,6 +171,7 @@ export const agentChatCommandMetadata = {
   read_job: {versionCheck: 'none', summarize: argsSummary('读取任务')},
   check_job_plan: {versionCheck: 'none', summarize: argsSummary('检查制作规划')},
   list_world_drafts: {versionCheck: 'none', summarize: argsSummary('查询世界草稿列表')},
+  get_world_schema: {versionCheck: 'none', summarize: argsSummary('查询开放世界 JSON Schema（只读）')},
   read_world_draft: {versionCheck: 'none', summarize: argsSummary('读取世界草稿')},
   get_world_preflight: {versionCheck: 'none', summarize: argsSummary('查询世界预检')},
   validate_world_draft: {versionCheck: 'none', summarize: argsSummary('校验世界草稿')},
@@ -356,6 +357,7 @@ export function createAgentChatTools(commands: Command[], state: AgentChatComman
       },
       execute: async args => {
         const result = await c.execute(args);
+        if (c.name === 'get_world_schema' && c.readOnly && result && typeof result === 'object') return completeWorldSchemaResult(result);
         if (jobResults.has(c.name)) return jobSummary(result as GenerationJob);
         if (Array.isArray(result) && ['list_world_drafts', 'list_drafts', 'list_jobs', 'list_world_revisions', 'list_games'].includes(c.name)) {
           return result.map(row => ({id: row.id, sourceId: row.sourceId, version: row.version, title: row.content?.title,
