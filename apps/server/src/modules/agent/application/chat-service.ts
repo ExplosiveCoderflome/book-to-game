@@ -41,7 +41,6 @@ export class AgentChatService {
     }
     this.idle(c);
     if (!input.text.trim() || input.text.length > 8000) throw new AppError('INVALID_CHAT_MESSAGE', '请输入1–8000字的消息', 400);
-    if (c.messages.length > 240) throw new AppError('CHAT_HISTORY_LIMIT', '本会话已较长，请新建对话继续', 409);
     const requestId = input.requestId || randomUUID();
     const model = this.deps.model();
     const text = this.deps.redact?.(input.text.trim()) ?? input.text.trim();
@@ -102,6 +101,7 @@ export class AgentChatService {
       let assistantId: string | undefined, streamedAt = 0;
       const result = await model.run(c.messages, tools, controller.signal, {
         maxRounds: MAX_TOOL_ROUNDS,
+        recovery: () => ({id: c.id, actions: c.actions}),
         startTurn: () => {assertOwned(); assistantId = undefined; streamedAt = 0; c.leaseUntil = Date.now() + LEASE_MS; c = this.save(c);},
         assistant: (reply, final) => {
           assertOwned();

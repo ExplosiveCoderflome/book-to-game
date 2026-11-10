@@ -416,3 +416,28 @@ test('agent chat: confirmation summary ownership loss preserves the saved write 
     assert.equal(s.counts().writes, 1);
   } finally {t.mock.timers.reset(); s.db.close();}
 });
+
+test('agent chat: sustained small author-confirmed batches preserve full evidence beyond the former lifetime limit', async () => {
+  const s = setup();
+  try {
+    const ids: string[] = [];
+    for (let i = 0; i < 64; i++) {
+      s.replies.push({text: '', calls: [call('update_world_draft', `sustained-${i}`)]});
+      const pending = await send(s, `sustained-request-${i}`, `继续第${i}步`);
+      const action = pending.actions.at(-1)!; ids.push(action.id);
+      assert.equal(action.status, 'pending');
+      const done = await s.service.decide({id: pending.id, actionId: action.id, decision: 'confirm'});
+      assert.equal(done.actions.at(-1)!.status, 'succeeded');
+    }
+    const recovered = new agent.AgentChatService(s.deps).get(s.conversation.id);
+    assert.ok(recovered.messages.length > 240); assert.equal(recovered.actions.length, 64);
+    assert.ok(recovered.actions.every(action => action.guard === 'v1' && action.result?.includes('draft-1')));
+    const before = s.counts();
+    for (const actionId of ids) await s.service.decide({id: recovered.id, actionId, decision: 'confirm'});
+    await send(s, 'sustained-request-0', '继续第0步');
+    assert.deepEqual(s.counts(), before);
+    assert.deepEqual(s.service.get(recovered.id), recovered);
+    assert.throws(() => s.repository.save({...recovered, title: 'stale'}, recovered.version - 1), {code: 'CHAT_BUSY'});
+    assert.deepEqual(s.service.get(recovered.id), recovered);
+  } finally {s.db.close();}
+});

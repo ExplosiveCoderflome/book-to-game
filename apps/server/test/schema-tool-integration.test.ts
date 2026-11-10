@@ -13,6 +13,7 @@ import { mcpRouter } from '../src/adapters/mcp/router.js';
 import { openDatabase } from '../src/platform/database.js';
 import { createModelSettings } from '../src/platform/create-model-settings.js';
 import { chatResult } from '../src/modules/agent/application/chat-data.js';
+import { CHAT_REQUEST_BYTES } from '../src/platform/model/agent-chat.js';
 
 // Exercise the real Express/MCP handlers without opening a listening socket.
 async function request(app: express.Express, method: string, url: string, body?: unknown) {
@@ -93,6 +94,10 @@ test('schema tool: commands, HTTP, MCP and product Pi return the same complete r
     const returned = bodies[1]!.messages.find(message => message.role === 'tool' && message.tool_call_id === 'schema-read');
     assert.ok(returned, 'the actual Pi request must carry the schema receipt');
     assert.equal(returned.content, serialized, 'no truncation, summary or substituted schema reaches Pi');
+    const paired = bodies[1]!.messages as Array<{role: string; tool_calls?: Array<{id: string; function: {name: string}}>}>;
+    assert.ok(paired.some(message => message.role === 'assistant' && message.tool_calls?.some(call => call.id === 'schema-read' && call.function.name === 'get_world_schema')), 'the complete receipt must retain its actual call');
+    const requestBytes = bodies.map(body => Buffer.byteLength(JSON.stringify(body)));
+    assert.ok(requestBytes.every(bytes => bytes <= CHAT_REQUEST_BYTES), 'every actual product Pi request obeys the hard byte budget');
     const receipt = done.messages.find(message => message.role === 'tool' && message.toolName === 'get_world_schema');
     assert.ok(receipt); assert.equal(receipt.content, serialized);
     assert.equal(w.agentChat.get(chat.id).messages.find(message => message.id === receipt.id)!.content, serialized);
@@ -100,7 +105,7 @@ test('schema tool: commands, HTTP, MCP and product Pi return the same complete r
     assert.equal(done.status, 'idle');
     assert.equal(w.sources.list().length, 0); assert.equal(w.worlds.list().length, 0);
     assert.equal(w.worlds.listRevisions().length, 0); assert.equal(w.jobs.list().length, 0);
-    t.diagnostic(JSON.stringify({schemaChars: serialized.length, schemaBytes: Buffer.byteLength(serialized), tools: 78, automatic: 41, confirmed: 37, piRequests: calls, pendingCards: done.actions.length}));
+    t.diagnostic(JSON.stringify({schemaChars: serialized.length, schemaBytes: Buffer.byteLength(serialized), tools: 78, automatic: 41, confirmed: 37, piRequests: calls, pendingCards: done.actions.length, requestBytes, requestHardBytes: CHAT_REQUEST_BYTES}));
   } finally {fetchMock.mock.restore(); db.close();}
 });
 

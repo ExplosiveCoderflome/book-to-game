@@ -14,6 +14,69 @@ import { openDatabase } from '../src/platform/database.js';
 import { createModelSettings } from '../src/platform/create-model-settings.js';
 import { createApp } from '../src/adapters/http/app.js';
 import { streamChatReply } from './helpers/agent-pi.js';
+import { SqliteChatRepository } from '../src/modules/agent/index.js';
+
+test('agent conversation: over-limit stored history continues in the same chat through Pi and real confirmation', async t => {
+  const bodies: any[] = [];
+  let draftId = '';
+  const provider = createServer(async (req, res) => {
+    let raw = ''; for await (const chunk of req) raw += chunk;
+    const input = JSON.parse(raw); bodies.push(input);
+    streamChatReply(res, bodies.length === 1 ? {tool_calls: [{id: 'recovery-read', type: 'function', function: {name: 'read_world_draft', arguments: JSON.stringify({id: draftId, summary: true})}}]}
+      : bodies.length === 2 ? {tool_calls: [{id: 'recovery-edit', type: 'function', function: {name: 'edit_world_summary', arguments: JSON.stringify({id: draftId, version: 1, title: '同会话恢复后的标题'})}}]}
+      : {content: '成功写入回执已保存，仍在原对话。'});
+  }).listen(0, '127.0.0.1'); await once(provider, 'listening');
+  const dir = mkdtempSync(path.join(tmpdir(), 'btg-agent-chat-test-'));
+  const db = openDatabase(path.join(dir, 'recovery.sqlite'));
+  const settings = createModelSettings(db, dir, {baseUrl: `http://127.0.0.1:${(provider.address() as {port: number}).port}/v1`, model: 'local-chat-test', apiKey: '', timeoutMs: 3000});
+  const w = createWorkbench(db, settings, undefined, {dataDir: dir});
+  try {
+    const content = worldContentSchema.parse(JSON.parse(readFileSync(new URL('../../../fixtures/s1/route-coverage.engine.json', import.meta.url), 'utf8')));
+    const source = w.sources.importFile({title: '隔离恢复测试', filename: 'test.txt', bytes: Buffer.from('第一章\n恢复测试。')});
+    content.sourceChapterIds = [source.chapters[0]!.id];
+    const draft = w.worlds.create({sourceId: source.id, content}); draftId = draft.id;
+    const repository = new SqliteChatRepository(db);
+    const chat = w.agentChat.create();
+    const now = new Date().toISOString();
+    chat.messages.push({id: 'old-intent', role: 'user', content: '最初的创作要求', requestId: 'old-request', createdAt: now});
+    chat.messages.push({id: 'old-proposal', role: 'assistant', content: '', createdAt: now, toolCalls: [{id: 'old-create-call', name: 'create_world_from_idea', arguments: {requestId: 'old-write-key'}}]});
+    chat.messages.push({id: 'old-receipt', role: 'tool', toolCallId: 'old-create-call', toolName: 'create_world_from_idea', content: JSON.stringify({id: draft.id, version: 1}), createdAt: now});
+    chat.actions.push({id: 'old-action', callId: 'old-create-call', toolName: 'create_world_from_idea', arguments: {requestId: 'old-write-key'}, guard: 'old-guard', summary: '已确认创建', status: 'succeeded', result: JSON.stringify({id: draft.id, version: 1}), createdAt: now, updatedAt: now});
+    for (let i = 0; i < 300; i++) chat.messages.push({id: `old-${i}`, role: 'assistant', content: '旧目录内容'.repeat(1000), createdAt: now});
+    const stored = repository.save(chat, chat.version);
+    const reloaded = createWorkbench(db, settings, undefined, {dataDir: dir});
+    assert.equal(reloaded.agentChat.get(chat.id).messages.length, 303);
+    const pending = await reloaded.agentChat.send({id: chat.id, requestId: 'recover-history', text: '保留当前世界，在同一对话修改标题'});
+    assert.equal(pending.actions.at(-1)?.status, 'pending');
+    assert.equal(w.worlds.get(draft.id).version, 1);
+    assert.equal(bodies.length, 2);
+    assert.ok(bodies[0].messages.some((m: any) => m.role === 'user' && m.content === '保留当前世界，在同一对话修改标题'));
+    assert.ok(JSON.stringify(bodies[0].messages).includes(draft.id), 'old successful create provenance survives the working window');
+    const action = pending.actions.at(-1)!;
+    const done = await reloaded.agentChat.decide({id: chat.id, actionId: action.id, decision: 'confirm'});
+    assert.equal(done.id, chat.id); assert.equal(w.worlds.get(draft.id).version, 2);
+    assert.equal(done.actions.at(-1)?.status, 'succeeded');
+    assert.deepEqual(done.actions[0], stored.actions[0]);
+    assert.deepEqual(done.messages.slice(0, 303), stored.messages);
+    await reloaded.agentChat.decide({id: chat.id, actionId: action.id, decision: 'confirm'});
+    await reloaded.agentChat.decide({id: chat.id, actionId: 'old-action', decision: 'confirm'});
+    await reloaded.agentChat.send({id: chat.id, requestId: 'recover-history', text: '保留当前世界，在同一对话修改标题'});
+    assert.equal(bodies.length, 3); assert.equal(w.worlds.get(draft.id).version, 2);
+    for (const body of bodies) {
+      const pendingIds = new Set<string>();
+      for (const message of body.messages) {
+        if (message.role === 'tool') assert.ok(pendingIds.delete(message.tool_call_id), 'tool result must follow a matching call');
+        else {assert.equal(pendingIds.size, 0); for (const call of message.tool_calls ?? []) pendingIds.add(call.id);}
+      }
+      assert.equal(pendingIds.size, 0);
+      assert.equal(body.tools.length, 78);
+      assert.ok(Buffer.byteLength(JSON.stringify(body)) < 512 * 1024);
+    }
+    t.diagnostic(JSON.stringify({event: 'chat.test.history_recovery', persistedMessages: done.messages.length, requestBytes: bodies.map(body => Buffer.byteLength(JSON.stringify(body))), toolsBytes: Buffer.byteLength(JSON.stringify(bodies[0].tools))}));
+  } finally {
+    await new Promise<void>(resolve => provider.close(() => resolve())); db.close(); rmSync(dir, {recursive: true, force: true});
+  }
+});
 
 test('agent conversation: real provider protocol, shared tools, author confirmation, HTTP/MCP history and replay', async () => {
   let calls = 0;

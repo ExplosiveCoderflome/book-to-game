@@ -11,6 +11,8 @@ export interface ChatModel {
 }
 export interface ChatRunHooks {
   maxRounds: number;
+  /** Read-only durable evidence; never an authorization or an execution queue. */
+  recovery?(): Pick<AgentChatConversation, 'id' | 'actions'>;
   startTurn(): void;
   assistant(reply: {text: string; calls: AgentChatToolCall[]}, final: boolean): void;
   execute(call: AgentChatToolCall): Promise<{content: string; proposed: boolean}>;
