@@ -49,6 +49,7 @@ export function createWorkbench(db: SqliteDatabase, modelSettings: ModelSettings
   const worldRepository = new SqliteWorldRepository(db);
   let preflightRef: PreflightService | undefined;
   const worlds = new WorldService(worldRepository, sources, () => buildingLibrary.assetIds(), {allowMockPublish, traceProvenance,
+    validateBlocks: content => {validateSelectedBlocks(content, content.blockSelections ?? [], blockLibrary);},
     extensionPublishGate: new ExtensionPublishService(new SqliteExtensionReviewStore(db)),
     playtest: id => preflightRepository.get('world', id).playtest,
     publishQualityGate: draft => assertWorldPublishQuality(worlds, draft, preflightRepository.get('world', draft.id).playtest),

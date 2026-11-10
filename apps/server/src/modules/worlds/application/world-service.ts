@@ -1,3 +1,5 @@
+import {compileWorldPackage, splitWorldPackage} from '../../world-package/index.js';
+import type {WorldPackage} from '@novel-game/contracts';
 import { randomUUID } from 'node:crypto';
 import { lintWorld } from '@novel-game/rules/preflight';
 import { authorReadSchema, worldContentSchema, type AuthorReadInput, type DraftProvenance, type PlaytestReport, type ResourceDef, type Storylet, type StoryletChoice, type WorldCondition, type WorldContent, type WorldDraft, type WorldEffect, type WorldRevision, type ValidationResult } from '@novel-game/contracts';
@@ -16,12 +18,13 @@ export class WorldService {
     private readonly buildingAssetIds: () => ReadonlySet<string> | readonly string[] | undefined = () => undefined,
     /** S1 ⑦: mock-generated drafts are publishable only in test environments. */
     private readonly policy: {allowMockPublish?: boolean; traceProvenance?: (draftId: string) => DraftProvenance | undefined; playtest?: (draftId: string) => PlaytestReport | undefined;
+      validateBlocks?: (content: WorldContent) => void;
       extensionPublishGate?: {review(draft: WorldDraft): Promise<void>; assertAccepted(candidate: WorldDraft | WorldRevision): void};
       publishQualityGate?: (draft: WorldDraft) => void; upgradeQualityContract?: (draft: WorldDraft) => void} = {},
   ) {}
   /** `trusted` = the generation runner. Other callers may mark a draft mock, but cannot claim a non-mock provenance. */
-  create(input: {sourceId: string; content: WorldContent}, opts: {trusted?: boolean} = {}): WorldDraft {
-    const parsed = worldContentSchema.parse(input.content); this.sourceReader.get(input.sourceId);
+  create(input: {sourceId: string; content: WorldContent | WorldPackage}, opts: {trusted?: boolean} = {}): WorldDraft {
+    const parsed = worldContentSchema.parse(materialize(input.content)); this.sourceReader.get(input.sourceId);
     const {provenance: claimed, ...rest} = parsed;
     const provenance = (claimed && (opts.trusted || claimed.generator === 'mock') ? claimed : undefined) ?? this.mockTwin(rest);
     const content: WorldContent = provenance ? {...rest, provenance} : rest;
@@ -31,10 +34,10 @@ export class WorldService {
     this.repository.capturePreservationBaseline(draft.id, makePreservationBaseline(draft.id, draft.version, draft.content));
     return draft;
   }
-  update(id: string, input: {version: number; content: WorldContent}): WorldDraft {
+  update(id: string, input: {version: number; content: WorldContent | WorldPackage}): WorldDraft {
     assertVersion(input.version); const previous = this.get(id);
     if (previous.version !== input.version) throw new AppError('DRAFT_VERSION_CONFLICT', '草稿已更新，请刷新后编辑', 409);
-    const parsed = worldContentSchema.parse(input.content);
+    const parsed = worldContentSchema.parse(materialize(input.content));
     // Provenance is sticky: an edit cannot launder a mock draft by dropping or rewriting the stamp.
     const content = previous.content.provenance ? {...parsed, provenance: previous.content.provenance} : parsed;
     let baseline = normalizePreservationBaseline(this.getOrCapturePreservationBaseline(previous), previous.content);
@@ -238,6 +241,11 @@ export class WorldService {
     }
     return this.publishRevision(draft);
   }
+  /** Explicit author-side package projection; default model reads stay bounded and unchanged. */
+  readPackage(id: string) {
+    const draft = this.get(id);
+    return {id: draft.id, version: draft.version, sourceId: draft.sourceId, package: splitWorldPackage(draft.content)};
+  }
   /** Shared HTTP/MCP/author publish command prepares async, deterministic extension evidence only. */
   async preparePublish(id: string, input: {version: number}): Promise<void> {
     assertVersion(input.version);
@@ -258,6 +266,10 @@ export class WorldService {
     this.policy.extensionPublishGate.assertAccepted(candidate);
   }
   private assertPublishFloor(draft: WorldDraft): void {
+    if (draft.content.blockSelections?.length) {
+      if (!this.policy.validateBlocks) throw new AppError('BLOCK_CATALOG_UNAVAILABLE', '缺少服务端积木目录校验，已拒绝发布', 503);
+      this.policy.validateBlocks(structuredClone(draft.content));
+    }
     const validation = validateWorld(draft.content, this.sourceReader.get(draft.sourceId), {buildingAssetIds: this.buildingAssetIds()});
     if (!validation.valid) throw new AppError('INVALID_WORLD', '世界草稿未通过发布校验', 400, validation);
     if (!this.policy.allowMockPublish) this.assertNotMock(draft);
@@ -273,7 +285,9 @@ export class WorldService {
       throw new AppError('PLAYTEST_BLOCKED', `快速试玩未通过最低局长门禁：${tooShort.measured}`, 422, {playtest});
   }
   private publishRevision(draft: WorldDraft): WorldRevision {
-    return this.repository.publish({id: randomUUID(), draftId: draft.id, sourceId: draft.sourceId, version: draft.version, content: draft.content, createdAt: new Date().toISOString()});
+    const compiled = compileWorldPackage(splitWorldPackage(draft.content));
+    return this.repository.publish({id: randomUUID(), draftId: draft.id, sourceId: draft.sourceId, version: draft.version,
+      content: compiled.world as unknown as WorldContent, packageManifest: compiled.manifest, createdAt: new Date().toISOString()});
   }
   effectiveProvenance(draft: WorldDraft): DraftProvenance | undefined {
     return draft.content.provenance ?? this.policy.traceProvenance?.(draft.id) ?? this.mockTwin(draft.content, draft.id);
@@ -362,4 +376,11 @@ function removeAt<T>(items: readonly T[], index: number, label: string): T[] {
 }
 function assertVersion(version: number): void {
   if (!Number.isSafeInteger(version) || version < 1) throw new AppError('INVALID_VERSION', '草稿版本必须为正整数', 400);
+}
+
+function materialize(content: WorldContent | WorldPackage): unknown {
+  if (!Object.hasOwn(content, 'manifest') || !Object.hasOwn(content, 'files')) return content;
+  const compiled = compileWorldPackage(content);
+  if (Object.hasOwn(compiled.world, 'checks')) throw new AppError('WORLD_PACKAGE_CHECKS_UNSUPPORTED', 'checks.json 尚未接入本运行时的阈值配置，不能忽略声明后保存或发布', 422);
+  return compiled.world;
 }

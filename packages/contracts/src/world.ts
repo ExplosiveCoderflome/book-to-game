@@ -1,3 +1,4 @@
+import type {WorldPackageManifest} from './world-package.js';
 import { z } from 'zod';
 import { worldbookSchema } from './worldbook.js';
 import { worldMapSchema, type MapFillIcon } from './world-map.js';
@@ -394,7 +395,7 @@ export type WorldEffect = z.infer<typeof worldEffectSchema>;
 export type WorldBaseEffect = z.infer<typeof worldBaseEffectSchema>;
 export type WorldRollEffect = z.infer<typeof worldRollEffectSchema>;
 export interface WorldDraft {id: string; sourceId: string; content: WorldContent; version: number; createdAt: string; updatedAt: string; qualityContractVersion?: number}
-export interface WorldRevision {id: string; draftId: string; sourceId: string; content: WorldContent; version: number; createdAt: string}
+export interface WorldRevision {id: string; draftId: string; sourceId: string; content: WorldContent; version: number; createdAt: string; packageManifest?: WorldPackageManifest}
 export const adventureActSchema = z.object({actionId: id, expectedTurn: z.number().int().nonnegative(), requestId: z.string().uuid()});
 export type AdventureActInput = z.infer<typeof adventureActSchema>;
 export interface AdventureHistory {turn: number; elapsed: number; actionLabel?: string; text: string}

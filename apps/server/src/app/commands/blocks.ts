@@ -7,9 +7,10 @@ import { command } from './definition.js';
 /** 内置目录默认保持不变；存在作者自定义覆盖时读取合并后的有效目录。 */
 export function blocksCommands(w?: Workbench) {
   return [
-    command('list_blocks', '目录当前可复用积木（BlockSpec，含 shelves/funTags/requires/composesWith/params/provides/acceptance）与货架元数据，只读；可按 funTag 过滤。',
+    command('list_blocks', '目录当前可复用积木（BlockSpec，含 shelves/funTags/requires/composesWith/params/provides/acceptance）与货架元数据，只读；可按 funTag 过滤。K契约和示例按需用get_block读取，列表不展开engine详情。',
       z.object({funTag: funTagSchema.optional()}), true, input => {
-        const blocks = (w?.blockLibrary?.effective('block') ?? getBlockCatalog()).filter(block => !input.funTag || block.funTags.includes(input.funTag!));
+        const blocks = (w?.blockLibrary?.effective('block') ?? getBlockCatalog()).filter(block => !input.funTag || block.funTags.includes(input.funTag!))
+          .map(({engine: _details, ...summary}) => summary);
         const lint = w?.blockLibrary?.view().issues.filter(issue => issue.kind === 'block') ?? lintBlocks();
         return {blocks, shelves: getBlockShelves(), lint};
       }),

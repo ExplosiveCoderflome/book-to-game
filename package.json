@@ -27,7 +27,8 @@
     "verify": "npm run check:architecture && npm test && npm run build && npm run test:built",
     "build:player": "npm run build:player --workspace @novel-game/web",
     "dev:agent": "tsx watch --env-file-if-exists=.env apps/server/src/agent.ts",
-    "agent": "node --env-file-if-exists=.env dist/server/agent.mjs"
+    "agent": "node --env-file-if-exists=.env dist/server/agent.mjs",
+    "world:pack": "tsx scripts/world-pack.ts"
   },
   "dependencies": {
     "@mariozechner/pi-agent-core": "^0.73.1",

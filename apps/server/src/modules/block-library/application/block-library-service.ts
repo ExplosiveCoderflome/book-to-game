@@ -169,7 +169,7 @@ function mergeEntries<K extends CatalogKind>(kind: K, builtins: readonly Catalog
 }
 
 const BREAKING_FIELDS: Record<CatalogKind, readonly string[]> = {
-  block: ['requires', 'composesWith', 'params', 'provides', 'acceptance'],
+  block: ['requires', 'composesWith', 'params', 'provides', 'acceptance', 'engine'],
   'fun-profile': ['suggestedBlocks', 'pacingLine', 'strategies', 'thresholds', 'metricMatrix'],
   'stat-template': ['variables', 'promptHint'],
   'simulation-strategy': ['baseStrategy'],

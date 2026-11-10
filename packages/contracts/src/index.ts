@@ -1,3 +1,5 @@
+export * from './engine-blocks.js';
+export * from './world-package.js';
 import { z } from 'zod';
 import { productionBriefSchema, type ProductionBrief, type ProductionState, type ProductionPlanningState } from './production.js';
 export * from './production.js';

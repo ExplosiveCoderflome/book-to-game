@@ -31,7 +31,7 @@ test('block library: built-ins stay read-only and migration is idempotent', () =
   try {
     const catalog = service(db);
     new SqliteBlockCatalogRepository(db);
-    assert.equal(catalog.list('block').length, 21);
+    assert.equal(catalog.list('block').length, 22);
     assert.equal(catalog.list('fun-profile').length, 5);
     assert.equal(catalog.list('stat-template').length, 4);
     assert.equal(catalog.list('simulation-strategy').length, 9);
@@ -83,9 +83,9 @@ test('block library: custom entries persist in SQLite and can be deleted when un
     db = openDatabase(file);
     catalog = service(db);
     assert.equal(catalog.get('block', custom.id).data.label, '作者时钟');
-    assert.equal(catalog.list('block').length, 22);
+    assert.equal(catalog.list('block').length, 23);
     catalog.delete('block', {id: custom.id, expectedVersion: 1});
-    assert.equal(catalog.list('block').length, 21);
+    assert.equal(catalog.list('block').length, 22);
     db.close();
   } finally { rmSync(dir, {recursive: true, force: true}); }
 });

@@ -1,3 +1,4 @@
+import {engineBlockContractSchema, K_BLOCK_CONTRACTS} from './engine-blocks.js';
 import { z } from 'zod';
 import { funTagSchema, funMetricIdSchema } from './fun-profiles.js';
 
@@ -71,7 +72,7 @@ export type SubstrateContract = z.infer<typeof substrateContractSchema>;
 export const BLOCK_PROVIDES = [
   'variables', 'resource-defs', 'locations', 'map.fill', 'building-library',
   'item-catalog', 'storylets', 'endings', 'recap', 'clock', 'encounters', 'preflight-sim',
-  'actions', 'facts', 'ledger-assertions', 'ai-overlay',
+  'actions', 'facts', 'ledger-assertions', 'ai-overlay', 'save-snapshot',
 ] as const;
 export const blockProvideSchema = z.enum(BLOCK_PROVIDES);
 export type BlockProvide = z.infer<typeof blockProvideSchema>;
@@ -85,6 +86,7 @@ export const blockParamSchema = z.object({
   default: z.union([z.string().max(500), z.number().finite(), z.boolean(), z.array(z.union([z.string().max(80), z.number().finite()]))]).optional(),
   /** Whether authors must provide a value when neither a default nor select option exists. Defaults to required. */
   required: z.boolean().optional(),
+  min: z.number().finite().optional(), max: z.number().finite().optional(),
   /** Required for `select`: allowed values (first is default when no explicit default). */
   options: z.array(z.string().min(1).max(80)).optional(),
 });
@@ -116,11 +118,16 @@ export const blockSpecSchema = z.object({
   acceptance: z.array(funMetricIdSchema).max(16),
   /** 积木商店货架归属（浏览分区，可多选）；至少一条，不绑死玩法。 */
   shelves: z.array(blockShelfIdSchema).min(1).max(BLOCK_SHELF_IDS.length),
+  engine: engineBlockContractSchema.optional(),
 }).superRefine((block, ctx) => {
+  if (block.engine?.checks.some(check => !block.acceptance.includes(check))) ctx.addIssue({code: 'custom', message: 'engine checks must be declared acceptance metrics'});
   const names = new Set<string>();
   for (const [index, param] of block.params.entries()) {
     if (names.has(param.key)) ctx.addIssue({code: 'custom', message: `duplicate param key: ${param.key}`, path: ['params', index, 'key']});
     names.add(param.key);
+    if ((param.min !== undefined || param.max !== undefined) && !['number', 'integer'].includes(param.type)) ctx.addIssue({code: 'custom', message: 'bounds require a numeric parameter', path: ['params', index]});
+    if (param.min !== undefined && param.max !== undefined && param.min > param.max) ctx.addIssue({code: 'custom', message: 'min must not exceed max', path: ['params', index]});
+    if (typeof param.default === 'number' && ((param.min !== undefined && param.default < param.min) || (param.max !== undefined && param.default > param.max))) ctx.addIssue({code: 'custom', message: 'default outside bounds', path: ['params', index]});
     if (param.type === 'select' && !param.options?.length) {
       ctx.addIssue({code: 'custom', message: `select param ${param.key} requires options`, path: ['params', index, 'options']});
     }
@@ -154,7 +161,7 @@ const RAW_BLOCKS = [
     composesWith: {dependsOn: ['stat-templates'], conflictsWith: []},
     params: [{key: 'enabled', label: '启用开局投掷', type: 'boolean', default: false},
       {key: 'mode', label: '投掷模式', type: 'select', options: ['perStat', 'pointBuy', 'preset'], default: 'perStat'},
-      {key: 'rerolls', label: '重掷次数', type: 'integer', default: 2}],
+      {key: 'rerolls', label: '重掷次数', type: 'integer', default: 2, min: 0, max: 20}],
     provides: ['variables', 'resource-defs', 'facts', 'storylets'], acceptance: ['opening-roll-worst', 'opening-roll-best'], shelves: ['foundation'],
   },
   {
@@ -190,7 +197,7 @@ const RAW_BLOCKS = [
     funTags: ['mystery', 'pressure-release', 'healing-routine'], requires: ['world.storylets'],
     composesWith: {dependsOn: [], conflictsWith: []},
     params: [
-      {key: 'hand_size', label: '手牌数', type: 'integer', default: 3},
+      {key: 'hand_size', label: '手牌数', type: 'integer', default: 3, min: 1, max: 5},
       {key: 'refresh_on', label: '刷新时机', type: 'array', options: ['move', 'clock'], default: ['move']},
     ],
     provides: ['storylets'], acceptance: ['G4'], shelves: ['world-content'],
@@ -229,7 +236,7 @@ const RAW_BLOCKS = [
     composesWith: {dependsOn: [], conflictsWith: []},
     params: [
       {key: 'unit', label: '时间单位', type: 'select', options: ['day', 'week', 'month', 'year'], default: 'month'},
-      {key: 'limit', label: '期限刻度', type: 'integer', default: 24},
+      {key: 'limit', label: '期限刻度', type: 'integer', default: 24, min: 1, max: 2400},
       {key: 'countdown_resource', label: '倒计时资源', type: 'string', description: '可选资源倒计时。'},
     ],
     provides: ['clock'], acceptance: ['G6'], shelves: ['foundation'],
@@ -381,7 +388,15 @@ const RAW_BLOCKS = [
 ] as const;
 
 /** Shipped blocks — validated at module load so catalog drift fails fast. */
-export const BLOCKS: readonly BlockSpec[] = RAW_BLOCKS.map(block => blockSpecSchema.parse(block));
+const snapshotBlock = {
+  id: 'state-snapshot', version: 1, label: '存档状态快照', blurb: 'K14 既有存档契约：保留随机游标、手牌、卡池次数、动态上限和时钟结算；加载只读，不增加平行状态机。',
+  funTags: [], requires: [], composesWith: {dependsOn: [], conflictsWith: []}, params: [],
+  provides: ['save-snapshot'], acceptance: [], shelves: ['foundation', 'ops'],
+} as const;
+export const BLOCKS: readonly BlockSpec[] = [...RAW_BLOCKS, snapshotBlock].map(block => {
+  const descriptor = K_BLOCK_CONTRACTS[block.id];
+  return blockSpecSchema.parse({...block, ...(descriptor ? {engine: {...descriptor, checks: block.acceptance}} : {})});
+});
 
 export function getBlock(id: string | undefined | null): BlockSpec | undefined {
   if (!id) return undefined;

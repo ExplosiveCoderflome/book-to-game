@@ -133,6 +133,7 @@ export function validateSelectedBlocks(content: WorldContent, selections: Select
           && (param.type === 'number' || param.type === 'integer' ? Number.isFinite(value) : true)
           && (param.type !== 'integer' || Number.isInteger(value));
       if (!matches) invalid(`积木 ${spec.id} 参数类型/选项错误：${param.key}`);
+      if (typeof value === 'number' && ((param.min !== undefined && value < param.min) || (param.max !== undefined && value > param.max))) invalid(`积木 ${spec.id} 参数超出范围：${param.key}`);
       params[param.key] = value;
     }
     for (const key of Object.keys(selection.params)) if (!spec.params.some(param => param.key === key)) invalid(`积木 ${spec.id} 未知参数：${key}`);
