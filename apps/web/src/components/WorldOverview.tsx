@@ -44,6 +44,7 @@ export function WorldOverview({ content: w, focusLocationId }: Props) {
     : e.kind === 'ending' ? t('结局「{title}」', { title: w.endings.find(x => x.id === e.endingId)?.title ?? e.endingId })
     : e.kind === 'roll' ? t('判定 {chance}：成功 {success}；失败 {failure}', { chance: `${Math.round(e.chance.base * 100)}%`, success: e.success.map(effect).join('，') || '—', failure: e.failure.map(effect).join('，') || '—' })
     : e.kind === 'extension' ? t('扩展效果 {id}', {id: e.extensionId})
+    : e.kind === 'ledger' ? t('账本{op}「{fact}」', { op: t(({ acquire: '入手', release: '交出', consume: '消耗', commit: '承诺', fulfill: '兑现' })[e.operation]), fact: fact(e.factId) })
     : t('「{fact}」变为{value}', { fact: fact(e.factId), value: truth(e.value) });
   const provenance = (v: { origin: 'source' | 'adapted'; evidence: { chapterId: string; paragraphId: string }[] }) => <div className="hint">{t(v.origin === 'source' ? '依据原作' : '改编新增')} · {t('{count} 处证据', { count: v.evidence.length })}{v.evidence.length > 0 && <details><summary>{t('证据标识')}</summary>{v.evidence.map((e, i) => <div key={i}><code>{e.chapterId} / {e.paragraphId}</code></div>)}</details>}</div>;
 
