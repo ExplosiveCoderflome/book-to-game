@@ -13,6 +13,7 @@ import {
   type AdventureState,
 } from '@novel-game/play-runtime';
 import { validateWorld } from '../src/modules/worlds/domain/validate-world.js';
+import { seedWorldRevision } from './helpers/runtime-revision-fixture.js';
 
 const load = (batch: string): WorldContent => worldContentSchema.parse(JSON.parse(readFileSync(new URL(`../../../fixtures/s1/shoudeng.${batch}.content.json`, import.meta.url), 'utf8')));
 const gold = (): WorldContent => load('batch2');
@@ -231,7 +232,7 @@ test('S1 parity: server AdventureService and offline LocalAdventurePort with the
     const worlds = new WorldService(new SqliteWorldRepository(db), {get: () => structuredClone(source) as never});
     const server = new AdventureService(new SqliteAdventureRepository(db), worlds, {}, mk());
     const draft = worlds.create({sourceId: source.id, content: gold()});
-    const revision = worlds.publish(draft.id, {version: 1});
+    const revision = seedWorldRevision(db, draft);
     const local = createLocalAdventurePort(structuredClone(revision), {buildingLibrary: {schemaVersion: 1, assets: []} as never, itemCatalog: {schemaVersion: 1, items: []} as never}, {packageId: 'pkg-s1', store: new MemorySaveStore(), ...mk()});
     let a = server.start({worldRevisionId: revision.id}); let b = local.start(revision.id);
     assert.deepEqual(b, a);

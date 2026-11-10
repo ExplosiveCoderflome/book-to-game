@@ -4,7 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { content } from './helpers/open-fixture.js';
 import type { WorldContent, WorldMap } from '@novel-game/contracts';
 import { locationMap, mapPath, validateSubMaps } from '@novel-game/rules';
-import { playMap, startWith } from './helpers/map-fixture.js';
+import { playMap } from './helpers/map-fixture.js';
+import { startRuntimeWorld as startWith } from './helpers/runtime-revision-fixture.js';
 
 const city = (over: Partial<WorldMap> = {}): WorldMap => ({ mapSchemaVersion: 1, id: 'market_map', name: '集市街区', parent: { mapId: 'root', locationId: 'market' },
   geometry: { kind: 'hex', orientation: 'pointy', cols: 6, rows: 4, size: 28 }, fog: true, layers: {}, pois: [{ locationId: 'stall', anchor: { cell: '1,1' } }], ...over });

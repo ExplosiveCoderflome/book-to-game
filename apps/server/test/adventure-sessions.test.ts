@@ -10,6 +10,7 @@ import { AdventureService, SqliteAdventureRepository } from '../src/modules/adve
 import { source, content } from './helpers/open-fixture.js';
 import type { WorldContent } from '@novel-game/contracts';
 import { AppError } from '../src/shared/errors.js';
+import { seedWorldRevision } from './helpers/runtime-revision-fixture.js';
 const status = (n: number) => (e: unknown) => e instanceof AppError && e.status === n;
 function setup(db: Database) {
   const worlds = new WorldService(new SqliteWorldRepository(db), {get: () => structuredClone(source)});
@@ -17,24 +18,23 @@ function setup(db: Database) {
 }
 function start(db: Database, world: WorldContent = content()) {
   const services = setup(db); const draft = services.worlds.create({sourceId: source.id, content: world});
-  const revision = services.worlds.publish(draft.id, {version: 1});
+  const revision = seedWorldRevision(db, draft);
   return {...services, draft, revision, view: services.adventures.start({worldRevisionId: revision.id})};
 }
 const input = (actionId: string, expectedTurn: number) => ({actionId, expectedTurn, requestId: randomUUID()});
 
 test('a stranded player can wait one tick, advance events and reach timeout without a soft lock', () => {
   const db = new Database(':memory:'); try {
-    // Bypass publish opening-density gate: insert a stranded revision directly (all authored actions elsewhere).
+    // Runtime recovery fixture: all authored actions are elsewhere; no publishing assertion.
     const worlds = new WorldService(new SqliteWorldRepository(db), {get: () => structuredClone(source)});
     const adventures = new AdventureService(new SqliteAdventureRepository(db), worlds);
-    const draft = worlds.create({sourceId: source.id, content: content()});
     const stranded = content();
     stranded.actions.forEach(action => {action.locationId = 'market';});
     stranded.timeLimit = 3;
-    const revision = new SqliteWorldRepository(db).publish({
-      id: randomUUID(), draftId: draft.id, sourceId: source.id, version: draft.version,
-      content: stranded, createdAt: new Date().toISOString(),
-    });
+    const draft = worlds.create({sourceId: source.id, content: stranded});
+    const revision = seedWorldRevision(db, draft);
+    assert.throws(() => db.prepare('UPDATE world_revisions SET data=data WHERE id=?').run(revision.id), /immutable/);
+    assert.throws(() => db.prepare('DELETE FROM world_revisions WHERE id=?').run(revision.id), /immutable/);
     const view = adventures.start({worldRevisionId: revision.id});
     assert.equal(view.actions.find(action => action.id === '__wait__')?.enabled, true);
     assert.ok(view.actions.filter(a => a.id !== '__wait__' && a.enabled).length === 0);
@@ -102,7 +102,9 @@ test('successful actions settle time events once, then endings and remain pinned
   const db = new Database(':memory:'); try {
     const {adventures, worlds, view, draft, revision} = start(db);
     adventures.act(view.id, input('search', 0));
-    const changed = content(); changed.actions[1].text = '后来版本'; worlds.update(draft.id, {version: 1, content: changed}); worlds.publish(draft.id, {version: 2});
+    const changed = content(); changed.actions[1].text = '后来版本';
+    const updated = worlds.update(draft.id, {version: 1, content: changed});
+    seedWorldRevision(db, updated);
     const ended = adventures.act(view.id, input('ask', 1));
     assert.equal(ended.turn, 2); assert.equal(ended.elapsed, 3); assert.equal(ended.worldRevisionId, revision.id);
     assert.equal(ended.ending?.id, 'success'); assert.equal(ended.history.at(-1)?.text, '守门人给予许可。\n钟声响起。');

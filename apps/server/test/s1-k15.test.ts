@@ -11,6 +11,7 @@ import { btgWorldFileToContent, lintWorld } from '@novel-game/rules/preflight';
 import { advanceAdventure, createAdventureState, projectAdventure, resolveEnding, type AdventureState } from '@novel-game/play-runtime';
 import { simulateWorld } from '@novel-game/play-runtime/sim';
 import { validateWorld } from '../src/modules/worlds/domain/validate-world.js';
+import { seedWorldRevision } from './helpers/runtime-revision-fixture.js';
 
 const NOW = '2026-10-28T00:00:00Z';
 const gold = (): WorldContent => worldContentSchema.parse(JSON.parse(readFileSync(new URL('../../../fixtures/s1/shoudeng.batch3.content.json', import.meta.url), 'utf8')));
@@ -134,7 +135,7 @@ test('K15 parity: server AdventureService and offline LocalAdventurePort reach t
     const worlds = new WorldService(new SqliteWorldRepository(db), {get: () => structuredClone(source) as never});
     const server = new AdventureService(new SqliteAdventureRepository(db), worlds, {}, mk());
     const draft = worlds.create({sourceId: source.id, content: dying()});
-    const revision = worlds.publish(draft.id, {version: 1});
+    const revision = seedWorldRevision(db, draft);
     const local = createLocalAdventurePort(structuredClone(revision), {buildingLibrary: {schemaVersion: 1, assets: []} as never, itemCatalog: {schemaVersion: 1, items: []} as never}, {packageId: 'pkg-k15p', store: new MemorySaveStore(), ...mk()});
     let a = server.start({worldRevisionId: revision.id}); let b = local.start(revision.id);
     for (let i = 0; i < 24 && !a.ended; i++) {

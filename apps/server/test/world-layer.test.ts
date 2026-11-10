@@ -4,7 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { content } from './helpers/open-fixture.js';
 import type { WorldContent } from '@novel-game/contracts';
 import { eraMap, strongholds, validateWorldLayer } from '@novel-game/rules';
-import { playMap, startWith } from './helpers/map-fixture.js';
+import { playMap } from './helpers/map-fixture.js';
+import { startRuntimeWorld as startWith } from './helpers/runtime-revision-fixture.js';
 
 function world(fog = false): WorldContent {
   const w = content(); w.map = playMap(fog);

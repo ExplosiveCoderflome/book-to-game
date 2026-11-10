@@ -5,7 +5,8 @@ import { content } from './helpers/open-fixture.js';
 import type { WorldContent } from '@novel-game/contracts';
 import { worldContentSchema } from '@novel-game/contracts';
 import { applySetFactionRelation, applyTerritoryOverlay, effectiveRelation, evalWorldCondition, worldConditionKinds, worldEffectKinds } from '@novel-game/rules';
-import { playMap, startWith } from './helpers/map-fixture.js';
+import { playMap } from './helpers/map-fixture.js';
+import { startRuntimeWorld as startWith } from './helpers/runtime-revision-fixture.js';
 
 const input = (actionId: string, expectedTurn: number) => ({ actionId, expectedTurn, requestId: randomUUID() });
 

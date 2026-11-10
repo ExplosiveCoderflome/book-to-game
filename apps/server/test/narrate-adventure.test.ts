@@ -7,6 +7,7 @@ import { clearAdventureNarrateCache, narrateAdventure } from '../src/modules/adv
 import { source, content } from './helpers/open-fixture.js';
 import type { WorldContent } from '@novel-game/contracts';
 import { AppError } from '../src/shared/errors.js';
+import { seedWorldRevision } from './helpers/runtime-revision-fixture.js';
 
 function withWorldbook(world: WorldContent): WorldContent {
   return {
@@ -27,7 +28,7 @@ function setup() {
   const worlds = new WorldService(new SqliteWorldRepository(db), { get: () => structuredClone(source) });
   const adventures = new AdventureService(new SqliteAdventureRepository(db), worlds);
   const draft = worlds.create({ sourceId: source.id, content: withWorldbook(content()) });
-  const revision = worlds.publish(draft.id, { version: 1 });
+  const revision = seedWorldRevision(db, draft);
   const view = adventures.start({ worldRevisionId: revision.id });
   return { db, worlds, adventures, view };
 }

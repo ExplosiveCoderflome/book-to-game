@@ -8,7 +8,8 @@ import { source, content } from './helpers/open-fixture.js';
 import { createBuildingAsset, type BuildingLibrary, type WorldContent, type WorldMap } from '@novel-game/contracts';
 import { exploreLocation, lockMapStructure, revealAround } from '@novel-game/rules';
 
-import { playMap, startWith } from './helpers/map-fixture.js';
+import { playMap } from './helpers/map-fixture.js';
+import { startRuntimeWorld as startWith } from './helpers/runtime-revision-fixture.js';
 const input = (actionId: string, expectedTurn: number) => ({ actionId, expectedTurn, requestId: randomUUID() });
 
 test('revealAround: cell + radius-1 neighbours, clipped to bounds', () => {

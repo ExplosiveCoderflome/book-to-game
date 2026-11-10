@@ -16,6 +16,7 @@ import { createModelSettings } from '../src/platform/create-model-settings.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { seedWorldRevision } from './helpers/runtime-revision-fixture.js';
 
 test('play-ai: narration ok path caches per key, force bypasses, budget counts calls', async () => {
   clearPlayAiCache();
@@ -87,7 +88,7 @@ function setupAdventure() {
   const worlds = new WorldService(new SqliteWorldRepository(db), { get: () => structuredClone(source) });
   const adventures = new AdventureService(new SqliteAdventureRepository(db), worlds);
   const draft = worlds.create({ sourceId: source.id, content: content() });
-  const revision = worlds.publish(draft.id, { version: 1 });
+  const revision = seedWorldRevision(db, draft);
   const view = adventures.start({ worldRevisionId: revision.id });
   return { db, worlds, adventures, view };
 }
@@ -175,7 +176,7 @@ test('npc_dialog_adventure command is registered and soft-fails without a provid
     const imported = workbench.sources.importFile({title: '渡口', filename: 'story.txt', bytes: Buffer.from('第一章\n渡口有船。\n\n第二章\n秘密。')});
     const worldContent = {...content(), sourceChapterIds: imported.chapters.map(chapter => chapter.id)};
     const draft = worlds.create({sourceId: imported.id, content: worldContent});
-    const revision = worlds.publish(draft.id, {version: 1});
+    const revision = seedWorldRevision(db, draft);
     const view = workbench.adventures.start({worldRevisionId: revision.id});
     const result = await command.execute({id: view.id, npcId: 'keeper'}) as {status: string; text: string | null; reason: string | null};
     assert.equal(result.status, 'unavailable');

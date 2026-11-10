@@ -16,6 +16,7 @@ import {
 import type { AdventureView, GameContent, SessionView, SourceDocument } from '@novel-game/contracts';
 import { fillDemoWorld } from './helpers/fill-fixture.js';
 import { content as openContent, source as openSource } from './helpers/open-fixture.js';
+import { seedWorldRevision } from './helpers/runtime-revision-fixture.js';
 
 const storySource: SourceDocument = {id: 'source-story', title: '关卡', filename: 'gate.txt', encoding: 'utf8',
   chapterCount: 1, charCount: 8, createdAt: '2026-10-10T00:00:00Z',
@@ -103,7 +104,7 @@ for (const [name, world, src] of [
       const worlds = new WorldService(new SqliteWorldRepository(db), {get: () => structuredClone(src)});
       const adventures = new AdventureService(new SqliteAdventureRepository(db), worlds, {}, sc);
       const draft = worlds.create({sourceId: src.id, content: structuredClone(world)});
-      const revision = worlds.publish(draft.id, {version: 1});
+      const revision = seedWorldRevision(db, draft);
       const local = createLocalAdventurePort(structuredClone(revision), {buildingLibrary: {schemaVersion: 1, assets: []} as never, itemCatalog: {schemaVersion: 1, items: []} as never}, {packageId: 'pkg-open', store: new MemorySaveStore(), ...lc});
       // Empty snapshot must behave exactly like "no catalogs" on the server.
       let view = same('start', () => adventures.start({worldRevisionId: revision.id}), () => local.start(revision.id)) as AdventureView;
