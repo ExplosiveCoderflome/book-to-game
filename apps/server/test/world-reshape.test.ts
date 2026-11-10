@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
+import {createAssistantMessageEventStream, type Api, type AssistantMessage, type Context, type Model, type StreamOptions} from '@mariozechner/pi-ai';
 import {WorldService, SqliteWorldRepository} from '../src/modules/worlds/index.js';
 import {openDatabase} from '../src/platform/database.js';
 import {worldCommands} from '../src/app/commands/worlds.js';
 import {createAgentChatTools} from '../src/app/agent-chat-tools.js';
 import {AgentChatService, SqliteChatRepository} from '../src/modules/agent/index.js';
-import {scriptedChat} from './helpers/agent-pi.js';
+import {AgentChatCompletionsModel, emptyUsage} from '../src/platform/model/agent-chat.js';
 import {createWorkbench} from '../src/app/workbench.js';
 import {createCommands} from '../src/app/commands/index.js';
 import {createModelSettings} from '../src/platform/create-model-settings.js';
@@ -26,6 +27,22 @@ function fixture() {
   return {db, repository, worlds, draft, candidate, input, commands, tools};
 }
 const code = (expected: string) => (error: unknown) => (error as {code?: string}).code === expected;
+
+function scriptedChatWithTools(respond: (context: Context) => Promise<{text: string; calls: {id: string; name: string; arguments: Record<string, unknown>}[]}>) {
+  const stream = (_model: Model<Api>, context: Context, _options?: StreamOptions) => {
+    const stream = createAssistantMessageEventStream();
+    void respond(context).then(reply => {
+      const message: AssistantMessage = {role: 'assistant', content: [], api: 'openai-completions', provider: 'openai',
+        model: 'scripted-agent', usage: emptyUsage(), stopReason: reply.calls.length ? 'toolUse' : 'stop', timestamp: Date.now()};
+      const stopReason = reply.calls.length ? 'toolUse' as const : 'stop' as const;
+      message.content = [...(reply.text ? [{type: 'text' as const, text: reply.text}] : []), ...reply.calls.map(call => ({type: 'toolCall' as const, ...call}))];
+      stream.push({type: 'done', reason: stopReason, message});
+      stream.end();
+    });
+    return stream;
+  };
+  return new AgentChatCompletionsModel({baseUrl: 'http://localhost/v1', model: 'scripted-agent', apiKey: '', timeoutMs: 5000}, stream);
+}
 
 test('reshape: read-only proposal binds exact target/before/after, detailed loss summary; ordinary writes and command confirmation stay denied', async () => {
   const f = fixture();
@@ -54,11 +71,24 @@ test('reshape: read-only proposal binds exact target/before/after, detailed loss
 async function pending(f: ReturnType<typeof fixture>) {
   const proposal = f.worlds.proposeReshape(f.input);
   const args = {...f.input, diffHash: proposal.diffHash};
-  const replies = [{text: '', calls: [{id: 'reshape-call', name: 'confirm_world_reshape', arguments: args}]}];
+  const replies = [
+    {text: '', calls: [{id: 'reshape-discover', name: 'discover_agent_tools', arguments: {}}]},
+    {text: '', calls: [{id: 'reshape-select', name: 'select_agent_tools', arguments: {names: ['confirm_world_reshape']}}]},
+    {text: '', calls: [{id: 'reshape-call', name: 'confirm_world_reshape', arguments: args}]},
+  ];
+  const advertised: string[][] = [];
   const service = new AgentChatService({repository: new SqliteChatRepository(f.db), tools: () => f.tools,
-    model: () => scriptedChat(async () => replies.shift() ?? {text: '完成', calls: []})});
+    model: () => scriptedChatWithTools(async (context: Context) => {
+      advertised.push(context.tools!.map(tool => tool.name));
+      return replies.shift() ?? {text: '完成', calls: []};
+    })});
   const conversation = service.create();
   const result = await service.send({id: conversation.id, requestId: 'reshape-request', text: '提议重塑'});
+  assert.deepEqual(advertised, [
+    ['discover_agent_tools', 'select_agent_tools'],
+    ['discover_agent_tools', 'select_agent_tools'],
+    ['discover_agent_tools', 'select_agent_tools', 'confirm_world_reshape'],
+  ]);
   assert.equal(result.actions[0]?.status, 'pending');
   assert.equal(f.worlds.get(f.draft.id).version, 1);
   return {service, result, args};
