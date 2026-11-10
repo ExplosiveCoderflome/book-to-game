@@ -115,7 +115,9 @@ test('agent chat model: working selection drops incomplete/orphan packets and re
     history.at(-1)!,
   ];
   const selectedSchema = workingMessages(schemaHistory.map(toPiMessage));
-  assert.deepEqual(selectedSchema, schemaHistory.map(toPiMessage), 'latest complete schema stays paired across a new user intent');
+  assert.equal(selectedSchema.some(message => message.role === 'toolResult' && message.toolCallId === 'schema-old'), false, 'old giant schema is optional after a new intent');
+  assert.equal(selectedSchema.some(message => message.role === 'assistant'), false, 'old schema call and receipt are omitted together');
+  assert.equal(selectedSchema.at(-1)?.content, history.at(-1)!.content);
 });
 test('agent chat model: Pi streams native calls, executes tools and feeds receipts to the configured endpoint', async () => {
   const bodies: any[] = [];

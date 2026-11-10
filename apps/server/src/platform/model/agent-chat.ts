@@ -232,10 +232,9 @@ export function workingMessages(messages: AgentMessage[]): AgentMessage[] {
     selected.add(index);
   }
   for (const packet of packets) if (packet.index >= currentStart) selected.add(packet.index);
-  // The latest complete schema is reusable across user turns. Keep its original
-  // protocol packet too, rather than forcing the next intent to guess or reread.
-  const schemaPacket = packets.findLast(packet => packet.items.some(item => item.role === 'toolResult' && item.toolName === 'get_world_schema'));
-  if (schemaPacket) selected.add(schemaPacket.index);
+  // A new author intent retires prior discovery to optional whole-packet history.
+  // Do not pin an old giant schema forever: it can be reread with the schema tool.
+  // Current-intent receipts (including confirmation continuations) stay exact above.
   const selectedItems = () => packets.filter(packet => selected.has(packet.index)).flatMap(packet => packet.items);
   if (byteSize(selectedItems()) > CHAT_WORKING_BYTES - 1024)
     throw new AppError('CHAT_CONTEXT_BUDGET', '当前必需工具调用与完整回执超过硬预算，请拆分当前步骤；未请求模型继续，完整历史与操作回执已保留', 422);
