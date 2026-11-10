@@ -97,14 +97,14 @@ test('irrelevant known facts, same-location moves, and duplicate ledger sources 
   assert.equal(report.evidence?.witnesses[0]?.effectiveSteps, 1);
 
   const duplicate = fixture();
-  duplicate.facts = [...duplicate.facts, {id: 'evidence', label: 'Evidence', description: '', kind: 'evidence', initialValue: false,
+  duplicate.facts = [...duplicate.facts, {id: 'evidence', label: 'Evidence', description: '', kind: 'clue', initialValue: false,
     playerKnown: false, origin: 'adapted', evidence: []}];
   duplicate.ledgerVersion = 1;
   duplicate.actions = [{...duplicate.actions[0]!, id: 'acquire', once: true, effects: [{kind: 'ledger', operation: 'acquire', factId: 'evidence'}]},
     {...duplicate.actions[0]!, id: 'again', effects: [{kind: 'ledger', operation: 'acquire', factId: 'evidence'}]},
     {...duplicate.actions[0]!, id: 'ending', effects: [{kind: 'ending', endingId: 'done'}]}];
-  duplicate.ledgerAssertions = undefined;
   duplicate.actions[0]!.effects = [{kind: 'ledger', operation: 'acquire', factId: 'evidence'}];
+  assert.doesNotThrow(() => worldContentSchema.parse(duplicate));
   const duplicated = await simulateWorld(revision(duplicate), {seeds: 1, strategies: ['random'], routes: false, pacing: false, now: NOW,
     evidence: {runs: 1, seed: 11, maxSteps: 10}});
   assert.equal(duplicated.evidence?.witnesses[0]?.effectiveSteps, 2);

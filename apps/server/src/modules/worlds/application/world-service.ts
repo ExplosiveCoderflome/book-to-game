@@ -6,7 +6,7 @@ import { AppError } from '../../../shared/errors.js';
 import { validateWorld } from '../domain/validate-world.js';
 import type { SourceReader, WorldRepository } from './ports.js';
 import { readAuthorValue } from '../../../shared/author-read.js';
-import {assertWorldPreservation, extendPreservationBaseline, makePreservationBaseline, type PreservationBaseline} from './check-world-preservation.js';
+import {assertWorldPreservation, extendPreservationBaseline, makePreservationBaseline, normalizePreservationBaseline, repairDanglingMoveBaseline, type PreservationBaseline} from './check-world-preservation.js';
 export class WorldService {
   constructor(
     private readonly repository: WorldRepository,
@@ -35,8 +35,20 @@ export class WorldService {
     const parsed = worldContentSchema.parse(input.content);
     // Provenance is sticky: an edit cannot launder a mock draft by dropping or rewriting the stamp.
     const content = previous.content.provenance ? {...parsed, provenance: previous.content.provenance} : parsed;
-    const baseline = this.getOrCapturePreservationBaseline(previous);
-    assertWorldPreservation(baseline, content);
+    let baseline = normalizePreservationBaseline(this.getOrCapturePreservationBaseline(previous), previous.content);
+    const previousLocations = new Set(previous.content.locations.map(location => location.id));
+    const editsDanglingMove = previous.content.actions.some((action, index) => action.effects.some((effect, effectIndex) =>
+      effect.kind === 'move' && !previousLocations.has(effect.locationId)
+      && canonicalJson(effect) !== canonicalJson(content.actions[index]?.effects[effectIndex])));
+    if (editsDanglingMove) {
+      const repaired = repairDanglingMoveBaseline(baseline, previous.content, content);
+      if (!repaired) throw new AppError('WORLD_PRESERVATION_REQUIRED', '悬空移动仅允许同位置、同种类的单一目标引用修复。', 409);
+      const validation = validateWorld(content, this.sourceReader.get(previous.sourceId), {buildingAssetIds: this.buildingAssetIds()});
+      if (!validation.valid) throw new AppError('INVALID_WORLD', '引用修复未通过完整世界规则校验', 400, validation);
+      assertWorldPreservation(repaired, content);
+      baseline = repaired;
+    }
+    else assertWorldPreservation(baseline, content);
     const upgraded = previous.qualityContractVersion === undefined && usesQualityComposition(content) ? 1 : previous.qualityContractVersion;
     const draft: WorldDraft = {...previous, content, ...(upgraded === undefined ? {} : {qualityContractVersion: upgraded}), version: input.version + 1, updatedAt: new Date().toISOString()};
     this.repository.updateDraft(draft, input.version, extendPreservationBaseline(baseline, makePreservationBaseline(draft.id, draft.version, content)));
@@ -153,7 +165,8 @@ export class WorldService {
   }
   getPreservationBaseline(id: string): PreservationBaseline | undefined {return this.repository.getPreservationBaseline(id);}
   private getOrCapturePreservationBaseline(draft: WorldDraft): PreservationBaseline {
-    return this.repository.capturePreservationBaseline(draft.id, makePreservationBaseline(draft.id, draft.version, draft.content));
+    // An uncaptured legacy draft is captured only by the successful update CAS.
+    return this.getPreservationBaseline(draft.id) ?? makePreservationBaseline(draft.id, draft.version, draft.content);
   }
   list(): WorldDraft[] {return this.repository.listDrafts();}
   read(id: string, input: Partial<AuthorReadInput> = {}) {
@@ -191,8 +204,9 @@ export class WorldService {
       {lint: {errors: lint.errors, warnings: lint.warnings, issues: lint.issues.filter(issue => issue.severity === 'error').slice(0, 20)}});
   }
   private assertMinimumPlaytest(draft: WorldDraft): void {
+    if (draft.qualityContractVersion === 1) return;
     const playtest = this.policy.playtest?.(draft.id);
-    const tooShort = playtest?.checks.find(check => check.id === 'minimum-run-length' && !check.pass);
+    const tooShort = playtest?.checks?.find(check => check.id === 'minimum-run-length' && !check.pass);
     if (playtest?.draftVersion === draft.version && tooShort)
       throw new AppError('PLAYTEST_BLOCKED', `快速试玩未通过最低局长门禁：${tooShort.measured}`, 422, {playtest});
   }

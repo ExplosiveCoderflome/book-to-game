@@ -57,7 +57,10 @@ test('world drafts permit incomplete references but refuse publishing them', () 
     assert.equal(worlds.list().length, 1); assert.equal(worlds.validate(draft.id).valid, false);
     assert.throws(() => worlds.publish(draft.id, {version: 1}), status(400));
     assert.equal(worlds.listRevisions().length, 0);
-    worlds.update(draft.id, {version: 1, content: content()});
+    assert.throws(() => worlds.update(draft.id, {version: 1, content: content()}),
+      (error: unknown) => error instanceof AppError && error.code === 'WORLD_PRESERVATION_REQUIRED');
+    const repaired = structuredClone(world); repaired.actions[0]!.effects = [{kind: 'move', locationId: 'market'}];
+    assert.equal(worlds.update(draft.id, {version: 1, content: repaired}).version, 2);
     assert.equal(worlds.validate(draft.id).valid, true);
     assert.throws(() => worlds.update(draft.id, {version: 1, content: content()}), status(409));
   } finally {db.close();}
@@ -184,25 +187,33 @@ test('archived world drafts leave the list but keep revisions readable', () => {
   } finally {db.close();}
 });
 
-test('all 10 fine-grained world commands execute their normal path with rules validation and CAS versions', () => {
+test('all 10 fine-grained world commands preserve valid gameplay and enforce CAS versions', () => {
   const db = new Database(':memory:'); try {
     const {worlds, run} = commandSetup(db);
     const draft = worlds.create({sourceId: source.id, content: editingContent()});
-    fineCommandNames.forEach((name, index) => {
+    fineCommandNames.forEach(name => {
       const current = worlds.get(draft.id);
+      if (name === 'remove_storylet_condition' || name === 'remove_storylet_effect') {
+        const baseline = worlds.getPreservationBaseline(draft.id);
+        assert.throws(() => run(name, {id: draft.id, ...fineInput(name, current.content, current.version)}),
+          (error: unknown) => error instanceof AppError && error.code === 'WORLD_PRESERVATION_REQUIRED', name);
+        assert.deepEqual(worlds.get(draft.id), current);
+        assert.deepEqual(worlds.getPreservationBaseline(draft.id), baseline);
+        return;
+      }
       const updated = run(name, {id: draft.id, ...fineInput(name, current.content, current.version)});
-      assert.equal(updated.version, index + 2, name);
+      assert.equal(updated.version, current.version + 1, name);
       assert.equal(worlds.validate(draft.id).valid, true, `${name}: ${worlds.validate(draft.id).errors.join(';')}`);
     });
     const result = worlds.get(draft.id);
-    assert.equal(result.version, 11);
+    assert.equal(result.version, 9);
     assert.equal(result.content.locations.find(location => location.id === 'attic')?.title, '阁楼');
     assert.equal(result.content.locations.find(location => location.id === 'dock')?.title, '新渡口');
     assert.equal(result.content.storylets?.some(storylet => storylet.id === 'extra'), true);
     const card = result.content.storylets?.find(storylet => storylet.id === 'card');
     assert.equal(card?.title, '修改后的卡');
-    assert.deepEqual(card?.when, [{kind: 'fact', factId: 'permit', value: true}]);
-    assert.deepEqual(card?.choices[0]?.effects, [{kind: 'reveal', factId: 'noticed'}]);
+    assert.deepEqual(card?.when, [{kind: 'known', factId: 'secret'}, {kind: 'fact', factId: 'permit', value: true}]);
+    assert.deepEqual(card?.choices[0]?.effects, [{kind: 'set', factId: 'bell', value: true}, {kind: 'reveal', factId: 'noticed'}]);
     assert.deepEqual(result.content.resourceDefs?.spirit, {label: '灵力', min: 0, max: 20, initial: 2});
     assert.deepEqual(result.content.resourceDefs?.qi, {label: '真气', min: 0, max: 20, initial: 2});
   } finally {db.close();}

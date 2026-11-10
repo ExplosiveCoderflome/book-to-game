@@ -5,6 +5,8 @@ import {AppError} from '../../../shared/errors.js';
 import type {WorldService} from './world-service.js';
 
 export interface PreservationBaseline {
+  /** Unmarked baselines use the legacy title-bearing storylet route signature. */
+  formatVersion?: 2;
   draftId: string;
   version: number;
   hash: string;
@@ -52,19 +54,76 @@ export function makePreservationBaseline(draftId: string, version: number, conte
     entityIds.endConditions = [...content.endConditions.win, ...content.endConditions.lose].map(item => item.id).sort();
     for (const item of [...content.endConditions.win, ...content.endConditions.lose]) add(`endConditions:${item.id}`, item.when);
   }
-  return {draftId, version, hash: hash(content), anchors, anchorLengths, entityIds, gameplay, capturedAt: new Date().toISOString()};
+  return {formatVersion: 2, draftId, version, hash: hash(content), anchors, anchorLengths, entityIds, gameplay, capturedAt: new Date().toISOString()};
+}
+
+/** Pure conversion: persistence happens only with the content CAS transaction. */
+export function normalizePreservationBaseline(baseline: PreservationBaseline, previous: WorldContent): PreservationBaseline {
+  if (!isSupportedBaseline(baseline)) throw unsupportedBaseline(baseline);
+  if (baseline.formatVersion === 2) return baseline;
+  const gameplay = {...baseline.gameplay};
+  for (const [key, value] of Object.entries(gameplay)) {
+    if (!key.startsWith('storylets:')) continue;
+    const cards = (previous.storylets ?? []).filter(card => `storylets:${card.id}` === key);
+    if (cards.length !== 1) throw unsupportedBaseline(baseline);
+    const card = cards[0]!;
+    const signatures = parseGameplaySignatures(value)!;
+    const legacy = gameplayShape('storylets', card, true);
+    // Every historical item must still correspond; never discard unmatched history.
+    if (!signatures.every(item => legacy.includes(item)) || !legacy.every(item => signatures.includes(item))) throw unsupportedBaseline(baseline);
+    const oldRoute = storyletRouteSignature(card, true), newRoute = storyletRouteSignature(card, false);
+    if (signatures.filter(item => item === oldRoute).length !== 1) throw unsupportedBaseline(baseline);
+    gameplay[key] = JSON.stringify(signatures.map(item => item === oldRoute ? newRoute : item).sort());
+  }
+  const converted: PreservationBaseline = {...baseline, formatVersion: 2, gameplay};
+  assertWorldPreservation(converted, previous);
+  return {...converted, hash: hash({entityIds: converted.entityIds, anchors: converted.anchors, anchorLengths: converted.anchorLengths, gameplay})};
+}
+
+/** Only one top-level action move leaf may change; all other content stays exact. */
+export function repairDanglingMoveBaseline(baseline: PreservationBaseline, previous: WorldContent, content: WorldContent): PreservationBaseline | undefined {
+  const locations = new Set(previous.locations.map(item => item.id));
+  if (locations.size !== previous.locations.length || new Set(previous.actions.map(item => item.id)).size !== previous.actions.length) return undefined;
+  if (previous.actions.length !== content.actions.length) return undefined;
+  const restored = structuredClone(content);
+  let repaired: {key: string; before: string; after: string} | undefined;
+  for (let index = 0; index < previous.actions.length; index++) {
+    const oldAction = previous.actions[index]!, action = restored.actions[index]!;
+    if (oldAction.id !== action.id || oldAction.effects.length !== action.effects.length) return undefined;
+    for (let effectIndex = 0; effectIndex < oldAction.effects.length; effectIndex++) {
+      const before = oldAction.effects[effectIndex]!, after = action.effects[effectIndex]!;
+      if (canonicalJson(before) === canonicalJson(after)) continue;
+      if (repaired || before.kind !== 'move' || after.kind !== 'move' || locations.has(before.locationId) || !locations.has(after.locationId)
+        || canonicalJson({...after, locationId: before.locationId}) !== canonicalJson(before)) return undefined;
+      repaired = {key: `actions:${oldAction.id}`, before: hash(normalizeGameplayStructure(effectShape(before))), after: hash(normalizeGameplayStructure(effectShape(after)))};
+      action.effects[effectIndex] = structuredClone(before);
+    }
+  }
+  if (!repaired || canonicalJson(restored) !== canonicalJson(previous)) return undefined;
+  const signatures = parseGameplaySignatures(baseline.gameplay[repaired.key] ?? '');
+  const oldAction = previous.actions.find(item => `actions:${item.id}` === repaired.key)!;
+  const currentSignatures = gameplayShape('actions', oldAction);
+  if (!signatures || signatures.filter(item => item === repaired.before).length !== 1
+    || currentSignatures.filter(item => item === repaired.before).length !== 1
+    || !signatures.every(item => currentSignatures.includes(item)) || !currentSignatures.every(item => signatures.includes(item))) return undefined;
+  const gameplay = {...baseline.gameplay, [repaired.key]: JSON.stringify(signatures.map(item => item === repaired.before ? repaired.after : item).sort())};
+  return {...baseline, gameplay};
 }
 
 export function checkWorldPreservation(worlds: WorldService, input: {worldId: string; expectedVersion: number}) {
   const draft = worlds.get(input.worldId);
   if (draft.version !== input.expectedVersion) throw new AppError('DRAFT_VERSION_CONFLICT', '草稿已更新，请刷新后检查', 409);
-  const baseline = worlds.getPreservationBaseline(draft.id);
+  let baseline = worlds.getPreservationBaseline(draft.id);
   if (!baseline) return {worldId: draft.id, expectedVersion: draft.version, baselineEstablished: false as const,
     currentHash: hash(draft.content), differences: {removed: [], removedGameplay: [], removedAnchors: [], changedAnchors: []},
     status: 'unsupported' as const, findings: [{code: 'baseline-unavailable', severity: 'unsupported' as const,
       message: '没有服务端历史基线，无法判断既有内容是否被破坏。'}],
     note: '旧草稿将在首次有效编辑事务中由服务器安全捕获基线；当前版本尚无历史锚点，不能作历史保留判断。'};
-  const supported = isSupportedBaseline(baseline);
+  let supported = isSupportedBaseline(baseline);
+  if (supported) {
+    try { baseline = normalizePreservationBaseline(baseline, draft.content); }
+    catch { supported = false; }
+  }
   const differences = supported ? comparePreservation(baseline, makePreservationBaseline(draft.id, draft.version, draft.content))
     : {removed: [], removedGameplay: [], removedGameplayItems: [], removedAnchors: [], changedAnchors: [], textComparison: 'unsupported', structuralComparison: 'unsupported'};
   const unsupportedBaseline = !supported;
@@ -144,20 +203,22 @@ function findText(content: WorldContent, key: string): string | undefined {
     if (kind === 'passage') return item.passages?.find(value => value.id === sub)?.text; }
   return undefined;
 }
-function gameplayShape(group: 'actions' | 'storylets', item: WorldContent['actions'][number] | NonNullable<WorldContent['storylets']>[number]): string[] {
+function gameplayShape(group: 'actions' | 'storylets', item: WorldContent['actions'][number] | NonNullable<WorldContent['storylets']>[number], legacyTitle = false): string[] {
   const signature = (value: unknown): string => hash(normalizeGameplayStructure(value));
-  const itemRecord = item as unknown as Record<string, unknown>;
   if (group === 'actions') {
     const action = item as WorldContent['actions'][number];
     const {text: _text, description: _description, effects, ...rules} = action;
     return [signature(rules), ...effects.map(effect => signature(effectShape(effect)))].sort();
   }
   const card = item as NonNullable<WorldContent['storylets']>[number];
-  const {weight: _weight, choices: _choices, text: _text, textVariants: _textVariants, textCases: _textCases, when, ...route} = itemRecord;
-  return [signature(route), ...(Array.isArray(when) ? when.map(signature) : []), ...card.choices.flatMap(choice => [
+  return [storyletRouteSignature(card, legacyTitle), ...(card.when ?? []).map(signature), ...card.choices.flatMap(choice => [
     signature({choiceId: choice.id, requires: choice.requires, availableWhen: choice.availableWhen}),
     ...choice.effects.map(effect => signature({choiceId: choice.id, effect: effectShape(effect)})),
   ])].sort();
+}
+function storyletRouteSignature(card: NonNullable<WorldContent['storylets']>[number], legacyTitle: boolean): string {
+  const {weight: _weight, choices: _choices, text: _text, textVariants: _variants, textCases: _cases, when: _when, title, ...route} = card;
+  return hash(normalizeGameplayStructure(legacyTitle ? {...route, title} : route));
 }
 function preservesGameplay(before: string, after: string | undefined): boolean {
   if (!after) return false;
@@ -167,7 +228,11 @@ function preservesGameplay(before: string, after: string | undefined): boolean {
 function parseGameplaySignatures(value: string): string[] | undefined { try { const result = JSON.parse(value) as unknown; return Array.isArray(result) && result.every(item => typeof item === 'string') ? result : undefined; } catch { return undefined; } }
 function isSupportedBaseline(value: PreservationBaseline): boolean {
   if (!value || !value.gameplay || !value.anchorLengths || !value.entityIds || !value.anchors) return false;
+  if (value.formatVersion !== undefined && value.formatVersion !== 2) return false;
   return Object.values(value.gameplay).every(signature => parseGameplaySignatures(signature) !== undefined);
+}
+function unsupportedBaseline(baseline: PreservationBaseline): AppError {
+  return new AppError('WORLD_PRESERVATION_REQUIRED', '历史基线无法与当前旧实体精确对应，已拒绝编辑。', 409, {baselineVersion: baseline.version, unsupported: true});
 }
 function extendGameplaySignatures(previous: string, current: string): string {
   const oldItems = parseGameplaySignatures(previous) ?? [], newItems = parseGameplaySignatures(current) ?? [];

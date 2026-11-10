@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
+import {createHash} from 'node:crypto';
 import {WorldService, SqliteWorldRepository, checkWorldPreservation} from '../src/modules/worlds/index.js';
 import {openDatabase} from '../src/platform/database.js';
 import {AppError} from '../src/shared/errors.js';
 import {content, source} from './helpers/open-fixture.js';
+import {canonicalJson} from '../src/shared/canonical-json.js';
 
 test('preservation baseline blocks deletion and large anchor compression atomically, while allowing additions and small edits', () => {
   const db = openDatabase(':memory:');
@@ -13,7 +15,7 @@ test('preservation baseline blocks deletion and large anchor compression atomica
     initial.locations[0]!.text = '旧地点正文'.repeat(80);
     const draft = worlds.create({sourceId: source.id, content: initial});
     const old = initial.locations[0]!.text;
-    assert.equal(checkWorldPreservation(worlds, {worldId: draft.id, expectedVersion: 1}).baselineEstablished, false);
+    assert.equal(checkWorldPreservation(worlds, {worldId: draft.id, expectedVersion: 1}).baselineEstablished, true);
     const withoutAction = structuredClone(initial); withoutAction.actions = withoutAction.actions.filter(item => item.id !== 'wait');
     assert.throws(() => worlds.applyContent(draft.id, {version: 1, content: withoutAction}),
       (error: unknown) => error instanceof AppError && error.code === 'WORLD_PRESERVATION_REQUIRED');
@@ -80,9 +82,10 @@ test('preservation blocks action-rule edits, short body deletion, location varia
       (error: unknown) => error instanceof AppError && error.code === 'WORLD_PRESERVATION_REQUIRED');
 
     const staleDraft = worlds.create({sourceId: source.id, content: initial});
+    const staleBaseline = worlds.getPreservationBaseline(staleDraft.id);
     assert.throws(() => worlds.update(staleDraft.id, {version: 9, content: initial}),
       (error: unknown) => error instanceof AppError && error.code === 'DRAFT_VERSION_CONFLICT');
-    assert.equal(worlds.getPreservationBaseline(staleDraft.id), undefined, 'stale update must not capture the baseline');
+    assert.deepEqual(worlds.getPreservationBaseline(staleDraft.id), staleBaseline, 'stale update must not change the creation baseline');
   } finally {db.close();}
 });
 
@@ -224,5 +227,235 @@ test('legacy baseline with missing fields or non-JSON gameplay signature is unsu
     const malformed = {...baseline, gameplay: {...baseline.gameplay, 'storylets:legacy': 'old-hash-format'}};
     db.prepare('UPDATE world_preservation_baselines SET data=? WHERE draft_id=?').run(JSON.stringify(malformed), draft.id);
     assert.equal(checkWorldPreservation(worlds, {worldId: draft.id, expectedVersion: 2}).status, 'unsupported');
+  } finally {db.close();}
+});
+
+const preservationRequired = (error: unknown) => error instanceof AppError && error.code === 'WORLD_PRESERVATION_REQUIRED';
+function titledContent() {
+  const initial = content();
+  initial.storylets = [{id: 'card', title: '原题', text: '原正文', locationIds: ['market'], when: [{kind: 'known', factId: 'secret'}],
+    choices: [{id: 'go', label: '继续', timeCost: 1, text: '原结果', effects: [{kind: 'set', factId: 'bell', value: true}]}]}];
+  return initial;
+}
+function routeHash(value: unknown) { return createHash('sha256').update(canonicalJson(value)).digest('hex'); }
+
+test('storylet title-only polish preserves gameplay across successive updates without accumulating title signatures', () => {
+  const db = openDatabase(':memory:');
+  try {
+    const worlds = new WorldService(new SqliteWorldRepository(db), {get: () => structuredClone(source)});
+    const draft = worlds.create({sourceId: source.id, content: titledContent()});
+    const baseline = worlds.getPreservationBaseline(draft.id)!;
+    for (const version of [1, 2]) {
+      const edited = structuredClone(worlds.get(draft.id).content);
+      edited.storylets![0]!.title = `新题${version}`;
+      worlds.update(draft.id, {version, content: edited});
+      assert.equal(checkWorldPreservation(worlds, {worldId: draft.id, expectedVersion: version + 1}).status, 'pass');
+      assert.deepEqual(worlds.getPreservationBaseline(draft.id)!.gameplay, baseline.gameplay);
+      assert.deepEqual(worlds.getPreservationBaseline(draft.id)!.anchors, baseline.anchors);
+    }
+    const changed = structuredClone(worlds.get(draft.id).content);
+    changed.storylets![0]!.locationIds = ['gate'];
+    assert.throws(() => worlds.update(draft.id, {version: 3, content: changed}), preservationRequired);
+  } finally {db.close();}
+});
+
+test('legacy title signatures convert only with exact correspondence and preserve all other historical protections', () => {
+  const db = openDatabase(':memory:');
+  try {
+    const worlds = new WorldService(new SqliteWorldRepository(db), {get: () => structuredClone(source)});
+    const draft = worlds.create({sourceId: source.id, content: titledContent()});
+    const expanded = structuredClone(draft.content);
+    expanded.locations[0]!.text += ' 曾经补充';
+    expanded.actions.push({...expanded.actions[0]!, id: 'historical-action'});
+    worlds.update(draft.id, {version: 1, content: expanded});
+    const baseline = worlds.getPreservationBaseline(draft.id)!;
+    const {formatVersion: _format, ...legacy} = structuredClone(baseline);
+    const {title, text: _text, when: _when, choices: _choices, ...route} = expanded.storylets![0]!;
+    const newRoute = routeHash(route), oldRoute = routeHash({...route, title});
+    const signatures = JSON.parse(legacy.gameplay['storylets:card']!) as string[];
+    assert.ok(signatures.includes(newRoute));
+    legacy.gameplay['storylets:card'] = JSON.stringify(signatures.map(item => item === newRoute ? oldRoute : item).sort());
+    const install = (value: unknown) => db.prepare('UPDATE world_preservation_baselines SET data=? WHERE draft_id=?').run(JSON.stringify(value), draft.id);
+    install(legacy);
+    const stored = worlds.getPreservationBaseline(draft.id);
+    assert.equal(checkWorldPreservation(worlds, {worldId: draft.id, expectedVersion: 2}).status, 'pass');
+    assert.deepEqual(worlds.getPreservationBaseline(draft.id), stored, 'checker conversion is read-only');
+    const edited = structuredClone(expanded); edited.storylets![0]!.title = '新题';
+    for (const broken of [
+      {...legacy, formatVersion: 99},
+      {...legacy, gameplay: {...legacy.gameplay, 'storylets:card': JSON.stringify(signatures)}},
+      {...legacy, gameplay: {...legacy.gameplay, 'storylets:card': JSON.stringify([...JSON.parse(legacy.gameplay['storylets:card']!), 'unmatched-history'])}},
+    ]) {
+      install(broken);
+      assert.throws(() => worlds.update(draft.id, {version: 2, content: edited}), preservationRequired);
+      assert.equal(checkWorldPreservation(worlds, {worldId: draft.id, expectedVersion: 2}).status, 'unsupported');
+      assert.deepEqual(worlds.getPreservationBaseline(draft.id), broken);
+      assert.equal(worlds.get(draft.id).version, 2);
+    }
+    install(legacy);
+    worlds.update(draft.id, {version: 2, content: edited});
+    const converted = worlds.getPreservationBaseline(draft.id)!;
+    assert.equal(converted.formatVersion, 2);
+    assert.deepEqual(converted.gameplay, baseline.gameplay);
+    assert.deepEqual(converted.anchors, baseline.anchors);
+    assert.deepEqual(converted.anchorLengths, baseline.anchorLengths);
+    assert.deepEqual(converted.entityIds, baseline.entityIds);
+    assert.equal(converted.capturedAt, baseline.capturedAt);
+    const removed = structuredClone(edited); removed.actions.pop();
+    assert.throws(() => worlds.update(draft.id, {version: 3, content: removed}), preservationRequired);
+    assert.equal(checkWorldPreservation(worlds, {worldId: draft.id, expectedVersion: 3}).status, 'pass');
+  } finally {db.close();}
+});
+
+test('dangling move repair changes one exact reference, keeps history and protects the repaired target', () => {
+  const db = openDatabase(':memory:');
+  try {
+    const worlds = new WorldService(new SqliteWorldRepository(db), {get: () => structuredClone(source)});
+    const initial = titledContent(); initial.actions[0]!.effects = [{kind: 'move', locationId: 'absent'}];
+    const draft = worlds.create({sourceId: source.id, content: initial});
+    const baseline = worlds.getPreservationBaseline(draft.id)!;
+    const repaired = structuredClone(draft.content); repaired.actions[0]!.effects[0] = {kind: 'move', locationId: 'market'};
+    const updated = worlds.update(draft.id, {version: 1, content: repaired});
+    assert.deepEqual(updated.content, repaired);
+    assert.equal(worlds.validate(draft.id).valid, true);
+    const nextBaseline = worlds.getPreservationBaseline(draft.id)!;
+    assert.deepEqual(nextBaseline.anchors, baseline.anchors);
+    assert.deepEqual(nextBaseline.anchorLengths, baseline.anchorLengths);
+    assert.deepEqual(nextBaseline.entityIds, baseline.entityIds);
+    for (const key of Object.keys(baseline.gameplay).filter(key => key !== 'actions:wait')) assert.equal(nextBaseline.gameplay[key], baseline.gameplay[key]);
+    assert.equal(checkWorldPreservation(worlds, {worldId: draft.id, expectedVersion: 2}).status, 'pass');
+    assert.throws(() => worlds.update(draft.id, {version: 1, content: repaired}), (error: unknown) => error instanceof AppError && error.code === 'DRAFT_VERSION_CONFLICT');
+    assert.deepEqual(worlds.getPreservationBaseline(draft.id), nextBaseline);
+    const polished = structuredClone(repaired); polished.storylets![0]!.title = '修复后润色';
+    worlds.update(draft.id, {version: 2, content: polished});
+    for (const effects of [[{kind: 'move' as const, locationId: 'gate'}], [{kind: 'set' as const, factId: 'bell', value: false}]]) {
+      const removed = structuredClone(polished); removed.actions[0]!.effects = effects;
+      assert.throws(() => worlds.update(draft.id, {version: 3, content: removed}), preservationRequired);
+    }
+    const deleted = structuredClone(polished); deleted.actions[0]!.effects = [];
+    assert.throws(() => worlds.update(draft.id, {version: 3, content: deleted}), 'schema also blocks deleting the only action effect');
+    assert.equal(checkWorldPreservation(worlds, {worldId: draft.id, expectedVersion: 3}).status, 'pass');
+  } finally {db.close();}
+});
+
+test('dangling repair refuses cross-kind, extra edits, new targets, reordered effects and incomplete candidates atomically', () => {
+  const db = openDatabase(':memory:');
+  try {
+    const worlds = new WorldService(new SqliteWorldRepository(db), {get: () => structuredClone(source)});
+    const initial = titledContent(); initial.actions[0]!.effects = [{kind: 'move', locationId: 'absent'}, {kind: 'set', factId: 'bell', value: false}];
+    const draft = worlds.create({sourceId: source.id, content: initial});
+    const baseline = worlds.getPreservationBaseline(draft.id)!;
+    const repaired = structuredClone(draft.content); repaired.actions[0]!.effects[0] = {kind: 'move', locationId: 'market'};
+    const crossKind = structuredClone(draft.content); crossKind.actions[0]!.effects[0] = {kind: 'set', factId: 'bell', value: false};
+    const title = structuredClone(repaired); title.storylets![0]!.title = '顺带改题';
+    const condition = structuredClone(repaired); condition.storylets![0]!.when = [];
+    const effect = structuredClone(repaired); effect.actions[0]!.effects.pop();
+    const body = structuredClone(repaired); body.actions[0]!.text += '顺带改正文';
+    const reordered = structuredClone(repaired); reordered.actions[0]!.effects.reverse();
+    const newTarget = structuredClone(repaired); newTarget.locations.push({...newTarget.locations[0]!, id: 'new-target'}); newTarget.actions[0]!.effects[0] = {kind: 'move', locationId: 'new-target'};
+    for (const candidate of [crossKind, title, condition, effect, body, reordered, newTarget]) {
+      assert.throws(() => worlds.update(draft.id, {version: 1, content: candidate}), preservationRequired);
+      assert.deepEqual(worlds.get(draft.id), draft);
+      assert.deepEqual(worlds.getPreservationBaseline(draft.id), baseline);
+    }
+    // Fixing the move alone must not hide a second pre-existing validation error.
+    const invalid = structuredClone(initial); invalid.sourceChapterIds = ['absent'];
+    const invalidDraft = worlds.create({sourceId: source.id, content: invalid});
+    const invalidBaseline = worlds.getPreservationBaseline(invalidDraft.id);
+    invalid.actions[0]!.effects[0] = {kind: 'move', locationId: 'market'};
+    assert.throws(() => worlds.update(invalidDraft.id, {version: 1, content: invalid}), (error: unknown) => error instanceof AppError && error.code === 'INVALID_WORLD');
+    assert.deepEqual(worlds.get(invalidDraft.id), invalidDraft);
+    assert.deepEqual(worlds.getPreservationBaseline(invalidDraft.id), invalidBaseline);
+  } finally {db.close();}
+});
+
+test('dangling repair refuses ambiguous IDs and unverified baseline substitutions', () => {
+  const db = openDatabase(':memory:');
+  try {
+    const worlds = new WorldService(new SqliteWorldRepository(db), {get: () => structuredClone(source)});
+    for (const ambiguity of ['location', 'action', 'effect', 'baseline'] as const) {
+      const initial = content(); initial.actions[0]!.effects = [{kind: 'move', locationId: 'absent'}];
+      if (ambiguity === 'location') initial.locations.push({...initial.locations[0]!});
+      if (ambiguity === 'action') initial.actions.push({...initial.actions[0]!});
+      if (ambiguity === 'effect') initial.actions[0]!.effects.push({kind: 'move', locationId: 'absent'});
+      const draft = worlds.create({sourceId: source.id, content: initial});
+      if (ambiguity === 'baseline') {
+        const baseline = worlds.getPreservationBaseline(draft.id)!;
+        baseline.gameplay['actions:wait'] = JSON.stringify(['unmatched-history']);
+        db.prepare('UPDATE world_preservation_baselines SET data=? WHERE draft_id=?').run(JSON.stringify(baseline), draft.id);
+      }
+      const baseline = worlds.getPreservationBaseline(draft.id);
+      const repaired = structuredClone(draft.content); repaired.actions[0]!.effects[0] = {kind: 'move', locationId: 'market'};
+      assert.throws(() => worlds.update(draft.id, {version: 1, content: repaired}), preservationRequired, ambiguity);
+      assert.deepEqual(worlds.get(draft.id), draft);
+      assert.deepEqual(worlds.getPreservationBaseline(draft.id), baseline);
+    }
+  } finally {db.close();}
+});
+
+test('valid move targets cannot be manufactured as missing by deleting a protected location', () => {
+  const db = openDatabase(':memory:');
+  try {
+    const worlds = new WorldService(new SqliteWorldRepository(db), {get: () => structuredClone(source)});
+    const initial = content(); initial.locations.push({...initial.locations[0]!, id: 'extra-location'});
+    const draft = worlds.create({sourceId: source.id, content: initial});
+    const baseline = worlds.getPreservationBaseline(draft.id);
+    const manufactured = structuredClone(draft.content);
+    manufactured.locations = manufactured.locations.filter(location => location.id !== 'market');
+    assert.throws(() => worlds.update(draft.id, {version: 1, content: manufactured}), preservationRequired);
+    manufactured.actions.find(action => action.id === 'to_market')!.effects = [{kind: 'move', locationId: 'gate'}];
+    assert.throws(() => worlds.update(draft.id, {version: 1, content: manufactured}), preservationRequired);
+    assert.deepEqual(worlds.get(draft.id), draft);
+    assert.deepEqual(worlds.getPreservationBaseline(draft.id), baseline);
+  } finally {db.close();}
+});
+
+test('move repair and legacy conversion remain unpersisted when repository CAS loses a race', () => {
+  const db = openDatabase(':memory:');
+  try {
+    const repository = new SqliteWorldRepository(db);
+    const worlds = new WorldService(repository, {get: () => structuredClone(source)});
+    const initial = titledContent(); initial.actions[0]!.effects = [{kind: 'move', locationId: 'absent'}];
+    const draft = worlds.create({sourceId: source.id, content: initial});
+    const baseline = worlds.getPreservationBaseline(draft.id)!;
+    const {formatVersion: _format, ...legacy} = baseline;
+    const {title, text: _text, when: _when, choices: _choices, ...route} = initial.storylets![0]!;
+    legacy.gameplay = {...legacy.gameplay, 'storylets:card': JSON.stringify((JSON.parse(legacy.gameplay['storylets:card']!) as string[])
+      .map(item => item === routeHash(route) ? routeHash({...route, title}) : item).sort())};
+    db.prepare('UPDATE world_preservation_baselines SET data=? WHERE draft_id=?').run(JSON.stringify(legacy), draft.id);
+    const update = repository.updateDraft.bind(repository);
+    let competing = structuredClone(draft);
+    repository.updateDraft = (next, expected, nextBaseline) => {
+      competing = {...draft, version: 2, content: {...draft.content, title: '并发写入'}};
+      update(competing, 1, legacy);
+      update(next, expected, nextBaseline);
+    };
+    const repaired = structuredClone(draft.content); repaired.actions[0]!.effects[0] = {kind: 'move', locationId: 'market'};
+    assert.throws(() => worlds.update(draft.id, {version: 1, content: repaired}), (error: unknown) => error instanceof AppError && error.code === 'DRAFT_VERSION_CONFLICT');
+    assert.deepEqual(worlds.get(draft.id), competing);
+    assert.deepEqual(worlds.getPreservationBaseline(draft.id), legacy);
+  } finally {db.close();}
+});
+
+test('uncaptured legacy drafts capture no baseline on rejected or stale edits', () => {
+  const db = openDatabase(':memory:');
+  try {
+    const repository = new SqliteWorldRepository(db);
+    const worlds = new WorldService(repository, {get: () => structuredClone(source)});
+    const draft = worlds.create({sourceId: source.id, content: content()});
+    db.prepare('DELETE FROM world_preservation_baselines WHERE draft_id=?').run(draft.id);
+    const removed = structuredClone(draft.content); removed.actions.pop();
+    assert.throws(() => worlds.update(draft.id, {version: 1, content: removed}), preservationRequired);
+    assert.equal(worlds.getPreservationBaseline(draft.id), undefined);
+    assert.throws(() => worlds.update(draft.id, {version: 9, content: draft.content}), (error: unknown) => error instanceof AppError && error.code === 'DRAFT_VERSION_CONFLICT');
+    assert.equal(worlds.getPreservationBaseline(draft.id), undefined);
+    const update = repository.updateDraft.bind(repository);
+    repository.updateDraft = (next, expected, baseline) => update(next, expected + 1, baseline);
+    assert.throws(() => worlds.update(draft.id, {version: 1, content: {...draft.content, title: 'CAS 失败'}}), (error: unknown) => error instanceof AppError && error.code === 'DRAFT_VERSION_CONFLICT');
+    assert.equal(worlds.getPreservationBaseline(draft.id), undefined, 'transaction rolls back initial capture as well');
+    assert.deepEqual(worlds.get(draft.id), draft);
+    repository.updateDraft = update;
+    worlds.update(draft.id, {version: 1, content: {...draft.content, title: '安全编辑'}});
+    assert.equal(worlds.getPreservationBaseline(draft.id)?.version, 1);
   } finally {db.close();}
 });
